@@ -8,9 +8,10 @@
  *   deploy (`stg-<...>`, WS3: secret KHÔNG kế thừa giữa named environments);
  * - migrator credential (`_migrator` per-DB) — KHÔNG đi qua đường này, chỉ
  *   sống trong CI secret store của migration lane;
- * - control-plane credential — org secret `ECOMA_CLOUDFLARE_API_TOKEN` dùng
- *   chung duy nhất, map vào `CLOUDFLARE_API_TOKEN` CHỈ trong env của
- *   subprocess wrangler (§6.12: không per-env credential, không alias).
+ * - control-plane credential — cặp org secret theo lane (`ECOMA_CLOUDFLARE_STAGING_*`
+ *   cho lane staging, `ECOMA_CLOUDFLARE_PRODUCTION_*` cho lane production),
+ *   map vào `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` CHỈ trong env
+ *   của subprocess wrangler (§6.12: một lane chỉ đọc cặp của lane mình).
  *
  * Hai hành động, đúng §6 mục 7:
  * - `put` — provision lần đầu: `wrangler secret put` DEPLOY NGAY một version
@@ -34,8 +35,25 @@ import { exec, type ExecResult } from '@ecoma-io/deployment';
 /** Hành động secret: `put` (provision, deploy ngay) | `stage` (xoay, chỉ stage). */
 export type SecretAction = 'put' | 'stage';
 
-/** Control-plane token duy nhất của pipeline (§6.12) — org secret GitHub. */
-export const CONTROL_PLANE_TOKEN_ENV_KEY = 'ECOMA_CLOUDFLARE_API_TOKEN';
+/**
+ * Lane control-plane của pipeline: mỗi environment một cặp credential riêng
+ * (#548 đảo quyết định token dùng chung cũ của §6.12 — blast radius của một
+ * token dùng chung đủ quyền production worker). Tên org secret là literal:
+ * `ACCOUND` là tên thật trên org, không phải lỗi chính tả được sửa.
+ */
+export type ControlPlaneLane = 'staging' | 'production';
+
+/** Tên org secret API token theo lane — env key đọc trực tiếp từ caller. */
+export const CONTROL_PLANE_TOKEN_ENV_KEYS: Record<ControlPlaneLane, string> = {
+  staging: 'ECOMA_CLOUDFLARE_STAGING_API_TOKEN',
+  production: 'ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN',
+};
+
+/** Tên org secret account id theo lane — cặp bất khả tách với token cùng lane. */
+export const CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS: Record<ControlPlaneLane, string> = {
+  staging: 'ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID',
+  production: 'ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID',
+};
 
 /** Deps inject để spec chạy không cần wrangler/config thật. */
 export interface WorkerSecretDeps {
@@ -55,23 +73,37 @@ const defaultDeps: WorkerSecretDeps = {
 };
 
 /**
- * Inventory credential fail-closed (đối xứng `resolveStagingRunEnv` của
- * `deploys/*`): thiếu `ECOMA_CLOUDFLARE_API_TOKEN` là dừng với đúng tên biến
- * — không fallback sang credential nào khác (§6.12 cấm alias/per-env token).
+ * Inventory credential fail-closed theo lane (đối xứng `resolveStagingRunEnv`
+ * của `deploys/*`): thiếu token hoặc account id của lane là dừng với đúng tên
+ * org secret — không fallback sang credential nào khác, và một lane KHÔNG
+ * BAO GIỜ đọc cặp của lane khác (§6.12: per-environment credential pairs).
  * Env trả về là danh sách TỐI THIỂU cho subprocess wrangler: token chỉ tồn
- * tại dưới tên `CLOUDFLARE_API_TOKEN` trong env của process này. Token KHÔNG
- * được trả ra ngoài — giá trị nhạy cảm không rời hàm này ngoài env của
- * subprocess (tránh lan truyền giá trị nhạy cảm qua return value).
+ * tại dưới tên `CLOUDFLARE_API_TOKEN` và account id dưới tên
+ * `CLOUDFLARE_ACCOUNT_ID` trong env của process này. Giá trị nhạy cảm KHÔNG
+ * được trả ra ngoài — không rời hàm này ngoài env của subprocess (tránh lan
+ * truyền giá trị nhạy cảm qua return value).
  */
-export function resolveSecretRunEnv(source: NodeJS.ProcessEnv = process.env): {
+export function resolveSecretRunEnv(
+  lane: ControlPlaneLane,
+  source: NodeJS.ProcessEnv = process.env,
+): {
   env: NodeJS.ProcessEnv;
 } {
-  const token = source[CONTROL_PLANE_TOKEN_ENV_KEY];
+  const tokenKey = CONTROL_PLANE_TOKEN_ENV_KEYS[lane];
+  const token = source[tokenKey];
   if (token === undefined || token.trim().length === 0) {
     throw new Error(
-      `${CONTROL_PLANE_TOKEN_ENV_KEY} is not set — provision the shared org secret per ` +
+      `${tokenKey} is not set — provision the ${lane} org secret pair per ` +
         'docs/architecture/staging-prerequisites.md; refusing to run wrangler with any ' +
-        'other credential source (§6.12: one shared token, no per-env credentials)',
+        'other credential source (§6.12: per-environment credential pairs, no shared token)',
+    );
+  }
+  const accountKey = CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS[lane];
+  const accountId = source[accountKey];
+  if (accountId === undefined || accountId.trim().length === 0) {
+    throw new Error(
+      `${accountKey} is not set — the ${lane} credential is a pair (API token + account id); ` +
+        'refusing to run wrangler with an incomplete pair (§6.12)',
     );
   }
   const env: NodeJS.ProcessEnv = {
@@ -81,6 +113,7 @@ export function resolveSecretRunEnv(source: NodeJS.ProcessEnv = process.env): {
     HOME: source.HOME ?? process.env.HOME,
     CI: '1',
     CLOUDFLARE_API_TOKEN: token,
+    CLOUDFLARE_ACCOUNT_ID: accountId,
   };
   return { env };
 }
@@ -247,7 +280,7 @@ export function putWorkerSecret(
   if (trimTrailingNewline(value).length === 0) {
     throw new Error('secret value is empty — pipe a non-empty value via stdin');
   }
-  const { env } = resolveSecretRunEnv(sourceEnv);
+  const { env } = resolveSecretRunEnv('staging', sourceEnv);
   // Resolve config path MỘT lần: cwd của wrangler là thư mục chứa config và
   // `--config` là đường tuyệt đối — relative path hoạt động từ mọi thư mục
   // gọi CLI, relative path trong config (schema, assets) cũng không vỡ.

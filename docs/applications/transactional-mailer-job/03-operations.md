@@ -20,7 +20,7 @@ D1 binding          — mail-job (thiếu → job state không ghi được — 
 ```
 
 - Provision D1 trước khi deploy: resource D1 do provisioning hạ tầng tạo và cung cấp `database_id` điền vào `wrangler.jsonc` (`docs/architecture/02-delivery.md` §9.1) — **không** tự tạo D1 bằng `wrangler d1 create`.
-- Migration: call site duy nhất `pnpm nx run transactional-mailer-job:db-migrate` (mode `-c remote` cho làn staging/production với `ECOMA_CLOUDFLARE_API_TOKEN` — cutover #382; D1 migration track → `docs/architecture/02-delivery.md` §3a.4).
+- Migration: call site duy nhất `pnpm nx run transactional-mailer-job:db-migrate` (mode `-c remote` cho làn staging/production với ĐÚNG MỘT cặp credential theo lane trong env — staging: `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`; production: `ECOMA_CLOUDFLARE_PRODUCTION_*` (#548, §6.12) — cutover #382; D1 migration track → `docs/architecture/02-delivery.md` §3a.4).
 - Worker **giữ** provider credential: credential và endpoint là Worker Secret của `transactional-mailer-job` (`MAIL_PROVIDER_TOKEN`, `MAIL_PROVIDER_ENDPOINT`). Control plane **không** giữ, không decrypt, không truyền credential — private interface chỉ trả runtime data.
 - Deployment không yêu cầu downtime của `transactional-mail`; worker version mới phải consume được Mail Command version đang hỗ trợ (`version = 1`). Deploy/rollback Worker version → `docs/architecture/02-delivery.md` §7–8.
   **Configuration** (canonical — control plane chỉ tham chiếu, không giữ):

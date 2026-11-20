@@ -123,7 +123,7 @@ describe('ghProcessEnv', () => {
       HOME: '/home/op',
       GH_TOKEN: 't',
       GH_HOST: 'github.com',
-      ECOMA_CLOUDFLARE_API_TOKEN: 'should-not-leak',
+      ECOMA_CLOUDFLARE_STAGING_API_TOKEN: 'should-not-leak',
     });
     expect(env).toEqual({
       PATH: '/usr/bin',

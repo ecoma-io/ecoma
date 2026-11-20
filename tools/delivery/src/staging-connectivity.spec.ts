@@ -12,7 +12,10 @@ import {
   type VpcServiceDeps,
   type VpcServiceInput,
 } from './staging-connectivity.ts';
-import { CONTROL_PLANE_TOKEN_ENV_KEY } from './worker-secrets.ts';
+import {
+  CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS,
+  CONTROL_PLANE_TOKEN_ENV_KEYS,
+} from './worker-secrets.ts';
 
 const TUNNEL_ID = '5301ca9d-9f0e-4b3c-8f2a-1d6e7b9c0a41';
 const SERVICE_ID = 'b2f4c6a8-1234-4fef-9abc-deadbeef01ab';
@@ -48,7 +51,12 @@ const okDeps = (
   };
 };
 
-const envSource = { PATH: '/usr/bin', HOME: '/home/op', [CONTROL_PLANE_TOKEN_ENV_KEY]: 'cf-token' };
+const envSource = {
+  PATH: '/usr/bin',
+  HOME: '/home/op',
+  [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 'cf-token',
+  [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging]: 'cf-account-id',
+};
 
 describe('validateTunnelId', () => {
   it('accepts a UUID and rejects typos', () => {
@@ -140,6 +148,7 @@ describe('createStagingVpcService', () => {
     expect(call.args[0]).toBe('wrangler');
     expect(call.args.slice(1)).toEqual(buildVpcServiceCreateArgs(validInput()));
     expect(call.env.CLOUDFLARE_API_TOKEN).toBe('cf-token');
+    expect(call.env.CLOUDFLARE_ACCOUNT_ID).toBe('cf-account-id');
     expect(call.env.CI).toBe('1');
     // Token KHÔNG BAO GIỜ nằm trong argv (/proc/<pid>/cmdline đọc được).
     expect(call.args.join(' ')).not.toContain('cf-token');
@@ -153,11 +162,15 @@ describe('createStagingVpcService', () => {
     expect(deps.calls).toEqual([]);
   });
 
-  it('refuses missing control-plane token before wrangler runs', () => {
+  it('refuses missing control-plane credential before wrangler runs', () => {
     const deps = okDeps();
     expect(() => createStagingVpcService(validInput(), {}, deps)).toThrowError(
-      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEY, 'u'),
+      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEYS.staging, 'u'),
     );
+    // Cặp bất khả tách: thiếu account id cũng là từ chối với đúng tên secret.
+    expect(() =>
+      createStagingVpcService(validInput(), { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 't' }, deps),
+    ).toThrowError(new RegExp(CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging, 'u'));
     expect(deps.calls).toEqual([]);
   });
 

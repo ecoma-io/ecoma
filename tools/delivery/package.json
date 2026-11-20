@@ -13,7 +13,7 @@
       "Machinery delivery của issue #351: (1) GitHub Environments `staging-<slug>` cho lane",
       "Continuous Staging — idempotent, fail-closed, qua `gh api` (§6.12/§6.13); (2) pipeline",
       "`wrangler secret put`/`versions secret put` có kiểm soát qua org secret",
-      "`ECOMA_CLOUDFLARE_API_TOKEN` dùng chung, không per-env credential (§6.12).",
+      "cặp org secret theo lane — staging `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`, production `ECOMA_CLOUDFLARE_PRODUCTION_*` — không token dùng chung (#548, §6.12).",
       "Phục vụ toàn bộ pipeline delivery nên `scope:shared`."
     ],
     "tags": [

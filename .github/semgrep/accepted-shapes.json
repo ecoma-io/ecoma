@@ -869,21 +869,21 @@
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/dx/src/workers/worker-config.ts",
-    "start": 894,
-    "end": 894,
-    "reason": "Token accessor của call site D1 migrations (#382, section 3a.4): resolveRemoteApiToken đọc ECOMA_CLOUDFLARE_API_TOKEN từ env của process và trả về cho ĐÚNG MỘT caller applyRemoteD1Migrations, nơi nó được map thành CLOUDFLARE_API_TOKEN CHỈ trong env của subprocess wrangler (section 6.12: không qua argv, không log, tools/dx không có HTTP handler). Cùng lớp token accessor đã accept tại deploys/platform-deploy/platform-env.ts:82. Bằng chứng ghim trong worker-config.spec.ts: token không nằm trong argv, chỉ nằm trong env subprocess, HOME của subprocess cô lập, temp dir bị dọn sau chạy. Re-pin 882->886 bởi fix OCR #511: thêm 4 dòng comment ràng buộc thứ tự extraEnv ở trên (không đổi nội dung dòng pin). Re-pin 886->894: viết lại khối cardinality requireSingleD1DatabaseName phía trên (+8 dòng) - không đổi nội dung dòng pin.",
+    "start": 944,
+    "end": 944,
+    "reason": "Token accessor của call site D1 migrations (#382, section 3a.4): resolveRemoteApiToken đọc cặp org secret THEO LANE (staging: ECOMA_CLOUDFLARE_STAGING_API_TOKEN + ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID; production: ECOMA_CLOUDFLARE_PRODUCTION_* — #548 đảo quyết định token dùng chung §6.12 cũ) từ env của process, yêu cầu ĐÚNG MỘT cặp lane (0 hay 2 token là fail-closed), và trả về cho ĐÚNG MỘT caller applyRemoteD1Migrations, nơi nó được map thành CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID CHỈ trong env của subprocess wrangler (section 6.12: không qua argv, không log, tools/dx không có HTTP handler). Cùng lớp token accessor đã accept tại deploys/platform-deploy/platform-env.ts:82. Bằng chứng ghim trong worker-config.spec.ts: token không nằm trong argv, chỉ nằm trong env subprocess, HOME của subprocess cô lập, temp dir bị dọn sau chạy. Re-pin 882->886 bởi fix OCR #511: thêm 4 dòng comment ràng buộc thứ tự extraEnv ở trên (không đổi nội dung dòng pin). Re-pin 886->894: viết lại khối cardinality requireSingleD1DatabaseName phía trên (+8 dòng) - không đổi nội dung dòng pin. Re-pin 894->944 bởi #548: accessor trả về object (lane, token, accountId) thay vì return token — cùng một giá trị nhạy cảm, cùng một caller duy nhất, spec thêm case per-lane và wrong-lane isolation.",
     "lines": {
-      "894": "^  return token;$"
+      "944": "^  return \\{ lane, token, accountId \\};$"
     }
   },
   {
     "rule": "security-sensitive-value-in-http-response",
     "path": "tools/dx/src/workers/worker-config.ts",
-    "start": 963,
-    "end": 963,
-    "reason": "Propagation mặc định arg→result của taint engine, cùng lớp với entry tools/project-management/src/github.ts:351: token đi vào extraEnv của runWrangler rồi env của spawnSync, engine lan taint qua giá trị trả về của spawnSync sang stdout được destructuring; stdout trả ra là output apply của wrangler (bảng file đã áp hoặc 'No migrations to apply!'), không chứa bit nào của token (spec ghim argv không có token và output chỉ là bảng migration). Re-pin 948->955 bởi fix OCR #511: +4 dòng comment extraEnv ở trên và +3 dòng reject envLane rỗng trong buildD1MigrationsApplyArgs (không đổi nội dung dòng pin). Re-pin 955->963 cùng commit: cùng khối cardinality lệch dòng +8.",
+    "start": 1018,
+    "end": 1018,
+    "reason": "Propagation mặc định arg→result của taint engine, cùng lớp với entry tools/project-management/src/github.ts:351: token đi vào extraEnv của runWrangler rồi env của spawnSync, engine lan taint qua giá trị trả về của spawnSync sang stdout được destructuring; stdout trả ra là output apply của wrangler (bảng file đã áp hoặc 'No migrations to apply!'), không chứa bit nào của token (spec ghim argv không có token và output chỉ là bảng migration). Re-pin 948->955 bởi fix OCR #511: +4 dòng comment extraEnv ở trên và +3 dòng reject envLane rỗng trong buildD1MigrationsApplyArgs (không đổi nội dung dòng pin). Re-pin 955->963 cùng commit: cùng khối cardinality lệch dòng +8. Re-pin 963->1018 bởi #548: resolveRemoteApiToken phía trên nở thành resolution theo lane (+52 dòng) — không đổi nội dung dòng pin.",
     "lines": {
-      "963": "^    return stdout;$"
+      "1018": "^    return stdout;$"
     }
   }
 ]

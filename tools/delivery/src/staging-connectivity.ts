@@ -21,9 +21,10 @@
  *   lane chỉ nhận hostname làm input, không tạo record.
  * - Hyperdrive config: Pulumi (#350) — lane chỉ expose `service_id`.
  *
- * Fail-closed đối xứng `worker-secrets.ts`: token control-plane duy nhất
- * `ECOMA_CLOUDFLARE_API_TOKEN` (§6.12, qua `resolveSecretRunEnv` — token chỉ
- * tồn tại trong env của subprocess wrangler, KHÔNG BAO GIỜ qua argv); identity
+ * Fail-closed đối xứng `worker-secrets.ts`: cặp credential control-plane của
+ * lane staging `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`
+ * (§6.12, qua `resolveSecretRunEnv('staging', …)` — credential chỉ tồn tại
+ * trong env của subprocess wrangler, KHÔNG BAO GIỜ qua argv); identity
  * staging bắt buộc là tên service có prefix `stg-` (cùng quy ước identity với
  * Worker secret pipeline, tái sử dụng `classifyWorkerName`); thiếu bất kỳ
  * input bắt buộc nào là TỪ CHỐI trước khi wrangler chạy. Không có secret giá
@@ -164,7 +165,7 @@ export function createStagingVpcService(
     );
   }
   const args = buildVpcServiceCreateArgs(input);
-  const { env } = resolveSecretRunEnv(sourceEnv);
+  const { env } = resolveSecretRunEnv('staging', sourceEnv);
   const result = deps.execFn('npx', ['wrangler', ...args], process.cwd(), env);
   if (result.status !== 0) {
     const reason =

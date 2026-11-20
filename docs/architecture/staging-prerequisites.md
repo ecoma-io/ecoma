@@ -7,16 +7,18 @@ Các bước vận hành **thủ công, ngoài Git** cần hoàn tất trước 
 - Đăng ký/nắm giữ `ecoma.io.vn` tại registrar (nếu chưa) — DNS zone staging thuộc inventory `platform-deploy` (§7.4.1).
 - Verify: nameserver của zone trỏ đúng nhà DNS điều phối; `dig NS ecoma.io.vn` trả về nameserver đó.
 
-## 2. Cloudflare API token `ECOMA_CLOUDFLARE_API_TOKEN`
+## 2. Cloudflare credential pair `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`
 
-- Tạo **đúng một** token Cloudflare API cho toàn bộ pipeline — dùng chung cả hai lane, **cấm** token theo environment/alias (`ECOMA_STAGING_*`, `ECOMA_PRODUCTION_*` đều bị cấm, §6.12).
-- Quyền thật của token phải **kiểm tra tay trên Cloudflare** — suy quyền từ tên secret là không đủ (§6.12). Verify trên dashboard: token đủ quyền cho mọi Worker mà pipeline chạm; token này không phải ranh giới staging/production — ranh giới là Worker identity + `--env` tường minh + GitHub Environment riêng.
+> **Đảo quyết định (2026-11-20, #548):** checklist này trước đây yêu cầu **một** token dùng chung `ECOMA_CLOUDFLARE_API_TOKEN` cho cả hai lane và cấm tên theo environment. Đảo vì blast radius của token dùng chung đủ quyền production worker — giờ đây mỗi lane một cặp org secret riêng (§6.12 mục 12). Bốn secrets đã tồn tại trên org; mục này ghi phần xác minh cho lane staging.
+
+- Lane staging đọc đúng cặp staging: `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`. **`ACCOUND` là tên org secret thật trên org, không phải lỗi chính tả được sửa** — đổi tên secret là thao tác org admin ngoài scope.
+- Quyền thật của token phải **kiểm tra tay trên Cloudflare** — suy quyền từ tên secret là không đủ (§6.12). Verify trên dashboard: token staging đủ quyền cho Workers của lane staging trên **account Cloudflare staging** (staging và production là hai account riêng), và account id khớp `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`.
 - Token không bao giờ vào Git, PR build, hay log.
 
-## 3. Org secret GitHub
+## 3. Org secrets GitHub
 
-- Settings → Secrets and variables → Actions → New organization secret: tên `ECOMA_CLOUDFLARE_API_TOKEN`, visibility **All repositories** (§6.12).
-- **Không** gắn secret này vào Environment nào — credential không scoped theo environment; cái thuộc Environment là approval và audit log (§6.12).
+- Settings → Secrets and variables → Actions: hai org secrets cho lane staging, visibility **All repositories** (§6.12): `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` và `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`. Cặp production tương ứng (`ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN` + `ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID`) thuộc làn promotion — lane staging không bao giờ đọc cặp production.
+- **Không** gắn secret nào vào Environment — cái thuộc Environment là approval và audit log (§6.12).
 
 ## 4. Axiom dataset `stg` + ingest tokens
 
@@ -47,7 +49,8 @@ echo "$VALUE" | npx tsx tools/delivery/src/cli.ts worker-secret put SECRET_NAME 
 echo "$VALUE" | npx tsx tools/delivery/src/cli.ts worker-secret stage SECRET_NAME --config apps/home/wrangler.jsonc
 ```
 
-- Control-plane credential: `ECOMA_CLOUDFLARE_API_TOKEN` phải có trong môi trường chạy (org secret mục 3; operator export khi chạy tay) — script fail-closed khi thiếu và không nhận credential nào khác (§6.12).
+- Control-plane credential: cặp `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` phải có trong môi trường chạy (org secrets mục 3; operator export khi chạy tay) — script fail-closed khi thiếu một trong hai và không nhận credential nào khác, kể cả cặp production (§6.12).
+- Provisioning hạ tầng phía operator (Pulumi staging-run inventory) đọc `CLOUDFLARE_API_TOKEN` **sau mapping** — khi chạy tay, operator export cặp staging ở trên thành `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` trong shell của lệnh Pulumi; pipeline không đọc biến này.
 - Script chỉ nhận Worker identity `stg-<...>` đọc từ `env.staging.name` của config; secret **không kế thừa** giữa named environments (WS3), nên mỗi environment đặt riêng.
 - Giá trị chỉ đi qua stdin — không qua argv, không log. `SECRET_NAME` là ASCII identifier.
 - Runbook xoay vòng và hậu quả sự cố → `03-operations.md` (runbook vận hành, issue #364). Credential migration job (`_migrator` per-DB) **không** đi qua đường này — ranh giới ba identity → issue #373 mục A/E.

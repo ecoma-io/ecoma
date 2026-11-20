@@ -25,6 +25,7 @@ import {
   generateWorkerConfig,
   parseJsonc,
   requireSingleD1DatabaseName,
+  resolveRemoteApiToken,
   sanitizedWranglerEnv,
   stripJsonc,
 } from './worker-config.js';
@@ -80,17 +81,30 @@ function writeCommittedConfig(dir: string, overrides: Record<string, unknown> = 
   return path;
 }
 
-/** Đặt token test vào env trong phạm vi callback và restore đúng giá trị cũ — token thật không bao giờ xuất hiện trong repo. */
+/** Tên org secret theo lane (#548) — literal khớp hợp đồng của `resolveRemoteApiToken`. */
+const STAGING_TOKEN_ENV_KEY = 'ECOMA_CLOUDFLARE_STAGING_API_TOKEN';
+const STAGING_ACCOUNT_ID_ENV_KEY = 'ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID';
+const PRODUCTION_TOKEN_ENV_KEY = 'ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN';
+const PRODUCTION_ACCOUNT_ID_ENV_KEY = 'ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID';
+
+/** Đặt cặp staging test vào env trong phạm vi callback và restore đúng giá trị cũ — token thật không bao giờ xuất hiện trong repo. */
 function withTestToken(run: () => void): void {
-  const previous = process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
-  process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = 'dx-spec-test-token';
+  const previousToken = process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'];
+  const previousAccount = process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'];
+  process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'] = 'dx-spec-test-token';
+  process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'] = 'dx-spec-test-account-id';
   try {
     run();
   } finally {
-    if (previous === undefined) {
-      delete process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+    if (previousToken === undefined) {
+      delete process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'];
     } else {
-      process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = previous;
+      process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'] = previousToken;
+    }
+    if (previousAccount === undefined) {
+      delete process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'];
+    } else {
+      process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'] = previousAccount;
     }
   }
 }
@@ -689,17 +703,87 @@ describe('buildD1MigrationsApplyArgs (#382 — argv shape, token không qua argv
   });
 });
 
+describe('resolveRemoteApiToken (#548 — per-lane credential pairs)', () => {
+  it('resolves the staging pair and reports the staging lane', () => {
+    withTestToken(() => {
+      expect(resolveRemoteApiToken()).toEqual({
+        lane: 'staging',
+        token: 'dx-spec-test-token',
+        accountId: 'dx-spec-test-account-id',
+      });
+    });
+  });
+
+  it('resolves the production pair for the production lane without reading staging vars', () => {
+    // Chỉ cặp production có token; biến account staging có mặt nhưng bị bỏ qua —
+    // lane do token quyết định, account id bắt buộc phải cùng lane.
+    const credential = resolveRemoteApiToken({
+      [STAGING_ACCOUNT_ID_ENV_KEY]: 'should-not-be-read',
+      [PRODUCTION_TOKEN_ENV_KEY]: 'prod-token',
+      [PRODUCTION_ACCOUNT_ID_ENV_KEY]: 'prod-account',
+    });
+    expect(credential).toEqual({
+      lane: 'production',
+      token: 'prod-token',
+      accountId: 'prod-account',
+    });
+  });
+
+  it('fails closed naming the staging account secret when the staging pair is incomplete', () => {
+    expect(() => resolveRemoteApiToken({ [STAGING_TOKEN_ENV_KEY]: 'token-only' })).toThrow(
+      /ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID/u,
+    );
+    // Account id của lane khác không thể thay thế account id của lane mình.
+    expect(() =>
+      resolveRemoteApiToken({
+        [STAGING_TOKEN_ENV_KEY]: 'token-only',
+        [PRODUCTION_ACCOUNT_ID_ENV_KEY]: 'wrong-lane-account',
+      }),
+    ).toThrow(/ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID/u);
+  });
+
+  it('fails closed when both lanes have tokens set', () => {
+    expect(() =>
+      resolveRemoteApiToken({
+        [STAGING_TOKEN_ENV_KEY]: 'stg-token',
+        [STAGING_ACCOUNT_ID_ENV_KEY]: 'stg-account',
+        [PRODUCTION_TOKEN_ENV_KEY]: 'prod-token',
+        [PRODUCTION_ACCOUNT_ID_ENV_KEY]: 'prod-account',
+      }),
+    ).toThrow(/both lanes/u);
+  });
+
+  it('fails closed when neither lane has a token', () => {
+    expect(() => resolveRemoteApiToken({})).toThrow(/exactly one lane/u);
+  });
+});
+
 describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () => {
-  it('fails closed when ECOMA_CLOUDFLARE_API_TOKEN is absent from the environment', () => {
+  it('fails closed when no lane credential pair is present in the environment', () => {
     const dir = makeWorktreeFixture('d1-remote-no-token');
     const configPath = writeCommittedConfig(dir);
-    const previous = process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
-    delete process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+    const previous = {
+      stagingToken: process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'],
+      stagingAccount: process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'],
+      productionToken: process.env['ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN'],
+      productionAccount: process.env['ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID'],
+    };
+    delete process.env['ECOMA_CLOUDFLARE_STAGING_API_TOKEN'];
+    delete process.env['ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID'];
+    delete process.env['ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN'];
+    delete process.env['ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID'];
     try {
-      expect(() => applyRemoteD1Migrations({ configPath })).toThrow(/ECOMA_CLOUDFLARE_API_TOKEN/u);
+      expect(() => applyRemoteD1Migrations({ configPath })).toThrow(
+        /ECOMA_CLOUDFLARE_STAGING_API_TOKEN/u,
+      );
+      expect(() => applyRemoteD1Migrations({ configPath })).toThrow(
+        /ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN/u,
+      );
     } finally {
-      if (previous !== undefined) {
-        process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = previous;
+      for (const [key, value] of Object.entries(previous)) {
+        if (value !== undefined) {
+          process.env[key] = value;
+        }
       }
     }
   });
@@ -717,6 +801,7 @@ describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () 
         'console.log(JSON.stringify({',
         '  argv: process.argv.slice(2),',
         '  token: process.env.CLOUDFLARE_API_TOKEN ?? null,',
+        '  accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? null,',
         '  home: process.env.HOME ?? null,',
         `  realHomeSeen: process.env.HOME === ${JSON.stringify(realHome ?? '')},`,
         '}));',
@@ -733,6 +818,7 @@ describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () 
       const parsed = JSON.parse(output) as {
         argv: string[];
         token: string | null;
+        accountId: string | null;
         home: string | null;
         realHomeSeen: boolean;
       };
@@ -741,9 +827,11 @@ describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () 
       expect(parsed.argv).toContain('mail');
       expect(parsed.argv).toContain('--env');
       expect(parsed.argv).toContain('staging');
-      // Token map vào env subprocess đúng giá trị, và KHÔNG BAO GIỜ rò vào argv.
+      // Credential map vào env subprocess đúng giá trị, và KHÔNG BAO GIỜ rò vào argv.
       expect(parsed.token).toBe('dx-spec-test-token');
+      expect(parsed.accountId).toBe('dx-spec-test-account-id');
       expect(parsed.argv.join(' ')).not.toContain('dx-spec-test-token');
+      expect(parsed.argv.join(' ')).not.toContain('dx-spec-test-account-id');
       // HOME cô lập — OAuth cache của developer không thể bị wrangler đọc.
       expect(parsed.realHomeSeen).toBe(false);
       expect(parsed.home).not.toBeNull();
