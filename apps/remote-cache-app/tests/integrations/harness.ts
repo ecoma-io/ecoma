@@ -85,7 +85,8 @@ function redact(text: string, secrets: readonly string[]): string {
 
 interface PostgresContainer {
   readonly name: string;
-  readonly port: number;
+  /** Cổng host map thật — gán sau khi `docker port` trả kết quả. */
+  port: number;
   stop(): void;
 }
 
@@ -110,25 +111,34 @@ async function startPostgresContainer(): Promise<PostgresContainer> {
     ],
     { encoding: 'utf8' },
   );
-  if (run.status !== 0 || run.stdout.trim() === '') {
+  if (run.status !== 0 || (run.stdout ?? '').trim() === '') {
     throw new Error(
-      `docker run for the PostgreSQL container failed (exit ${String(run.status)}):\n${run.stderr.slice(-1000)}`,
+      `docker run for the PostgreSQL container failed (exit ${String(run.status)}):\n${run.stderr ?? ''}`.slice(
+        -1000,
+      ),
     );
   }
+  let stopped = false;
   const stop = (): void => {
+    if (stopped) return;
+    stopped = true;
+    ACTIVE_CONTAINERS.delete(handle);
     spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8' });
   };
+  const handle: PostgresContainer = { name, port: 0, stop };
+  ACTIVE_CONTAINERS.add(handle);
   try {
     const portOutput = spawnSync('docker', ['port', name, '5432'], { encoding: 'utf8' });
     if (portOutput.status !== 0) {
-      throw new Error(`docker port failed for ${name}:\n${portOutput.stderr.slice(-500)}`);
+      throw new Error(`docker port failed for ${name}:\n${portOutput.stderr ?? ''}`.slice(-500));
     }
-    const lastLine = portOutput.stdout.trim().split('\n').at(-1) ?? '';
+    const lastLine = (portOutput.stdout ?? '').trim().split('\n').at(-1) ?? '';
     const match = /:(\d+)\s*$/u.exec(lastLine);
     if (match === null) {
       throw new Error(`Cannot parse the mapped host port for ${name}: ${lastLine}`);
     }
     const port = Number(match[1]);
+    handle.port = port;
 
     // Đợi readiness THẬT: hai probe cách quãng 1.5s — cửa sổ server tạm của
     // initdb cũng trả pg_isready 0 (cùng lý do với harness browser stack).
@@ -157,10 +167,40 @@ async function startPostgresContainer(): Promise<PostgresContainer> {
         throw new Error('Timed out waiting for PostgreSQL readiness (second probe)');
       }
     }
-    return { name, port, stop };
+    return handle;
   } catch (error) {
     stop();
     throw error;
+  }
+}
+
+/**
+ * Container đang sống của process — handler tín hiệu (cài một lần duy nhất)
+ * dọn tất cả best-effort khi test process bị kill: `--rm` của docker chỉ dọn
+ * trên exit hoàn toàn, một SIGINT/SIGTERM giữa chừng nếu không dọn sẽ để lại
+ * container mồ côi chiếm port host cho các lần chạy sau.
+ */
+const ACTIVE_CONTAINERS = new Set<PostgresContainer>();
+
+/** Dọn TẤT CẢ container đang sống — best-effort, dùng cho handler tín hiệu. */
+function stopAllActiveContainers(): void {
+  for (const active of ACTIVE_CONTAINERS) {
+    active.stop();
+  }
+}
+
+let exitHandlersInstalled = false;
+
+function installExitHandlers(): void {
+  if (exitHandlersInstalled) return;
+  exitHandlersInstalled = true;
+  // Dọn xong phải trả lại signal mặc định (`process.kill` chính nó) để exit
+  // code của process giữ nguyên ngữ nghĩa — handler chỉ dọn, không nuốt tín hiệu.
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(signal, () => {
+      stopAllActiveContainers();
+      process.kill(process.pid, signal);
+    });
   }
 }
 
@@ -185,7 +225,7 @@ function psqlSync(containerName: string, sql: string): void {
   if (result.status !== 0) {
     throw new Error(
       `psql failed (exit ${String(result.status)}):\n` +
-        redact(result.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+        redact(result.stderr ?? '', [SUPERUSER_PASSWORD, ROLE_PASSWORD]).slice(-1000),
     );
   }
 }
@@ -219,6 +259,12 @@ function provision(containerName: string): void {
 /**
  * Apply qua runner thật của authority bằng credential migrator thật — cùng
  * đường production đi. History đã phủ journal thì runner no-op nên gọi lại an toàn.
+ *
+ * ⚠️ Environ của subprocess là **tập tối thiểu** + DATABASE_URL, KHÔNG spread
+ * `process.env`: spread sẽ rò secret môi trường của CI/host (API token, cloud
+ * credential…) vào process migration. Runner spawn `drizzle-kit` bằng
+ * `process.execPath` (đường tuyệt đối) nên chuỗi child không cần gì ngoài
+ * PATH (shim `node_modules/.bin/tsx` resolve `node` từ PATH) + HOME/LANG/TZ.
  */
 function applyMigrations(host: string, port: number): void {
   const databaseUrl =
@@ -229,10 +275,17 @@ function applyMigrations(host: string, port: number): void {
     ['--tsconfig', 'tsconfig.db.json', resolve(APP_DB_PROJECT, 'runner.mts'), 'migrate'],
     {
       cwd: APP_DB_PROJECT,
-      env: { ...process.env, DATABASE_URL: databaseUrl },
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG,
+        TZ: process.env.TZ,
+        DATABASE_URL: databaseUrl,
+      },
       encoding: 'utf8',
-      // tsx cold start + resolve drizzle-kit trên CI lạnh có thể vượt 120s.
-      timeout: 300_000,
+      // tsx cold start + resolve drizzle-kit trên CI lạnh từng vượt 120s —
+      // cùng convention `ECOMA_MIGRATION_TIMEOUT_MS` với harness remote-cache-api.
+      timeout: Number(process.env.ECOMA_MIGRATION_TIMEOUT_MS ?? 300_000),
     },
   );
   if (result.error !== undefined || result.status !== 0) {
@@ -256,6 +309,7 @@ function applyMigrations(host: string, port: number): void {
  */
 export async function startRemoteCacheAppDatabase(): Promise<RemoteCacheAppDatabase> {
   const container = await startPostgresContainer();
+  installExitHandlers();
   try {
     const host = '127.0.0.1';
     const port = container.port;
@@ -282,8 +336,15 @@ export async function startRemoteCacheAppDatabase(): Promise<RemoteCacheAppDatab
 
     const asRole = async (role: string): Promise<Client> => {
       const client = await connect();
-      await client.query(`SET ROLE ${role}`);
-      return client;
+      try {
+        await client.query(`SET ROLE ${role}`);
+        return client;
+      } catch (error) {
+        // SET ROLE chết thì kết nối phải được đóng ngay — trả client lộ session
+        // chưa set role và rò connection pool của suite.
+        await client.end().catch(() => undefined);
+        throw error;
+      }
     };
 
     return {

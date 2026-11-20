@@ -80,9 +80,8 @@ describe('roles and grants on db-remote-cache-app', () => {
         rows.map((row) => [row.table_name, [...row.privileges].toSorted()]),
       );
 
-      // So sánh theo từng bảng **và** theo tập bảng: một bảng lạ xuất hiện
+      // toEqual so sánh cả tập bảng lẫn grant từng bảng: một bảng lạ xuất hiện
       // trong schema cũng phải làm test đỏ, chứ không bị lọc nhầm.
-      expect(Object.keys(actual).toSorted()).toEqual(Object.keys(EXPECTED_PRIVILEGES).toSorted());
       expect(actual).toEqual(EXPECTED_PRIVILEGES);
     } finally {
       await client.end();
@@ -112,6 +111,10 @@ describe('roles and grants on db-remote-cache-app', () => {
     // để chứng minh bảng thật sự tồn tại sau DDL.
     const migrator = await db.asMigrator();
     try {
+      // DROP trước CREATE: một crash trước `finally` của lần chạy trước để lại
+      // bảng sót là lỗi "relation already exists" ở lần chạy này — idempotent,
+      // không phụ thuộc lẫn nhau giữa các run.
+      await migrator.query('DROP TABLE IF EXISTS remote_cache_app.migrator_probe');
       await migrator.query('CREATE TABLE remote_cache_app.migrator_probe (id int)');
 
       const client = await db.connect();
