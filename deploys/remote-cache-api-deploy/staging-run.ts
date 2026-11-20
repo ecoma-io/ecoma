@@ -3,12 +3,20 @@
  * engine đã merge của `platform-deploy` (#453), chạy trên nền adapter seam
  * `@ecoma-io/deployment` (#367).
  *
- * ⚠️ Bản copy có chủ đích, CÙNG HÌNH với engine của `platform-deploy`:
- * tổng quát hoá engine lên `@ecoma-io/deployment` là follow-up tường minh
- * khi unit staging THỨ BA wire lane của nó (hai bản copy là đủ để thấy hình
- * chung, chưa đủ để chốt seam) — không đưa vào slice này vì lib nằm ngoài
- * scope. Khi tổng quát hoá, hai bản copy phải được xoá cùng lúc; mọi sửa
- * engine từ bây giờ phải đối chiếu cả hai bản để không trôi lệch.
+ * ⚠️ Bản copy có chủ đích của engine `platform-deploy`: tổng quát hoá engine
+ * lên `@ecoma-io/deployment` là follow-up tường minh khi unit staging THỨ BA
+ * wire lane của nó (hai bản copy là đủ để thấy hình chung, chưa đủ để chốt
+ * seam) — không đưa vào slice này vì lib nằm ngoài scope. Khi tổng quát hoá,
+ * hai bản copy phải được xoá cùng lúc; mọi sửa engine từ bây giờ phải đối
+ * chiếu cả hai bản để không trôi lệch.
+ *
+ * ⚠️ Lệch có chủ đích so với bản `platform-deploy` từ slice #350: bản này
+ * thêm `CLOUDFLARE_API_TOKEN` vào inventory bắt buộc và lane staging chạy
+ * chương trình khai bucket R2 thật (`staging-program.ts`), vì resource staging
+ * của surface này đã có trong code; bản `platform-deploy` vẫn marker
+ * 0-resource (resource staging của nó thuộc #349). Khi tổng quát hoá, hai
+ * khác biệt này phải thành tham số tường minh của engine dùng chung, không
+ * phải điều kiện rải rác.
  *
  * Tách bạch hai lifecycle (§7.4.1): module này chỉ provision infrastructure
  * Pulumi — deploy Worker là Wrangler (#362/#350), migration là `deploys/*-db`
@@ -26,13 +34,12 @@
  * (`ECOMA_PULUMI_STATE_URL_STAGING` thiếu nghĩa là staging chưa được bootstrap
  * — #350 — tuyệt đối không "dùng local tạm").
  *
- * Chương trình Pulumi của remote-cache-api-deploy trên stack staging khai **0
- * resource** (guard ở `index.ts`) — resource staging thật (R2 bucket object
- * storage của remote-cache theo inventory §7.4.1) là scope #350, chờ quyết
- * định tên bucket/account và bootstrap backend. Vì vậy một lần `preview`/`up`
- * hiện tại là vòng đời stack no-op có chủ đích: nó chứng minh
- * backend/stack/credential/evidence contract chạy được, KHÔNG chứng minh
- * resource nào tồn tại.
+ * Chương trình Pulumi trên stack staging khai R2 bucket object storage của
+ * remote-cache (inventory §7.4.1) từ slice #350 — thân nằm ở
+ * `staging-program.ts`, tên bucket là đề xuất chờ duyệt trong PR của slice.
+ * Việc chạy thật vẫn chặn prerequisite vận hành fail-closed ở inventory dưới
+ * đây: bootstrap backend state (một lần, NGOÀI mọi stack) + token Cloudflare
+ * + R2 token bucket-scoped + passphrase per-stack.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -52,6 +59,60 @@ import {
 /** Slot duy nhất executor này chạy: continuous lane. Candidate slot là #381. */
 const STAGING_SLOT = 'staging' as const;
 
+/**
+ * Tên R2 bucket object storage của remote-cache trên staging — ĐỀ XUẤT #350
+ * chờ coordinator duyệt trong PR của slice (lập luận đặt tên ở đó). Chưa
+ * provision lần nào nên đổi tên không đụng state thật; khi bucket đã tồn tại
+ * thật thì đổi tên là tạo-mới + sao chép + xoá-củ, không phải một lần `up`.
+ */
+export const STAGING_REMOTE_CACHE_BUCKET_NAME = 'ecoma-remote-cache-staging';
+
+/**
+ * Rút account id Cloudflare từ state URL staging theo `04` R22: endpoint
+ * path-style `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` (jurisdiction
+ * thêm tiền tố nhãn đầu `eu.`/`fedramp.`/`us.`) nằm ở query parameter
+ * `endpoint` của URL `s3://`. Program staging đọc qua đây để KHÔNG đòi thêm
+ * biến môi trường nào cho identity account — state URL contract là nguồn sự
+ * thật duy nhất cho cả backend lẫn provider R2.
+ */
+export function r2AccountIdFromStateUrl(stateUrl: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(stateUrl);
+  } catch {
+    throw new Error(`${stateUrl} is not a valid staging state URL`);
+  }
+  const endpoint = parsed.searchParams.get('endpoint');
+  if (endpoint === null || endpoint.trim().length === 0) {
+    throw new Error(
+      `staging state URL ${stateUrl} carries no "endpoint" query parameter — ` +
+        'cannot derive the Cloudflare account id for the R2 provider',
+    );
+  }
+  let endpointUrl: URL;
+  try {
+    endpointUrl = new URL(endpoint);
+  } catch {
+    throw new Error(`staging state URL endpoint "${endpoint}" is not a valid URL`);
+  }
+  const suffix = '.r2.cloudflarestorage.com';
+  if (!endpointUrl.host.endsWith(suffix)) {
+    throw new Error(
+      `staging state URL endpoint "${endpoint}" is not an R2 path-style endpoint — ` +
+        `expected a host ending in ${suffix} (04-platform-facts R22)`,
+    );
+  }
+  // Nhãn cuối trước suffix là account id; các nhãn còn lại (nếu có) là tiền tố
+  // jurisdiction của R22 — bỏ cả khối, không đoán ý nghĩa từng nhãn.
+  const accountId = endpointUrl.host.slice(0, -suffix.length).split('.').at(-1) ?? '';
+  if (accountId.length === 0) {
+    throw new Error(
+      `staging state URL endpoint "${endpoint}" carries no account id before ${suffix}`,
+    );
+  }
+  return accountId;
+}
+
 /** Phase lifecycle mà executor này mở cho staging — KHÔNG có `down`/`destroy`. */
 export type StagingPhase = 'preview' | 'up';
 
@@ -66,16 +127,15 @@ const defaultDeps: StagingExecDeps = { execFn: exec };
  * Phân loại stack ref đầy đủ của remote-cache-api-deploy theo lane.
  *
  * `local-*` — lane local hiện hành (namespace worktree); `staging`/`staging-candidate`
- * — slot staging (chạy marker-only); còn lại — KHÔNG ĐƯỢC chạy: program này
- * khai Docker resource dùng config namespace, chạy trên stack lạ là khai
- * resource sai environment (hazard thật trước lane guard — cùng hình #368).
+ * — slot staging (chạy chương trình khai bucket R2, `staging-program.ts` #350);
+ * còn lại — KHÔNG ĐƯỢC chạy: lane local khai Docker resource dùng config
+ * namespace, chạy trên stack lạ là khai resource sai environment (hazard thật
+ * trước lane guard — cùng hình #368).
  */
-export function classifyRemoteCacheApiStack(
-  rawStackRef: string,
-): 'local' | 'staging-marker' | 'unknown' {
+export function classifyRemoteCacheApiStack(rawStackRef: string): 'local' | 'staging' | 'unknown' {
   const slug = rawStackRef.slice(rawStackRef.lastIndexOf('/') + 1);
   if (slug.startsWith('local-')) return 'local';
-  if (slug === 'staging' || slug === 'staging-candidate') return 'staging-marker';
+  if (slug === 'staging' || slug === 'staging-candidate') return 'staging';
   return 'unknown';
 }
 
@@ -95,12 +155,13 @@ export interface StagingRunEnv {
  * - `PULUMI_CONFIG_PASSPHRASE` — passphrase per-stack (GitHub Environment
  *   secret của stack khi chạy CI; operator export khi chạy tay);
  * - `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — token R2 scope một bucket
- *   (`04` R23): backend s3 đọc credential chain của AWS env ở MỌI lệnh.
- *
- * `CLOUDFLARE_API_TOKEN` KHÔNG nằm trong inventory bắt buộc: program hiện tại
- * khai 0 resource nên không provider Cloudflare nào được consult; biến (nếu
- * có) vẫn passthrough cho lần khai bucket R2 thật — ranh giới giữ nguyên:
- * env-only, không argv, không Git.
+ *   (`04` R23): backend s3 đọc credential chain của AWS env ở MỌI lệnh;
+ * - `CLOUDFLARE_API_TOKEN` — token Cloudflare quyền Workers R2 Storage Write
+ *   cấp account (`04` R24): program khai bucket R2 nên provider Cloudflare
+ *   được consult ở MỌI `preview`/`up`. Biến chỉ passthrough qua env của
+ *   subprocess và KHÔNG BAO GIỜ được truyền vào provider config — Pulumi ghi
+ *   provider config vào state, còn token phải đứng hoàn toàn ngoài state
+ *   (§7.4.1); provider đọc thẳng biến môi trường khi config bỏ trống.
  *
  * Thiếu bất kỳ khóa nào → throw với danh sách ĐẦY ĐỦ khóa thiếu (không dừng ở
  * khóa đầu — operator phải sửa hết trong một lần, không lặp chuỗi chạy-thất-bại).
@@ -111,6 +172,7 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
     ['PULUMI_CONFIG_PASSPHRASE', source.PULUMI_CONFIG_PASSPHRASE],
     ['AWS_ACCESS_KEY_ID', source.AWS_ACCESS_KEY_ID],
     ['AWS_SECRET_ACCESS_KEY', source.AWS_SECRET_ACCESS_KEY],
+    ['CLOUDFLARE_API_TOKEN', source.CLOUDFLARE_API_TOKEN],
   ];
   const missing = required
     .filter(([, value]) => value === undefined || value.trim().length === 0)

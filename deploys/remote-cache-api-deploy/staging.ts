@@ -12,10 +12,12 @@
  *
  * Mỗi lần chạy ghi MỘT bản ghi evidence JSON mới vào `.staging-evidence/`
  * của project (ngoài Git, `.gitignore`) — hợp đồng provenance §7.3: stack,
- * revision, resource changes, outcome, timestamp. Trên stack marker hiện tại
- * (chưa khai resource nào — bucket R2 là scope #350 sau quyết định tên
- * bucket + bootstrap), một lần chạy chứng minh backend/stack/credential/
- * evidence, không chứng minh resource.
+ * revision, resource changes, outcome, timestamp. Stack khai R2 bucket object
+ * storage thật từ slice #350 (`staging-program.ts`; tên bucket là đề xuất
+ * chờ duyệt trong PR) — một lần chạy hiện vẫn dừng TRƯỚC Pulumi khi thiếu
+ * prerequisite vận hành (bootstrap backend state + credential, inventory
+ * fail-closed của `staging-run.ts`); khi đã đủ điều kiện, evidence ghi kèm
+ * resource changes của bucket.
  *
  * Credential fail-closed (xem `resolveStagingRunEnv`): thiếu bất kỳ khóa
  * environment bắt buộc nào là từ chối TRƯỚC KHI đụng Pulumi — đặc biệt

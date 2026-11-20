@@ -70,6 +70,7 @@
     "node-image.ts",
     "object-storage-env.ts",
     "scripts.ts",
+    "staging-program.ts",
     "staging-run.ts",
     "staging.ts",
     "superadmin-resolver.ts"
