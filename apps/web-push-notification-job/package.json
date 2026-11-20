@@ -16,6 +16,34 @@
       "runtime:edge"
     ],
     "targets": {
+      "db-migrate": {
+        "executor": "nx:run-commands",
+        "cache": false,
+        "options": {
+          "cwd": "apps/web-push-notification-job",
+          "command": "npx tsx ../../tools/dx/index.ts d1-migrate --dir . --local"
+        },
+        "configurations": {
+          "remote": {
+            "cwd": "apps/web-push-notification-job",
+            "command": "npx tsx ../../tools/dx/index.ts d1-migrate --dir . --remote"
+          }
+        },
+        "//": [
+          "Call site DUY NHẤT để áp migration D1 `push-job` (cutover #382 — hợp đồng",
+          "`docs/architecture/02-delivery.md` §3a.4, quyết định A+ của #373: authority",
+          "nằm ở app unit, KHÔNG có project `deploys/<name>-db` riêng cho D1).",
+          "",
+          "Mặc định `--local`: áp vào D1 local của app (`<app>/.wrangler/state`,",
+          "gitignored), không cần credential. Mode remote cho làn staging/production:",
+          "`pnpm nx run web-push-notification-job:db-migrate -c remote` với",
+          "`ECOMA_CLOUDFLARE_API_TOKEN` trong env (§6.12) — token không qua argv,",
+          "không log; `--env <lane>` forward tường minh khi app có named environment.",
+          "",
+          "`cache: false` — mutate database thật, cùng policy với `db-migrate` của",
+          "các project PostgreSQL `deploys/*-db`."
+        ]
+      },
       "test-integration": {
         "executor": "nx:run-commands",
         "options": {

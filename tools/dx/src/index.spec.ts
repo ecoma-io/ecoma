@@ -40,7 +40,7 @@ describe('app', () => {
     expect(meta.description).toBe('Devtools for ecoma-io repository');
   });
 
-  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, readme-check, commit-signing, the local platform commands and the local worker runtime commands', () => {
+  it('declares repo-prepare, sync-agent-config, pr-check, arch-check, readme-check, commit-signing, the local platform commands, the local worker runtime commands and the D1 migration command', () => {
     // Set thay cho mảng sort: cùng đẳng thức tập hợp, không mutation và không
     // cần `toSorted` (lib của repository hiện là es2022). Các lệnh scanner
     // (gitleaks/semgrep) đã rời DX: docker run trực tiếp trong `lefthook.yml`
@@ -60,6 +60,7 @@ describe('app', () => {
         'local-worker-up',
         'local-worker-status',
         'local-worker-down',
+        'd1-migrate',
       ]),
     );
   });

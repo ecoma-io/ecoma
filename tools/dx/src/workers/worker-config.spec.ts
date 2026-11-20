@@ -7,7 +7,7 @@
  * isolation đã phủ ở `worker-process.spec.ts`.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -18,10 +18,13 @@ import {
   allocateWorkerPort,
   applyLocalD1Migrations,
   applyLocalD1Seeds,
+  applyRemoteD1Migrations,
   assertDatabaseNameInConfig,
+  buildD1MigrationsApplyArgs,
   generatedConfigDir,
   generateWorkerConfig,
   parseJsonc,
+  requireSingleD1DatabaseName,
   sanitizedWranglerEnv,
   stripJsonc,
 } from './worker-config.js';
@@ -75,6 +78,21 @@ function writeCommittedConfig(dir: string, overrides: Record<string, unknown> = 
   lines.push('}');
   writeFileSync(path, `${lines.join('\n')}\n`, 'utf8');
   return path;
+}
+
+/** Đặt token test vào env trong phạm vi callback và restore đúng giá trị cũ — token thật không bao giờ xuất hiện trong repo. */
+function withTestToken(run: () => void): void {
+  const previous = process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+  process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = 'dx-spec-test-token';
+  try {
+    run();
+  } finally {
+    if (previous === undefined) {
+      delete process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+    } else {
+      process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = previous;
+    }
+  }
 }
 
 describe('sanitizedWranglerEnv — Hyperdrive local connection string prefix rule', () => {
@@ -582,5 +600,178 @@ describe('applyLocalD1Seeds / applyLocalD1Migrations', () => {
         seedFiles: [join(dir, 'absent-seed.sql')],
       }),
     ).toThrow(/seed file does not exist/u);
+  });
+});
+
+describe('requireSingleD1DatabaseName (#382 — §3a.4 database_name, A+ một D1 per app)', () => {
+  it('returns the single database_name from the committed config', () => {
+    const dir = makeWorktreeFixture('d1-name-single');
+    expect(requireSingleD1DatabaseName(writeCommittedConfig(dir))).toBe('mail');
+  });
+
+  it('rejects a config declaring more than one D1 database', () => {
+    // A+ quyết định "một app một D1 database": hai entry là lỗi cấu trúc, không
+    // được âm thầm áp vào entry đầu.
+    const dir = makeWorktreeFixture('d1-name-multi');
+    const configPath = writeCommittedConfig(dir, {
+      d1_databases: [
+        { binding: 'mail', database_name: 'mail' },
+        { binding: 'mail-job', database_name: 'mail-job' },
+      ],
+    });
+    expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database/u);
+  });
+
+  it('rejects a config with no D1 database entry', () => {
+    const dir = makeWorktreeFixture('d1-name-none');
+    const configPath = writeCommittedConfig(dir, { d1_databases: [] });
+    expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database/u);
+  });
+
+  it('rejects a D1 entry whose database_name is missing', () => {
+    const dir = makeWorktreeFixture('d1-name-unnamed');
+    const configPath = writeCommittedConfig(dir, {
+      d1_databases: [{ binding: 'mail' }],
+    });
+    expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database/u);
+  });
+
+  it('rejects a second unnamed entry instead of silently ignoring it', () => {
+    // OCR #511 run 44675214799: cardinality phải đếm mọi entry — một config hai
+    // entry (một entry không có database_name) không được coi là "đúng một".
+    const dir = makeWorktreeFixture('d1-name-extra-unnamed');
+    const configPath = writeCommittedConfig(dir, {
+      d1_databases: [{ binding: 'mail', database_name: 'mail' }, { binding: 'mail-ghost' }],
+    });
+    expect(() => requireSingleD1DatabaseName(configPath)).toThrow(/exactly one D1 database entry/u);
+  });
+});
+
+describe('buildD1MigrationsApplyArgs (#382 — argv shape, token không qua argv)', () => {
+  it('builds a remote argv with the config path and forwards --env when given', () => {
+    const args = buildD1MigrationsApplyArgs({
+      databaseName: 'mail',
+      configPath: '/tmp/some-app/wrangler.jsonc',
+      remote: true,
+      envLane: 'staging',
+    });
+    expect(args.slice(0, 4)).toEqual(['d1', 'migrations', 'apply', 'mail']);
+    expect(args).toContain('--remote');
+    expect(args).not.toContain('--local');
+    expect(args).toContain('--env');
+    expect(args).toContain('staging');
+    expect(args).toContain(resolve('/tmp/some-app/wrangler.jsonc'));
+  });
+
+  it('builds a local argv without --env when no lane is given', () => {
+    const args = buildD1MigrationsApplyArgs({
+      databaseName: 'mail-job',
+      configPath: '/tmp/some-app/wrangler.jsonc',
+      remote: false,
+    });
+    expect(args).toContain('--local');
+    expect(args).not.toContain('--remote');
+    expect(args).not.toContain('--env');
+    expect(args).not.toContain('--persist-to');
+  });
+
+  it('rejects an empty env lane instead of forwarding a bare --env', () => {
+    for (const lane of ['', '   ']) {
+      expect(() =>
+        buildD1MigrationsApplyArgs({
+          databaseName: 'mail',
+          configPath: '/tmp/some-app/wrangler.jsonc',
+          remote: true,
+          envLane: lane,
+        }),
+      ).toThrow(/non-empty/u);
+    }
+  });
+});
+
+describe('applyRemoteD1Migrations (#382 — §3a.4 token contract, §6.12)', () => {
+  it('fails closed when ECOMA_CLOUDFLARE_API_TOKEN is absent from the environment', () => {
+    const dir = makeWorktreeFixture('d1-remote-no-token');
+    const configPath = writeCommittedConfig(dir);
+    const previous = process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+    delete process.env['ECOMA_CLOUDFLARE_API_TOKEN'];
+    try {
+      expect(() => applyRemoteD1Migrations({ configPath })).toThrow(/ECOMA_CLOUDFLARE_API_TOKEN/u);
+    } finally {
+      if (previous !== undefined) {
+        process.env['ECOMA_CLOUDFLARE_API_TOKEN'] = previous;
+      }
+    }
+  });
+
+  it('runs --remote against the config-resolved database name and maps the token into the subprocess env only', () => {
+    const dir = makeWorktreeFixture('d1-remote-fake-bin');
+    const configPath = writeCommittedConfig(dir);
+    const realHome = process.env['HOME'];
+    const fakeBin = join(dir, 'fake-wrangler.mjs');
+    // Fake bin dump argv + env cần kiểm — chạy qua node (resolveWranglerInvocation
+    // map bin *.mjs sang process.execPath), không network, không wrangler thật.
+    writeFileSync(
+      fakeBin,
+      [
+        'console.log(JSON.stringify({',
+        '  argv: process.argv.slice(2),',
+        '  token: process.env.CLOUDFLARE_API_TOKEN ?? null,',
+        '  home: process.env.HOME ?? null,',
+        `  realHomeSeen: process.env.HOME === ${JSON.stringify(realHome ?? '')},`,
+        '}));',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    withTestToken(() => {
+      const output = applyRemoteD1Migrations({
+        configPath,
+        wranglerBin: fakeBin,
+        envLane: 'staging',
+      });
+      const parsed = JSON.parse(output) as {
+        argv: string[];
+        token: string | null;
+        home: string | null;
+        realHomeSeen: boolean;
+      };
+      expect(parsed.argv).toContain('--remote');
+      expect(parsed.argv).not.toContain('--local');
+      expect(parsed.argv).toContain('mail');
+      expect(parsed.argv).toContain('--env');
+      expect(parsed.argv).toContain('staging');
+      // Token map vào env subprocess đúng giá trị, và KHÔNG BAO GIỜ rò vào argv.
+      expect(parsed.token).toBe('dx-spec-test-token');
+      expect(parsed.argv.join(' ')).not.toContain('dx-spec-test-token');
+      // HOME cô lập — OAuth cache của developer không thể bị wrangler đọc.
+      expect(parsed.realHomeSeen).toBe(false);
+      expect(parsed.home).not.toBeNull();
+    });
+    // Temp dir HOME-isolate của lần chạy remote tự dọn — không rác tích luỹ.
+    const leftovers = readdirSync(tmpdir()).filter((name) => name.startsWith('dx-d1-remote-'));
+    expect(leftovers).toEqual([]);
+  });
+
+  it('rejects a multi-database config before spawning wrangler', () => {
+    const dir = makeWorktreeFixture('d1-remote-multi');
+    const configPath = writeCommittedConfig(dir, {
+      d1_databases: [
+        { binding: 'mail', database_name: 'mail' },
+        { binding: 'push', database_name: 'push' },
+      ],
+    });
+    withTestToken(() => {
+      expect(() => applyRemoteD1Migrations({ configPath })).toThrow(/exactly one D1 database/u);
+    });
+  });
+
+  it('fails closed on a missing config before spawning wrangler', () => {
+    const dir = makeWorktreeFixture('d1-remote-missing-config');
+    withTestToken(() => {
+      expect(() => applyRemoteD1Migrations({ configPath: join(dir, 'absent.jsonc') })).toThrow(
+        /does not exist/u,
+      );
+    });
   });
 });
