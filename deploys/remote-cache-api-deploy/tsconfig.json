@@ -64,6 +64,7 @@
   // `index.ts`/`smoke.ts` import phải nằm trong danh sách.
   "files": [
     "index.ts",
+    "local-program.ts",
     "local.ts",
     "smoke.ts",
     "node-image.ts",

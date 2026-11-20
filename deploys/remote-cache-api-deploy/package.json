@@ -87,6 +87,28 @@
           }
         ]
       },
+      "staging-preview": {
+        "//": "Lane staging #350 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (port của pattern đã merge #453). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Chương trình trên stack staging khai 0 resource (guard `index.ts`) — resource thật (R2 bucket object storage của remote-cache) là scope #350, chờ quyết định tên bucket/account và bootstrap backend. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/remote-cache-api-deploy",
+          "command": "npx tsx staging.ts preview"
+        },
+        "configurations": {
+          "staging": {}
+        }
+      },
+      "staging-up": {
+        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh.",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/remote-cache-api-deploy",
+          "command": "npx tsx staging.ts up"
+        },
+        "configurations": {
+          "staging": {}
+        }
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,
