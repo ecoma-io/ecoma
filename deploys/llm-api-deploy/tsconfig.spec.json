@@ -28,6 +28,8 @@
     "wic-state-init.spec.ts",
     "lane-invocation.ts",
     "lane.spec.ts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
     "tests/**/*.ts"
   ]
 }

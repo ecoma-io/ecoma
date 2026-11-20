@@ -1,10 +1,11 @@
 /**
  * Contract theo NGUỒN cho container one-shot `wic-state-init` của
- * `deploys/llm-api-deploy/index.ts` (issue #119 — occurrence phát hiện sau khi
- * issue mở; cùng defect với push-notification-deploy).
+ * `deploys/llm-api-deploy/local-program.ts` (issue #119 — occurrence phát hiện
+ * sau khi issue mở; cùng defect với push-notification-deploy).
  *
- * Vì sao đọc source mà không chạy chương trình: `index.ts` là chương trình
- * Pulumi dựng resource ở top-level — import vào test là provision thật, nên
+ * Vì sao đọc source mà không chạy chương trình: thân chương trình Pulumi
+ * (`local-program.ts` — được lane guard `index.ts` nạp cho stack `local-*`,
+ * #539) dựng resource ở top-level — import vào test là provision thật, nên
  * contract khả dĩ duy nhất ở tầng này là ghim cấu trúc source (tiền lệ:
  * `object-store-config-init.spec.ts` của platform-deploy và `scripts.spec.ts`
  * cùng project cũng ghim theo nguồn).
@@ -34,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, 'index.ts'), 'utf8');
+const source = readFileSync(join(here, 'local-program.ts'), 'utf8');
 /**
  * Cắt vùng source giữa hai marker (bao gồm cả marker kết thúc). Fail tường
  * minh khi marker biến mất thay vì để các assert sau đó chạy trên chuỗi rỗng
