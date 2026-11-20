@@ -27,7 +27,19 @@ import { defineConfig } from 'drizzle-kit';
  * đã validate DATABASE_URL trước khi spawn `drizzle-kit migrate` (§3a); guard
  * này là lớp trong cùng cho lệnh kit gọi tay.
  */
-const DATABASE_COMMANDS = new Set(['migrate', 'push', 'pull', 'introspect', 'studio']);
+// `up`/`drop` chạm database thật như migrate; `export` xếp vào đây fail-closed
+// (tài liệu kit chưa chốt nó thuần file ở phiên bản hiện hành — yêu cầu URL
+// chẳng bao giờ chặn đường CI vì không target nào gọi export có URL).
+const DATABASE_COMMANDS = new Set([
+  'migrate',
+  'push',
+  'pull',
+  'introspect',
+  'studio',
+  'up',
+  'drop',
+  'export',
+]);
 const kitCommand = process.argv[2];
 if (kitCommand !== undefined && DATABASE_COMMANDS.has(kitCommand) && !process.env.DATABASE_URL) {
   throw new Error(

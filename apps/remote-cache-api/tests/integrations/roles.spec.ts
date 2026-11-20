@@ -343,6 +343,11 @@ describe('roles and grants on db-remote-cache', () => {
     const files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))
       .toSorted();
+    // Quét rỗng pass false-negative: thiếu assert này, một đường dẫn sai làm
+    // cả vòng for không chạy mà test vẫn xanh (fix OCR #503).
+    expect(files.length, 'authority migration files must be present for the scan').toBeGreaterThan(
+      0,
+    );
     for (const file of files) {
       const sql = executableSql(readFileSync(resolve(migrationsDir, file), 'utf8'));
       expect({ file, sql }).not.toMatchObject({

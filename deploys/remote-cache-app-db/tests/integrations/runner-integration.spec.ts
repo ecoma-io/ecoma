@@ -83,6 +83,9 @@ describe(
     });
 
     afterAll(async () => {
+      // beforeAll fail (Docker vắng/container chết) phải nổi đúng lỗi gốc —
+      // không bị TypeError `db.container` của afterAll che (fix OCR #503).
+      if (db === undefined) return;
       await db.container.stop({ timeout: 10_000 });
     });
 
@@ -121,29 +124,35 @@ describe(
 
       const holder = new (await import('pg')).Client({ connectionString: db.databaseUrl });
       await holder.connect();
+      let child: ReturnType<typeof spawn> | undefined;
       try {
         await holder.query('select pg_advisory_lock($1)', [MIGRATION_LOCK_KEY]);
-        const child = spawn(
-          process.execPath,
-          [tsxCli, runnerPath, 'migrate', '--config', okConfigPath],
-          {
-            cwd: projectRoot,
-            env: { ...process.env, DATABASE_URL: db.databaseUrl },
-            stdio: 'ignore',
-          },
-        );
-        const exited = new Promise<number | null>((done) => {
-          child.once('exit', (code) => {
+        child = spawn(process.execPath, [tsxCli, runnerPath, 'migrate', '--config', okConfigPath], {
+          cwd: projectRoot,
+          env: { ...process.env, DATABASE_URL: db.databaseUrl },
+          stdio: 'ignore',
+        });
+        // Spawn lỗi (ENOENT…) phải reject promise, không được để event 'error'
+        // không có listener làm vỡ cả worker vitest (fix OCR #503).
+        const exited = new Promise<number | null>((done, fail) => {
+          child?.once('exit', (code) => {
             done(code);
+          });
+          child?.once('error', (error) => {
+            fail(error);
           });
         });
 
-        // 1.5s trong khi lock bị giữ: runner phải vẫn đang chờ — chưa exit,
-        // chưa apply gì. Không poll statement cấp thấp hơn vì pg_advisory_lock
-        // là block indefinitely theo đúng hợp đồng §3a.3.
-        await new Promise((done) => {
-          setTimeout(done, 1_500);
-        });
+        // Poll exitCode trong cửa sổ ~3s thay sleep cứng 1.5s: cửa sổ dài chịu
+        // được CI chậm, exit sớm bất thường vẫn bắt được ngay (fix OCR #503).
+        // pg_advisory_lock block indefinitely nên exit trong cửa sổ là thất bại
+        // của chính bất đồng bị kiểm.
+        const blockedDeadline = Date.now() + 3_000;
+        while (Date.now() < blockedDeadline && child.exitCode === null) {
+          await new Promise((done) => {
+            setTimeout(done, 100);
+          });
+        }
         expect(child.exitCode).toBeNull();
         expect(await historyRows(db.databaseUrl, 'remote_cache_app')).toBe(0);
 
@@ -151,6 +160,9 @@ describe(
         expect(await exited).toBe(0);
         expect(await historyRows(db.databaseUrl, 'remote_cache_app')).toBe(2);
       } finally {
+        // Test fail/timeout vẫn phải kill runner con — orphan giữ advisory
+        // lock làm vỡ mọi test sau trong suite (fix OCR #503).
+        child?.kill();
         await holder.end();
       }
     }, 30_000);

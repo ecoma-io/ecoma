@@ -44,6 +44,15 @@ describe('drizzle.config DATABASE_URL guard', () => {
     );
   });
 
+  it('fails fast for every other database-touching command as well', async () => {
+    delete process.env.DATABASE_URL;
+    for (const command of ['pull', 'introspect', 'studio', 'up', 'drop', 'export']) {
+      await expect(loadConfig(command)).rejects.toThrow(
+        `DATABASE_URL is required for "drizzle-kit ${command}"`,
+      );
+    }
+  });
+
   it('keeps offline commands loadable without the variable', async () => {
     delete process.env.DATABASE_URL;
     expect((await loadConfig('generate')).dbCredentials.url).toBe('');
