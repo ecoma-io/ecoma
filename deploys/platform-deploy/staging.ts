@@ -30,10 +30,36 @@ const REFUSAL_MESSAGE = (verb: string): string =>
   'teardown is a manual operator procedure (checklist runbook, issue #364), ' +
   'never an ad-hoc CLI verb.';
 
+/**
+ * `--project <name>` cho unit deployment khác tái sử dụng CÙNG engine này
+ * (`staging-pg-host` #349) mà không nhân bản logic credential/evidence.
+ * Mặc định là chính project này — hành vi target của #453 KHÔNG đổi.
+ */
+function resolveTargetProject(argv: readonly string[]): {
+  project: string;
+  rest: readonly string[];
+} {
+  const flagIndex = argv.indexOf('--project');
+  if (flagIndex < 0) return { project: 'platform-deploy', rest: argv };
+  const name = argv[flagIndex + 1];
+  if (name === undefined || !/^[a-z0-9][a-z0-9-]*$/u.test(name)) {
+    throw new Error(`--project requires a plain project name (got: ${String(name)})`);
+  }
+  return { project: name, rest: [...argv.slice(0, flagIndex), ...argv.slice(flagIndex + 2)] };
+}
+
 function main(argv: readonly string[]): number {
-  const parsed = parseStagingPhaseArg(argv);
+  let project: string;
+  let phaseArgv: readonly string[];
+  try {
+    ({ project, rest: phaseArgv } = resolveTargetProject(argv));
+  } catch (error) {
+    console.error(`[platform-deploy] ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
+  const parsed = parseStagingPhaseArg(phaseArgv);
   if (parsed.kind === 'missing') {
-    console.error('[platform-deploy] usage: npx tsx staging.ts <preview|up>');
+    console.error('[platform-deploy] usage: npx tsx staging.ts <preview|up> [--project <name>]');
     return 1;
   }
   if (parsed.kind === 'refused') {
@@ -41,7 +67,7 @@ function main(argv: readonly string[]): number {
     return 1;
   }
   try {
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'platform-deploy');
+    const { record, recordPath } = runStagingPhase(parsed.phase, project);
     console.log(
       `[platform-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,

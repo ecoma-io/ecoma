@@ -19,11 +19,11 @@
  * (`ECOMA_PULUMI_STATE_URL_STAGING` thiếu nghĩa là staging chưa được bootstrap
  * — #350 — tuyệt đối không "dùng local tạm").
  *
- * Chương trình Pulumi của platform-deploy trên stack staging khai **0
- * resource** (guard ở `index.ts`) — resource staging thật là scope
- * #349/#350/#351. Vì vậy một lần `preview`/`up` hiện tại là vòng đời stack
- * no-op có chủ đích: nó chứng minh backend/stack/credential/evidence contract
- * chạy được, KHÔNG chứng minh resource nào tồn tại.
+ * Chương trình Pulumi của platform-deploy trên stack staging khai resource
+ * thật từ #349 (DNS zone `ecoma.io.vn` qua `staging-program.ts`; trước đó là
+ * marker-only 0-resource theo #368). Guard ở `index.ts` vẫn chặn stack lạ —
+ * resource staging của CÁC unit khác (`staging-pg-host`...) nằm trên stack
+ * Pulumi riêng của unit đó, không phải ở đây.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
