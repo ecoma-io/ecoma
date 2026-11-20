@@ -73,6 +73,15 @@ function main(argv: readonly string[]): number {
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[backoffice-deploy] evidence record: ${recordPath}`);
+    if (record.gitSha === null) {
+      // Provenance mờ: `git rev-parse HEAD` thất bại hoặc trả non-SHA — bản
+      // provision vẫn chạy, nhưng evidence không ghim được revision (§7.3 cho
+      // phép null; cảnh báo để operator không bỏ sót).
+      console.warn(
+        '[backoffice-deploy] staging evidence gitSha is null — `git rev-parse HEAD` failed or returned a non-SHA; ' +
+          'the provision ran but its provenance is not pinned to a revision',
+      );
+    }
     if (parsed.phase === 'up') {
       // Đọc output id bằng CÙNG inventory + selection + env của lần `up` vừa
       // xanh — `runStagingPhase` trả nguyên bộ đó, KHÔNG resolve lại lần hai.

@@ -238,8 +238,12 @@ const accountDatabaseUrl = pulumi.interpolate`postgresql://ecoma_account_runtime
  * là URL trần (`"connectionString":postgresql://...`) — không phải JSON hợp
  * lệ, `destr` parse fail ⇒ binding `null` ⇒ `/ready` 503 `binding_missing`
  * (issue #229).
+ *
+ * `accountDatabaseUrl` KHÔNG được bọc `pulumi.secret` thêm lần nữa: tính
+ * secret lan truyền qua chuỗi Output (đầu vào có secret ⇒ interpolate ra
+ * secret), nên bọc kép chỉ làm đỏm state/diff mà không thêm bảo vệ nào.
  */
-const cloudflareEnvJson = pulumi.interpolate`{"DB_ACCOUNT":{"connectionString":"${pulumi.secret(accountDatabaseUrl)}"}}`;
+const cloudflareEnvJson = pulumi.interpolate`{"DB_ACCOUNT":{"connectionString":"${accountDatabaseUrl}"}}`;
 
 const imageTag = `ecoma-account-${ns}:local`;
 

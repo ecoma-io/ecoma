@@ -92,6 +92,10 @@
             "dependencies": true
           },
           {
+            "//": "internal-port.spec.ts đọc trực tiếp wrangler.jsonc của app — đổi file phải chạy lại test (cache).",
+            "fileset": "{workspaceRoot}/apps/staff-access/wrangler.jsonc"
+          },
+          {
             "fileset": "{projectRoot}/tsconfig.storybook.json",
             "dependencies": true
           },

@@ -133,7 +133,10 @@ export function resolveStagingHyperdriveOrigin(
   }
   // Password cùng đường fail-closed với host: rỗng/toàn-trắng counted thiếu.
   // Output của `conf.getSecret` không phải string — chỉ trim-kiểm khi là string
-  // (pattern #549).
+  // (pattern #549). Ranh giới đã biết: password rỗng bọc trong Output KHÔNG
+  // được kiểm ở lúc đánh giá chương trình (kiểm đồng bộ chỉ thấy `object`);
+  // giá trị đó fail sau, tại lúc provision khi Hyperdrive không kết nối được
+  // origin — không đường nào cho nó vào config "thành công" âm thầm.
   if (
     config.originPassword === undefined ||
     (typeof config.originPassword === 'string' && config.originPassword.trim().length === 0)
@@ -194,6 +197,8 @@ export function r2AccountIdFromStateUrl(stateUrl: string): string {
   try {
     parsed = new URL(stateUrl);
   } catch {
+    // intentional: lỗi gốc không actionable — message dưới mang nguyên
+    // `stateUrl` đầu vào cho operator.
     throw new Error(`${stateUrl} is not a valid staging state URL`);
   }
   const endpoint = parsed.searchParams.get('endpoint');
@@ -259,6 +264,11 @@ export interface StagingRunEnv {
   backendUrl: string;
   /** Env ĐẦY ĐỦ cho subprocess Pulumi (allowlist: khóa inventory + PATH/HOME). */
   env: NodeJS.ProcessEnv;
+  /**
+   * Selection do adapter cấp NGAY TRONG hàm này — `stackSelection` được gọi
+   * đúng MỘT lần trên một lần chạy; caller dùng lại giá trị này, không gọi lại.
+   */
+  selection: StackSelection;
 }
 
 /**
@@ -301,8 +311,11 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
   }
   const backendUrl = source[STAGING_STATE_URL_ENV_KEY] as string;
   // Adapter tự validate tổ hợp stack↔backend (staging chỉ đi với s3:// R2 đủ
-  // endpoint/region/s3ForcePathStyle) — sai tổ hợp là từ chối ngay đây.
-  stagingDeploymentAdapter.stackSelection('account-deploy', {
+  // endpoint/region/s3ForcePathStyle) — sai tổ hợp là từ chối ngay đây. Tên
+  // project là định danh của CHÍNH bản copy này (pattern copy có chủ đích —
+  // JSDoc đầu file); selection được trả về cho caller DÙNG LẠI, không gọi
+  // adapter lần hai.
+  const selection = stagingDeploymentAdapter.stackSelection('account-deploy', {
     slot: STAGING_SLOT,
     backendUrl,
   });
@@ -324,7 +337,7 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
     PULUMI_SKIP_UPDATE_CHECK: '1',
     PULUMI_CONFIG_PASSPHRASE: source.PULUMI_CONFIG_PASSPHRASE as string,
   };
-  return { backendUrl, env };
+  return { backendUrl, env, selection };
 }
 
 /**
@@ -514,12 +527,10 @@ export function runStagingPhase(
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
   // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
   // đó adapter tự fallback đọc env khi `backendUrl` undefined — đường lỗi kép
-  // đã được OCR chỉ ra).
-  const { backendUrl, env } = resolveStagingRunEnv(sourceEnv);
-  const selection = stagingDeploymentAdapter.stackSelection(project, {
-    slot: STAGING_SLOT,
-    backendUrl,
-  });
+  // đã được OCR chỉ ra). Selection lấy từ `resolveStagingRunEnv` — adapter
+  // được gọi đúng MỘT lần trên một lần chạy (OCR round 2); project truyền vào
+  // chỉ phục vụ projectDir/stackRef/pulumiRun của chính bản copy này.
+  const { backendUrl, env, selection } = resolveStagingRunEnv(sourceEnv);
   const startedAt = new Date().toISOString();
   const gitSha = readGitHeadSha(projectDir, deps);
   ensureStagingStack(projectDir, selection, env, deps);

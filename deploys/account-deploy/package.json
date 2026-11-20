@@ -15,7 +15,9 @@
     "implicitDependencies": [
       "platform-deploy",
       "@ecoma-io/deployment",
-      "@ecoma-io/account"
+      "@ecoma-io/account",
+      "@ecoma-io/auth",
+      "@ecoma-io/staff-access"
     ],
     "tags": [
       "type:deployment",
@@ -91,6 +93,16 @@
           {
             "fileset": "{projectRoot}/tsconfig.spec.json",
             "dependencies": true
+          },
+          {
+            "//": "peer-ports.spec.ts đọc trực tiếp nguồn port của peer (app WIC qua wrangler.jsonc; mail qua index.ts của deploy unit đó) — đổi file peer phải chạy lại test (cache). Edge giữa hai deploy unit là cấm theo bất biến graph (05-code-architecture.md), nên file mail chỉ khai inputs cache, không khai implicitDependencies.",
+            "fileset": "{workspaceRoot}/apps/auth/wrangler.jsonc"
+          },
+          {
+            "fileset": "{workspaceRoot}/apps/staff-access/wrangler.jsonc"
+          },
+          {
+            "fileset": "{workspaceRoot}/deploys/transactional-mail-deploy/index.ts"
           },
           {
             "json": "{workspaceRoot}/tsconfig.json",

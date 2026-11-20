@@ -66,4 +66,13 @@ describe('no-index middleware', () => {
     middleware(fakeEvent);
     expect(setHeaderSpy).not.toHaveBeenCalled();
   });
+
+  it('sets no header and does not throw when the runtime config has no `public` shape', async () => {
+    // Config thiếu `public` (shape đổi) phải vẫn fail-safe: không header, không
+    // TypeError — middleware không được làm hỏng route Worker-served.
+    (globalThis as { useRuntimeConfig?: unknown }).useRuntimeConfig = (_event?: H3Event) => ({});
+    const middleware = await loadMiddleware();
+    expect(() => middleware(fakeEvent)).not.toThrow();
+    expect(setHeaderSpy).not.toHaveBeenCalled();
+  });
 });

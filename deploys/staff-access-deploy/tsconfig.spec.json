@@ -25,6 +25,7 @@
     "bundle-hash.spec.ts",
     "scripts.ts",
     "scripts.spec.ts",
+    "internal-port.spec.ts",
     "tests/**/*.ts"
   ]
 }
