@@ -39,13 +39,22 @@ function resolveTargetProject(argv: readonly string[]): {
   project: string;
   rest: readonly string[];
 } {
-  const flagIndex = argv.indexOf('--project');
+  // Chấp nhận cả hai dạng `--project <name>` và `--project=<name>` — dạng `=`
+  // rơi vào `rest` nếu không xử lý, và `parseStagingPhaseArg` từ chối với thông
+  // báo "không phải phase staging" gây nhầm lẫn cho operator.
+  const flagIndex = argv.findIndex((arg) => arg === '--project' || arg.startsWith('--project='));
   if (flagIndex < 0) return { project: 'platform-deploy', rest: argv };
-  const name = argv[flagIndex + 1];
+  const arg = argv[flagIndex];
+  const inlineName = arg.startsWith('--project=') ? arg.slice('--project='.length) : undefined;
+  const name = inlineName ?? argv[flagIndex + 1];
   if (name === undefined || !/^[a-z0-9][a-z0-9-]*$/u.test(name)) {
     throw new Error(`--project requires a plain project name (got: ${String(name)})`);
   }
-  return { project: name, rest: [...argv.slice(0, flagIndex), ...argv.slice(flagIndex + 2)] };
+  const consumed = inlineName === undefined ? 2 : 1;
+  return {
+    project: name,
+    rest: [...argv.slice(0, flagIndex), ...argv.slice(flagIndex + consumed)],
+  };
 }
 
 function main(argv: readonly string[]): number {

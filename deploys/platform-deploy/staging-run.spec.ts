@@ -74,6 +74,7 @@ function fullSourceEnv(): NodeJS.ProcessEnv {
     PULUMI_CONFIG_PASSPHRASE: 'test-passphrase',
     AWS_ACCESS_KEY_ID: 'test-key',
     AWS_SECRET_ACCESS_KEY: 'test-secret',
+    CLOUDFLARE_API_TOKEN: 'test-cf-token',
   };
 }
 
@@ -129,8 +130,9 @@ describe('resolveStagingRunEnv', () => {
     expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
     expect(env.PULUMI_SKIP_UPDATE_CHECK).toBe('1');
     expect(env.PULUMI_CONFIG_PASSPHRASE_FILE).toBeUndefined();
-    // Passthrough giữ nguyên: token Cloudflare (nếu có) vẫn env-only cho #350.
+    // Passthrough giữ nguyên: token Cloudflare env-only cho provider control-plane.
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
   });
 
   it('fails closed listing every missing key at once', () => {
@@ -146,6 +148,12 @@ describe('resolveStagingRunEnv', () => {
     expect(() => resolveStagingRunEnv({ ...fullSourceEnv(), AWS_SECRET_ACCESS_KEY: '  ' })).toThrow(
       /AWS_SECRET_ACCESS_KEY/u,
     );
+  });
+
+  it('a missing Cloudflare control-plane token fails closed before Pulumi runs', () => {
+    const source = fullSourceEnv();
+    delete source.CLOUDFLARE_API_TOKEN;
+    expect(() => resolveStagingRunEnv(source)).toThrow(/CLOUDFLARE_API_TOKEN/u);
   });
 
   it('a missing state URL means not bootstrapped and refuses without a fallback', () => {

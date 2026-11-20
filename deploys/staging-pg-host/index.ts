@@ -95,9 +95,14 @@ const connection = {
   privateKey: readFileSync(sshPrivateKeyPath, 'utf8'),
 };
 
-/** Bọc một script SQL vào `psql` qua heredoc KHÔNG quote (cần cho `$PW_*`). */
+/**
+ * Bọc một script SQL vào `psql` qua heredoc KHÔNG quote (cần cho `$PW_*`).
+ * `-q` + `>/dev/null`: psql in thẻ lệnh (CREATE ROLE/ALTER ROLE) ra stdout —
+ * redirect giữ stdout thuần TSV `role<TAB>password` để `pgRolePasswords` parse
+ * được; lỗi SQL vẫn đi stderr và `ON_ERROR_STOP=1` dừng script.
+ */
 const runPsql = (sql: string): string =>
-  `sudo -u postgres psql -v ON_ERROR_STOP=1 <<PSQL_END\n${sql}\nPSQL_END`;
+  `sudo -u postgres psql -q -v ON_ERROR_STOP=1 <<PSQL_END >/dev/null\n${sql}\nPSQL_END`;
 
 /** Cài cluster PostgreSQL + openssl (sinh password trên host) — idempotent. */
 const pgInstall = new command.remote.Command(
