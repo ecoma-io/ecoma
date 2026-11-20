@@ -19,8 +19,10 @@
  * trị thật chỉ về qua stdout của command và được export dưới dạng secret
  * (`pulumi.secret`), state mã hóa bằng passphrase per-stack.
  *
- * Hardening + backup/WAL archive (§6.1 Tier 0) là việc còn lại của unit này —
- * xem README; không nằm trong lần provision đầu.
+ * Backup base + WAL archive → R2 (§3.1, §6.1 Required) được provision trong
+ * chính chương trình này — cơ chế placeholder built-ins + rclone, công cụ
+ * cuối vẫn là mục "Chưa chốt" §10 (xem TODO(349/tool) tại `pg-backup-prereq`).
+ * Hardening `pg_hba` là việc còn lại — xem README.
  */
 
 import { readFileSync } from 'node:fs';
@@ -57,6 +59,15 @@ const config = new pulumi.Config();
 const hostAddress = config.require('hostAddress');
 const sshUser = config.require('sshUser');
 const sshPrivateKeyPath = config.require('sshPrivateKeyPath');
+// Backup → R2 (§3.1 mô hình đã chốt): bucket + credential do operator cấp qua
+// config (secret mã hoá trong state bằng passphrase per-stack). Bucket tồn tại
+// TRƯỚC — chương trình này không tạo bucket (cần accountId #350, và retention
+// lifecycle rule của PITR window thuộc operator cấu hình trên bucket, mục 3.1
+// cạm bẫy (1): cắt WAL là lifecycle rule, KHÔNG phải pg_archivecleanup).
+const backupBucketName = config.require('backupBucketName');
+const backupR2Endpoint = config.require('backupR2Endpoint');
+const backupR2AccessKey = config.requireSecret('backupR2AccessKey');
+const backupR2SecretKey = config.requireSecret('backupR2SecretKey');
 
 /**
  * Connection SSH dùng chung cho mọi command — ở `@pulumi/command` v1.3,
@@ -87,9 +98,8 @@ const pgInstall = new command.remote.Command(
       'sudo systemctl enable --now postgresql',
     ].join('\n'),
   },
-  // TODO(349/blocking): hardening pg_hba (scram + localhost-only) và cấu hình
-  // backup/WAL archive (§6.1 Tier 0, §3.1) — lần provision sau, cần đích
-  // lưu trữ off-host được duyệt.
+  // TODO(349/blocking): hardening pg_hba (scram + localhost-only tường minh)
+  // — lần provision sau.
 );
 
 /**
@@ -141,7 +151,74 @@ export const pgGrants = new command.remote.Command(
   { dependsOn: pgDatabases },
 );
 
+/**
+ * Prerequisite backup (§3.1, §6.1 Required): WAL archive bật ở mức cluster —
+ * `archive_mode` + `archive_command` đẩy segment vào thư mục local (hàng đợi
+ * push), `archive_timeout` chặn cửa sổ WAL im lặng dài.
+ *
+ * TODO(349/tool): cơ chế base + WAL → R2 ở đây là PLACEHOLDER built-ins
+ * (`pg_basebackup` + `archive_command` + `rclone`) — công cụ backup cuối
+ * (pgBackRest/wal-g/...) là mục "Chưa chốt" của `03-operations.md` §10
+ * (trigger: trước khi có dữ liệu thật); quyết định đó KHÔNG được suy từ
+ * placeholder này.
+ */
+const pgBackupPrereq = new command.remote.Command(
+  'pg-backup-prereq',
+  {
+    connection,
+    create: [
+      'set -eu',
+      'export DEBIAN_FRONTEND=noninteractive',
+      'sudo apt-get install -y -qq rclone',
+      'sudo install -d -o postgres -g postgres /var/lib/postgresql/wal-archive /var/backups/pg-base',
+      runPsql(
+        [
+          `ALTER SYSTEM SET archive_mode = 'on';`,
+          `ALTER SYSTEM SET archive_command = 'test ! -f /var/lib/postgresql/wal-archive/%f && cp %p /var/lib/postgresql/wal-archive/%f';`,
+          `ALTER SYSTEM SET archive_timeout = '60s';`,
+        ].join('\n'),
+      ),
+      // archive_mode chỉ có hiệu lực sau restart — một lần tại provision.
+      'sudo systemctl restart postgresql',
+    ].join('\n'),
+  },
+  { dependsOn: pgInstall },
+);
+
+/**
+ * Jobs backup (§3.1: base hằng ngày, WAL liên tục): unit systemd oneshot +
+ * timer đẩy WAL archive (5 phút) và base backup (`pg_basebackup`, 02:30) lên
+ * R2 qua rclone. Credential R2 nằm trong `/etc/pg-backup.env` (0600 root) —
+ * nội dung sinh từ config secret, không vào Git, không vào log. Retention
+ * (PITR window) là lifecycle rule trên bucket R2 — operator cấu hình ngoài
+ * chương trình này (§3.1 cạm bẫy (1): cắt WAL là lifecycle rule, không phải
+ * `pg_archivecleanup`).
+ */
+export const pgBackupJobs = new command.remote.Command(
+  'pg-backup-jobs',
+  {
+    connection,
+    create: pulumi
+      .all([backupBucketName, backupR2Endpoint, backupR2AccessKey, backupR2SecretKey])
+      .apply(([bucket, endpoint, accessKey, secretKey]) =>
+        [
+          'set -eu',
+          'sudo install -m 0600 -o root -g root /dev/null /etc/pg-backup.env',
+          `sudo tee /etc/pg-backup.env >/dev/null <<'ENV_END'\nRCLONE_CONFIG_R2_TYPE=s3\nRCLONE_CONFIG_R2_ENDPOINT=${endpoint}\nRCLONE_CONFIG_R2_ACCESS_KEY_ID=${accessKey}\nRCLONE_CONFIG_R2_SECRET_ACCESS_KEY=${secretKey}\nENV_END`,
+          `sudo tee /etc/systemd/system/pg-wal-push.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Push PostgreSQL WAL archive to R2\n[Service]\nType=oneshot\nEnvironmentFile=/etc/pg-backup.env\nExecStart=/usr/bin/rclone sync /var/lib/postgresql/wal-archive r2:${bucket}/wal\nUNIT_END`,
+          `sudo tee /etc/systemd/system/pg-wal-push.timer >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Push PostgreSQL WAL archive every 5 minutes\n[Timer]\nOnCalendar=*:0/5\nPersistent=true\n[Install]\nWantedBy=timers.target\nUNIT_END`,
+          `sudo tee /etc/systemd/system/pg-base-backup.service >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Daily PostgreSQL base backup to R2\n[Service]\nType=oneshot\nEnvironmentFile=/etc/pg-backup.env\nExecStart=/bin/bash -c 'DIR=/var/backups/pg-base/$$(date +%%Y%%m%%dT%%H%%M%%S) && sudo -u postgres /usr/bin/pg_basebackup -D "$$DIR" -Fp -Xs -P && /usr/bin/rclone sync "$$DIR" "r2:${bucket}/base/$$(basename "$$DIR")"'\nUNIT_END`,
+          `sudo tee /etc/systemd/system/pg-base-backup.timer >/dev/null <<'UNIT_END'\n[Unit]\nDescription=Run PostgreSQL base backup daily\n[Timer]\nOnCalendar=*-*-* 02:30:00\nPersistent=true\n[Install]\nWantedBy=timers.target\nUNIT_END`,
+          'sudo systemctl daemon-reload',
+          'sudo systemctl enable --now pg-wal-push.timer pg-base-backup.timer',
+        ].join('\n'),
+      ),
+  },
+  { dependsOn: pgBackupPrereq },
+);
+
 export const pgHostAddress = hostAddress;
 export const pgSshUser = sshUser;
 export const pgDatabasesProvisioned = [...STAGING_PG_DATABASES];
+export const pgBackupBucket = backupBucketName;
 export const pgRolePasswords = pulumi.secret(pgRoles.stdout);

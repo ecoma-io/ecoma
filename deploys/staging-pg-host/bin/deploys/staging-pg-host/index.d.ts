@@ -19,12 +19,24 @@
  * trị thật chỉ về qua stdout của command và được export dưới dạng secret
  * (`pulumi.secret`), state mã hóa bằng passphrase per-stack.
  *
- * Hardening + backup/WAL archive (§6.1 Tier 0) là việc còn lại của unit này —
- * xem README; không nằm trong lần provision đầu.
+ * Backup base + WAL archive → R2 (§3.1, §6.1 Required) được provision trong
+ * chính chương trình này — cơ chế placeholder built-ins + rclone, công cụ
+ * cuối vẫn là mục "Chưa chốt" §10 (xem TODO(349/tool) tại `pg-backup-prereq`).
+ * Hardening `pg_hba` là việc còn lại — xem README.
  */
 import type * as pulumi from '@pulumi/pulumi';
 /** Isolation per-DB: REVOKE CONNECT public, grant đúng cặp role của DB đó. */
 export declare const pgGrants: import('@pulumi/command/remote/command.js').Command;
+/**
+ * Jobs backup (§3.1: base hằng ngày, WAL liên tục): unit systemd oneshot +
+ * timer đẩy WAL archive (5 phút) và base backup (`pg_basebackup`, 02:30) lên
+ * R2 qua rclone. Credential R2 nằm trong `/etc/pg-backup.env` (0600 root) —
+ * nội dung sinh từ config secret, không vào Git, không vào log. Retention
+ * (PITR window) là lifecycle rule trên bucket R2 — operator cấu hình ngoài
+ * chương trình này (§3.1 cạm bẫy (1): cắt WAL là lifecycle rule, không phải
+ * `pg_archivecleanup`).
+ */
+export declare const pgBackupJobs: import('@pulumi/command/remote/command.js').Command;
 export declare const pgHostAddress: string;
 export declare const pgSshUser: string;
 export declare const pgDatabasesProvisioned: (
@@ -40,4 +52,5 @@ export declare const pgDatabasesProvisioned: (
   | 'db-remote-cache'
   | 'db-remote-cache-app'
 )[];
+export declare const pgBackupBucket: string;
 export declare const pgRolePasswords: pulumi.Output<string>;
