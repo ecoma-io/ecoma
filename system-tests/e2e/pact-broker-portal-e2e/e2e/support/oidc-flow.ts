@@ -1,4 +1,4 @@
-import { expect, type Page, type Response } from '@playwright/test';
+import { expect, type Locator, type Page, type Response } from '@playwright/test';
 
 import { resolvePortalOrigin } from './local-origin';
 
@@ -49,6 +49,26 @@ const NAVIGATION_BUDGET_MS = 45_000;
  * callback luôn đáp `/`.
  */
 const LANDED_PATH_PATTERN = /\/$/u;
+
+/**
+ * Cửa sổ quan sát callback lần đầu — ngắn để phân biệt nhanh "chậm" với
+ * "chết"; các lượt re-entry sau dùng cửa sổ dài hơn.
+ */
+const CALLBACK_FIRST_WINDOW_MS = 5_000;
+/**
+ * Cửa sổ quan sát callback mỗi lượt re-entry — BFF/auth lạnh trên CI runner
+ * hosted (VM mới mỗi run) có thể chậm hơn 5s mà KHÔNG chết.
+ */
+const CALLBACK_REENTRY_WINDOW_MS = 15_000;
+/**
+ * Tổng số lượt chốt landing callback (1 lần đầu + 3 lượt re-entry qua
+ * `goto(origin)`). Mỗi re-entry đi path granted auto — grant đã persist,
+ * KHÔNG tiêu OTP/challenge mới, không đụng rate limit — nên thêm lượt là an
+ * toàn; vẫn fail thật khi cả 4 lượt đều không thấy callback (bằng chứng
+ * `remote-cache-portal-e2e` run 44543816898, #461/#498: 2 lượt không đủ dưới
+ * churn docker của CI).
+ */
+const CALLBACK_LANDING_ATTEMPTS = 4;
 
 /**
  * Trang chết "chưa sẵn sàng" mà browser đang đứng — đọc từ status của response
@@ -196,7 +216,39 @@ export async function performBrowserLogin(
     await retryButton.click();
     await expect(continueTarget).toBeVisible({ timeout: 30_000 });
   } else if (continueOrRetry === 'none') {
-    await expect(continueTarget).toBeVisible({ timeout: 0 });
+    // Cả target lẫn retry vắng mặt 30s: hop điều hướng vào `/login/continue`
+    // chết tầng mạng (ERR_NETWORK_CHANGED family — instance thật ở
+    // `remote-cache-portal-e2e` run 44639848365, #498; cùng trang `account`)
+    // — page.url() còn giữ URL đích kèm `handle`. Điều hướng lại chính URL
+    // đó: `completeHandoff` fire lúc mount và push idempotent (`event_id` từ
+    // `session_ref`, auth trả `already_processed` nếu đã xử lý) — không tiêu
+    // OTP/challenge mới. Chỉ MỘT lượt: cạn lần hai là lỗi thật.
+    const stuckUrl = page.url();
+    if (new URL(stuckUrl).pathname === '/login/continue') {
+      await page.goto(stuckUrl, { waitUntil: 'load' });
+      const secondChance = await Promise.race([
+        continueTarget
+          .waitFor({ state: 'visible', timeout: 30_000 })
+          .then(() => 'continue' as const)
+          .catch(() => 'none' as const),
+        retryButton
+          .waitFor({ state: 'visible', timeout: 30_000 })
+          .then(() => 'retry' as const)
+          .catch(() => 'none' as const),
+      ]);
+      if (secondChance === 'retry') {
+        await retryButton.click();
+        await expect(continueTarget).toBeVisible({ timeout: 30_000 });
+      } else if (secondChance === 'none') {
+        throw new Error(
+          `/login/continue rendered no card even after re-navigation (${await describeStuckState(page)})`,
+        );
+      }
+    } else {
+      throw new Error(
+        `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
+      );
+    }
   }
   await continueTarget.click();
 
@@ -282,17 +334,29 @@ export async function performBrowserLogin(
   // render, khi hop auth→callback cuối chết `-1 net::ERR_NETWORK_CHANGED` —
   // callback không bao giờ xảy ra dù URL trông "hợp lệ".
   const origin = resolvePortalOrigin();
-  let waited = await waitForCallbackOrTimeout(page, () => finalHop, 5_000);
-  if (!waited) {
-    // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
-    // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
-    // portal `/` đi path granted auto và callback xảy ra. Retry ĐÚNG MỘT LẦN;
-    // lần hai fail thật (finalHop vẫn undefined ⇒ throw ở dưới).
-    await page.goto(origin, { waitUntil: 'load' });
-    waited = await waitForCallbackOrTimeout(page, () => finalHop, 15_000);
+  let waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_FIRST_WINDOW_MS);
+  // Flake `ERR_NETWORK_CHANGED` ở hop redirect cuối (#335): consent đã được
+  // quyết XONG phía server (grant tồn tại) và session cookie còn — `goto` lại
+  // portal `/` đi path granted auto và callback xảy ra. Mỗi lượt re-entry còn
+  // tiến hoá trạng thái treo trước khi điều hướng (consent undecided, handoff
+  // chưa xong — `resumeStuckLoginState`); goto bị bỏ qua ở lượt vừa resume để
+  // không cắt ngang redirect chain đang chạy. Re-entry là idempotent (không OTP
+  // mới, không challenge, không rate limit) nên vòng bị chặn trên
+  // CALLBACK_LANDING_ATTEMPTS lượt thay vì đúng một: dưới churn docker của CI
+  // hosted (VM mới mỗi run), HAI lượt liên tiếp chết là xác suất thực (bằng
+  // chứng `remote-cache-portal-e2e` run 44543816898, #461/#498). Cạn vòng vẫn
+  // throw — lỗi thật không bị che.
+  for (let attempt = 1; !waited && attempt < CALLBACK_LANDING_ATTEMPTS; attempt += 1) {
+    const resumed = await resumeStuckLoginState(page);
+    if (resumed === undefined) {
+      await page.goto(origin, { waitUntil: 'load' });
+    }
+    waited = await waitForCallbackOrTimeout(page, () => finalHop, CALLBACK_REENTRY_WINDOW_MS);
   }
   if (!waited) {
-    throw new Error('login flow finished but no /api/auth/callback response was observed');
+    throw new Error(
+      `login flow finished but no /api/auth/callback response was observed (${await describeStuckState(page)})`,
+    );
   }
   if (finalHop === undefined) {
     // Không thể xảy ra sau `waited === true` — bước kiểm cho TS thu hẹp kiểu.
@@ -301,6 +365,88 @@ export async function performBrowserLogin(
   // Callback đã xảy ra — browser đứng ở `/`.
   await expect(page).toHaveURL(LANDED_PATH_PATTERN, { timeout: 5_000 });
   return { finalHop, finalPath: new URL(page.url()).pathname };
+}
+
+/**
+ * Tiến hoá một trạng thái treo của browser về phía callback — trả mô tả hành
+ * động đã làm, hoặc `undefined` khi trang không ở trạng thái treo nào nhận
+ * diện được (browser đang đi path granted auto, chỉ cần điều hướng lại).
+ *
+ * Root cause của chữ ký "login flow finished but no /api/auth/callback
+ * response was observed" (5 instance ở `remote-cache-portal-e2e`, #461; port
+ * sang các suite cùng nhóm qua #498): vòng re-entry cũ chỉ `goto(origin)` —
+ * hữu ích duy nhất khi auth-session + grant còn nguyên (path granted auto).
+ * Hai trạng thái treo khiến chain KHÔNG BAO GIỜ tự tới callback dù lặp bao
+ * nhiêu lượt:
+ *
+ * 1. Consent chưa decided: POST decide chết ngầm trước khi commit mà UI không
+ *    kịp render thẻ lỗi (cửa sổ decideFailed 5s của flow chính bỏ lỡ) —
+ *    `/authorize` thấy transaction còn `awaiting_consent` và render lại consent
+ *    card; không ai bấm ⇒ mỗi lượt goto lặp đúng cảnh đó.
+ * 2. Handoff push chưa xong: trang `/login/continue` render thẻ lỗi với nút
+ *    retry sau khi cửa sổ retry 5s của flow chính đã qua.
+ *
+ * Cả hai action đều idempotent, cùng nền tảng với các retry một-lượt của flow
+ * chính: handoff push idempotent theo `event_id`; decide replay an toàn —
+ * `event_id` deterministic `consent:<decision>:<transaction_id>` của auth
+ * (`apps/auth/src/consent-handler.ts`) nhận ra quyết định đã commit qua
+ * `replayOrReject`, không double-grant.
+ */
+async function resumeStuckLoginState(page: Page): Promise<string | undefined> {
+  const continueRetry = page.getByTestId('login-continue-retry');
+  if (await isVisibleSafe(continueRetry)) {
+    await continueRetry.click();
+    await waitForContinueOrLanded(page, page.getByTestId('login-continue-target'));
+    return 'clicked login-continue-retry';
+  }
+  const consentCard = page.getByTestId('consent-card');
+  if (await isVisibleSafe(consentCard)) {
+    await page.getByTestId('consent-approve').click();
+    const consentContinue = page.getByTestId('consent-continue');
+    if (await waitForContinueOrLanded(page, consentContinue)) {
+      await consentContinue.click();
+    }
+    return 're-approved undecided consent';
+  }
+  return undefined;
+}
+
+/** isVisible không ném khi element biến mất giữa chờ — trả `false`. */
+async function isVisibleSafe(locator: Locator): Promise<boolean> {
+  return locator.isVisible().catch(() => false);
+}
+
+/**
+ * Race giữa nút continue mount và trang tự về đích — auth resolve grant ngay
+ * sau khi render card là hành vi thật, callback có thể xảy ra TRƯỚC khi nút
+ * mount; chờ nút một-mình sẽ timeout 30s dù luồng đã thành công. Trả `true`
+ * khi nút mount để bấm tiếp, `false` khi đã landed hoặc cả hai chết trong
+ * budget — trường hợp sau do vòng landing quyết định (tiếp tục quan sát hoặc
+ * throw kèm `describeStuckState`), không che lỗi.
+ */
+async function waitForContinueOrLanded(page: Page, target: Locator): Promise<boolean> {
+  return Promise.race([
+    target
+      .waitFor({ state: 'visible', timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false),
+    page
+      .waitForURL(LANDED_PATH_PATTERN, { timeout: 30_000 })
+      .then(() => false)
+      .catch(() => false),
+  ]);
+}
+
+/** Mô tả trạng thái trang lúc cạn vòng — dữ liệu đo được cho instance sau. */
+async function describeStuckState(page: Page): Promise<string> {
+  const states = ['consent-card', 'login-continue-retry', 'login-email-form', 'login-code-form'];
+  const visible: string[] = [];
+  for (const testId of states) {
+    if (await isVisibleSafe(page.getByTestId(testId))) {
+      visible.push(testId);
+    }
+  }
+  return `url=${page.url()} visible=[${visible.join(', ')}]`;
 }
 
 /** Chờ callback `/api/auth/callback` được quan sát trong `budgetMs`. */
