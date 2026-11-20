@@ -313,6 +313,11 @@ const readBatchUnitFile = (path) => {
   throw new Error(`unexpected path: ${path}`);
 };
 
+const readBatchUnitFileNoVersion = (path) => {
+  if (path === 'apps/home/package.json') return JSON.stringify({ name: '@ecoma-io/home' });
+  throw new Error(`unexpected path: ${path}`);
+};
+
 describe('readBatchUnits — the batch/roots zip', () => {
   it('maps each project to the version of the package.json at the same position', () => {
     expect(
@@ -331,6 +336,12 @@ describe('readBatchUnits — the batch/roots zip', () => {
     expect(() =>
       readBatchUnits(['@ecoma-io/home', '@ecoma-io/account'], ['apps/home'], readBatchUnitFile),
     ).toThrow(/length mismatch/u);
+  });
+
+  it('rejects a package.json without a valid version field', () => {
+    expect(() =>
+      readBatchUnits(['@ecoma-io/home'], ['apps/home'], readBatchUnitFileNoVersion),
+    ).toThrow(/has no valid version field/u);
   });
 });
 

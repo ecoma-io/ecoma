@@ -262,6 +262,13 @@ export function readBatchUnits(batch, batchRoots, readFile = (path) => readFileS
   }
   return batch.map((project, index) => {
     const manifest = JSON.parse(readFile(`${batchRoots[index]}/package.json`));
+    // Fail-fast thay vì truyền version undefined xuống commit/PR body: một
+    // package.json thiếu version là hỏng repo, không phải bản release hợp lệ.
+    if (typeof manifest.version !== 'string' || manifest.version === '') {
+      throw new Error(
+        `${project}: package.json at ${batchRoots[index]} has no valid version field`,
+      );
+    }
     return { project, version: manifest.version };
   });
 }
