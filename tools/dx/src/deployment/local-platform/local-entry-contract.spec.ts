@@ -46,6 +46,8 @@ const DATABASE_PROJECTS = [
   'auth-db',
   'backoffice-db',
   'staff-access-db',
+  'remote-cache-db',
+  'remote-cache-app-db',
 ] as const;
 
 /**

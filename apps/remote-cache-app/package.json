@@ -15,8 +15,8 @@
   },
   "//": [
     "`pg` + `@types/pg` ở devDependencies: driver PostgreSQL chỉ dùng ở",
-    "`server/auth/session.ts` (pool) và `db/apply.mts` (migration runner ở CI",
-    "runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
+    "`server/auth/session.ts` (pool) và suite integration (harness pg Client ở",
+    "CI runner, Node) — bundle Worker kéo `pg` qua preset `cloudflare-module`",
     "(không external). `jose` ở dependencies: verify access token offline trong",
     "BFF (`server/auth/verify.ts`) — cùng phiên bản với `apps/backoffice` và",
     "`apps/pact-broker-app`.",
@@ -86,14 +86,6 @@
         "options": {
           "cwd": "apps/remote-cache-app",
           "command": "npx tsc --project tsconfig.db.json"
-        }
-      },
-      "db:migrate": {
-        "executor": "nx:run-commands",
-        "cache": false,
-        "options": {
-          "cwd": "apps/remote-cache-app",
-          "command": "npx tsx --tsconfig tsconfig.db.json db/apply.mts"
         }
       },
       "test": {
@@ -173,7 +165,10 @@
           "default",
           "^production",
           {
-            "fileset": "{workspaceRoot}/apps/remote-cache-api/db/**"
+            "fileset": "{workspaceRoot}/deploys/remote-cache-db/**"
+          },
+          {
+            "fileset": "{workspaceRoot}/deploys/remote-cache-app-db/**"
           },
           {
             "fileset": "{workspaceRoot}/apps/remote-cache-api/wrangler.jsonc"

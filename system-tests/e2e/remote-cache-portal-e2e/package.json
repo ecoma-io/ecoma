@@ -5,6 +5,7 @@
   "type": "module",
   "devDependencies": {
     "@ecoma-io/deployment": "workspace:*",
+    "@ecoma-io/system-tests-support": "workspace:*",
     "@playwright/test": "^1.37.0"
   },
   "nx": {

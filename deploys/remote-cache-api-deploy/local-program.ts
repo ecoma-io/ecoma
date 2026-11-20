@@ -42,7 +42,7 @@
  * PASSWORD` được dựng trong shell và nạp psql qua STDIN (`docker exec -i`), nên
  * không process nào giữ giá trị trong argv (chi tiết kênh ở `scripts.ts`).
  * Migration chạy **đường
- * canonical** (`apps/remote-cache-api/db/apply.mts` — advisory lock
+ * canonical** (`deploys/remote-cache-db/runner.mts migrate` — advisory lock
  * `hashtext('db-remote-cache')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock). SAU migration, bootstrap tenant canonical `ecoma` chạy **đường
@@ -90,6 +90,7 @@ import {
  * `REMOTE_CACHE_INTERNAL_PORT` — wrangler đổi port là healthcheck fail ngay (fail
  * qua vòng đời container, không qua assertion compile-time).
  */
+// PHẢI đồng bộ với dev.port của apps/remote-cache-api/wrangler.jsonc
 const REMOTE_CACHE_INTERNAL_PORT = 4207;
 
 /**
@@ -235,7 +236,7 @@ const provision = new command.local.Command(
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx db/apply.mts` của repo (`apps/remote-cache-api/db/apply.mts` —
+ * chạy đúng `tsx runner.mts migrate` của authority (`deploys/remote-cache-db` —
  * advisory lock `hashtext('db-remote-cache')`, mọi DDL idempotent). Repo mount
  * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
  *
