@@ -186,7 +186,7 @@ export function stagingWorkerNameFromConfig(configText: string): string {
 
 /** Đối số wrangler cho một hành động secret — `--env staging` luôn tường minh. */
 export function buildWranglerSecretArgs(
-  action: SecretAction | string,
+  action: SecretAction,
   secretName: string,
   configPath: string,
 ): string[] {
@@ -208,13 +208,14 @@ export function trimTrailingNewline(value: string): string {
  * subprocess chạy (không có lệnh nào được thực thi nửa vời).
  */
 export function putWorkerSecret(
-  action: string,
+  action: SecretAction,
   secretName: string,
   configPath: string,
   value: string,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: WorkerSecretDeps = defaultDeps,
 ): { worker: string; args: string[] } {
+  // Type đã chặn caller TS; guard này cho caller runtime (argv, JS không type).
   if (action !== 'put' && action !== 'stage') {
     throw new Error(`unknown secret action "${action}" — expected "put" or "stage"`);
   }

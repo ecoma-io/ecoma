@@ -6,6 +6,7 @@ import {
   ensureStagingEnvironments,
   ghProcessEnv,
   isNotFound,
+  isValidRepoIdentifier,
   stagingUnits,
   type GhApiDeps,
   type StagingEligibilityConfig,
@@ -143,6 +144,20 @@ describe('isNotFound', () => {
   });
 });
 
+describe('isValidRepoIdentifier', () => {
+  it('accepts exactly two safe segments and rejects paths, gaps and garbage', () => {
+    expect(isValidRepoIdentifier('ecoma-io/ecoma')).toBe(true);
+    expect(isValidRepoIdentifier('my.org/my_repo-1')).toBe(true);
+    expect(isValidRepoIdentifier('owner/name/extra')).toBe(false);
+    expect(isValidRepoIdentifier('owner')).toBe(false);
+    expect(isValidRepoIdentifier('owner/')).toBe(false);
+    expect(isValidRepoIdentifier('/name')).toBe(false);
+    expect(isValidRepoIdentifier('owner name/x')).toBe(false);
+    expect(isValidRepoIdentifier('owner/name extra')).toBe(false);
+    expect(isValidRepoIdentifier('owner/../etc')).toBe(false);
+  });
+});
+
 describe('ensureStagingEnvironments', () => {
   const unit = { project: '@ecoma-io/home', slug: 'home', environment: 'staging-home' };
 
@@ -242,6 +257,51 @@ describe('ensureStagingEnvironments', () => {
     // Không có lời gọi mutation nào (PUT/POST) trong mode check.
     expect(
       deps.calls.every((call) => !call.args.includes('PUT') && !call.args.includes('POST')),
+    ).toBe(true);
+  });
+
+  it('check mode reports a non-custom policy as a violation without mutating', () => {
+    const deps = fakeGh({ exists: true, customPolicy: false, patterns: [], protectionRules: [] });
+    const [report] = ensureStagingEnvironments([unit], 'ecoma-io/ecoma', deps, 'check');
+    expect(report.exists).toBe(true);
+    expect(report.policyFixed).toBe(false);
+    expect(report.violations).toHaveLength(1);
+    expect(report.violations[0]).toContain('custom_branch_policies');
+    // Violation ở đây là exit 1 ở CLI — guard CI phải đỏ ở đúng state này (§6.13).
+    expect(
+      deps.calls.every((call) => !call.args.includes('PUT') && !call.args.includes('POST')),
+    ).toBe(true);
+  });
+
+  it('reports a policy that stays non-custom after an ensure repair', () => {
+    // PUT không đổi được policy (API không nhận) → phải báo thay vì giả định thành công.
+    const deps: GhApiDeps = {
+      ghApi: (args) => {
+        const method = args[0] === '-X' ? (args[1] as string) : 'GET';
+        const path = method === 'GET' ? (args[0] as string) : (args[2] as string);
+        if (path === 'repos/ecoma-io/ecoma/environments/staging-home') {
+          if (method === 'GET') {
+            return {
+              status: 0,
+              stdout: JSON.stringify({
+                deployment_branch_policy: {
+                  protected_branches: true,
+                  custom_branch_policies: false,
+                },
+                protection_rules: [],
+              }),
+              stderr: '',
+            };
+          }
+          return { status: 0, stdout: '{}', stderr: '' }; // PUT "thành công" nhưng không đổi gì
+        }
+        return { status: 1, stdout: '', stderr: 'gh: unexpected call (HTTP 500)' };
+      },
+    };
+    const [report] = ensureStagingEnvironments([unit], 'ecoma-io/ecoma', deps, 'ensure');
+    expect(report.policyFixed).toBe(true);
+    expect(
+      report.violations.some((violation) => violation.includes('still not custom after repair')),
     ).toBe(true);
   });
 

@@ -108,10 +108,6 @@ export function defaultGhApiDeps(): GhApiDeps {
   return { ghApi: (args, input) => runGh(['api', ...args], process.env, input) };
 }
 
-const defaultDeps: GhApiDeps = {
-  ghApi: (args, input) => runGh(['api', ...args], process.env, input),
-};
-
 /** `gh api` trả 404 — "chưa tồn tại", phân biệt với mọi lỗi API khác. */
 export function isNotFound(result: ExecResult): boolean {
   return result.status !== 0 && /HTTP 404/u.test(result.stderr);
@@ -239,6 +235,7 @@ function ensureOne(
   };
   let payload = getEnvironment(envPath, deps);
   if (payload !== null) report.exists = true;
+  let policyCustom = false;
   if (payload === null) {
     if (mode === 'check') {
       report.violations.push(
@@ -257,41 +254,72 @@ function ensureOne(
     payload = getEnvironment(envPath, deps);
   } else {
     const policy = payload.deployment_branch_policy;
-    const readable = typeof policy === 'object' && policy !== null && !Array.isArray(policy);
-    if (!readable || policy.custom_branch_policies !== true) {
-      if (mode === 'ensure') {
+    policyCustom =
+      typeof policy === 'object' &&
+      policy !== null &&
+      !Array.isArray(policy) &&
+      policy.custom_branch_policies === true;
+    if (!policyCustom) {
+      if (mode === 'check') {
+        // §6.13 fail-closed: check mode PHẢI báo policy sai, không chỉ ensure —
+        // guard CI im lặng ở đúng state nguy hiểm nhất là fail-open.
+        report.violations.push(
+          'deployment_branch_policy is not { custom_branch_policies: true } — the staging ' +
+            'branch restriction cannot be verified (§6.13); run without --check to repair',
+        );
+      } else {
         putEnvironment(envPath, deps);
         report.policyFixed = true;
         payload = getEnvironment(envPath, deps);
       }
     }
   }
-
-  const policies = getBranchPolicyNames(envPath, deps);
-  if (policies === null) {
-    report.violations.push('branch policy list has an unreadable shape (§6.13)');
-  } else {
-    if (!policies.names.includes('main') && mode === 'ensure') {
-      addBranchPolicy(envPath, deps);
-      report.branchPolicyAdded = true;
+  if (report.policyFixed) {
+    // Sau repair, đọc lại policy từ payload mới: PUT mà vẫn không custom là
+    // API không nhận mutation — báo thay vì giả định thành công. `payload`
+    // về mặt type vẫn nullable (getEnvironment) — optional chain cho state
+    // đọc không được là fail-closed về violation, không phải crash.
+    const repaired = payload?.deployment_branch_policy;
+    policyCustom =
+      typeof repaired === 'object' &&
+      repaired !== null &&
+      !Array.isArray(repaired) &&
+      repaired.custom_branch_policies === true;
+    if (!policyCustom) {
+      report.violations.push(
+        'deployment_branch_policy is still not custom after repair — the GitHub API did ' +
+          'not accept the mutation (§6.13)',
+      );
     }
-    // Đọc lại danh sách SAU mutations để violations phản ánh state cuối.
-    const current = getBranchPolicyNames(envPath, deps);
-    if (current === null) {
+  }
+
+  if (policyCustom) {
+    const policies = getBranchPolicyNames(envPath, deps);
+    if (policies === null) {
       report.violations.push('branch policy list has an unreadable shape (§6.13)');
     } else {
-      if (!current.names.includes('main')) {
-        report.violations.push(
-          'deployment branch policy does not allow "main" — the staging lane deploys ' +
-            'only from main after CI (§7.4)',
-        );
+      if (!policies.names.includes('main') && mode === 'ensure') {
+        addBranchPolicy(envPath, deps);
+        report.branchPolicyAdded = true;
       }
-      const extras = current.names.filter((name) => name !== 'main');
-      if (extras.length > 0) {
-        report.violations.push(
-          `unexpected deployment branch policies: ${extras.join(', ')} — staging deploys ` +
-            'run only from main; remove them in Settings → Environments',
-        );
+      // Đọc lại danh sách SAU mutations để violations phản ánh state cuối.
+      const current = getBranchPolicyNames(envPath, deps);
+      if (current === null) {
+        report.violations.push('branch policy list has an unreadable shape (§6.13)');
+      } else {
+        if (!current.names.includes('main')) {
+          report.violations.push(
+            'deployment branch policy does not allow "main" — the staging lane deploys ' +
+              'only from main after CI (§7.4)',
+          );
+        }
+        const extras = current.names.filter((name) => name !== 'main');
+        if (extras.length > 0) {
+          report.violations.push(
+            `unexpected deployment branch policies: ${extras.join(', ')} — staging deploys ` +
+              'run only from main; remove them in Settings → Environments',
+          );
+        }
       }
     }
   }
@@ -319,10 +347,19 @@ function ensureOne(
 export function ensureStagingEnvironments(
   units: StagingUnit[],
   repo: string,
-  deps: GhApiDeps = defaultDeps,
+  deps: GhApiDeps = defaultGhApiDeps(),
   mode: 'ensure' | 'check' = 'ensure',
 ): EnvironmentReport[] {
   return units.map((unit) => ensureOne(unit, repo, deps, mode));
+}
+
+/**
+ * `owner/name` hợp lệ: ĐÚNG HAI segment, mỗi segment chỉ chữ/số/_/./- — anchor
+ * cả hai đầu nên path `a/b/c`, ký tự trắng hay trailing slash đều bị từ chối.
+ * (`\w` của JS luôn là ASCII nên hai segment này đủ chặn mọi ký tự ngoài.)
+ */
+export function isValidRepoIdentifier(repo: string): boolean {
+  return /^[\w.-]+\/[\w.-]+$/u.test(repo);
 }
 
 /**
@@ -333,7 +370,7 @@ export function repoFromGh(source: NodeJS.ProcessEnv = process.env): string {
   const result = runGh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], source);
   assertOk(result, 'repo view');
   const repo = result.stdout.trim();
-  if (!/^[\w.-]+/u.test(repo) || !repo.includes('/')) {
+  if (!isValidRepoIdentifier(repo)) {
     throw new Error(`gh repo view returned an unexpected repository identifier: "${repo}"`);
   }
   return repo;

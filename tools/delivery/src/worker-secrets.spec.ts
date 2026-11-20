@@ -12,6 +12,7 @@ import {
   trimTrailingNewline,
   validateSecretName,
   CONTROL_PLANE_TOKEN_ENV_KEY,
+  type SecretAction,
   type WorkerSecretDeps,
 } from './worker-secrets.ts';
 
@@ -196,8 +197,17 @@ describe('putWorkerSecret', () => {
     expect(() =>
       putWorkerSecret('put', 'AXIOM_TOKEN', 'c.jsonc', '\n', envSource, okDeps()),
     ).toThrowError(/value is empty/u);
+    // Type đã giới hạn 'put'|'stage'; guard runtime vẫn phải chặn giá trị lạ
+    // từ caller không qua TS (argv, JS) — cast có chủ ý để chạm đúng guard đó.
     expect(() =>
-      putWorkerSecret('deploy', 'AXIOM_TOKEN', 'c.jsonc', 'value', envSource, okDeps()),
+      putWorkerSecret(
+        'deploy' as SecretAction,
+        'AXIOM_TOKEN',
+        'c.jsonc',
+        'value',
+        envSource,
+        okDeps(),
+      ),
     ).toThrowError(/unknown secret action/u);
   });
 

@@ -18,7 +18,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   defaultGhApiDeps,
@@ -62,6 +62,13 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
 
 /** Đọc giá trị secret từ stdin (fd 0) — KHÔNG bao giờ qua argv. */
 function readStdinValue(): string {
+  // TTY là fail-closed: readFileSync(0) trên TTY sẽ treo vô hạn chờ gõ tay —
+  // từ chối ngay thay vì treo pipeline.
+  if (process.stdin.isTTY) {
+    throw new Error(
+      'secret value must be piped via stdin (echo "..." | npx tsx src/cli.ts worker-secret ...)',
+    );
+  }
   try {
     return trimTrailingNewline(readFileSync(0, 'utf8'));
   } catch (error) {
@@ -72,8 +79,14 @@ function readStdinValue(): string {
   }
 }
 
-/** In report Environment ra stdout; trả số violation tìm thấy. */
-function printReports(reports: EnvironmentReport[]): number {
+/**
+ * In report Environment ra `out`; trả số violation tìm thấy — main map số này
+ * ra exit code (bất kỳ violation nào là exit 1, gồm cả mode check).
+ */
+export function printReports(
+  out: { write(text: string): unknown },
+  reports: EnvironmentReport[],
+): number {
   let failed = 0;
   for (const report of reports) {
     const changes = [
@@ -83,10 +96,10 @@ function printReports(reports: EnvironmentReport[]): number {
     ]
       .filter((part) => part !== null)
       .join(', ');
-    process.stdout.write(`${report.environment}: ${changes}\n`);
+    out.write(`${report.environment}: ${changes}\n`);
     for (const violation of report.violations) {
       failed += 1;
-      process.stdout.write(`${report.environment}: VIOLATION — ${violation}\n`);
+      out.write(`${report.environment}: VIOLATION — ${violation}\n`);
     }
   }
   return failed;
@@ -117,7 +130,7 @@ function main(argv: readonly string[]): number {
       defaultGhApiDeps(),
       check ? 'check' : 'ensure',
     );
-    const failed = printReports(reports);
+    const failed = printReports(process.stdout, reports);
     process.stdout.write(
       failed === 0
         ? `all ${reports.length} staging environments verified\n`
@@ -144,6 +157,14 @@ function main(argv: readonly string[]): number {
   return 2;
 }
 
-// Chạy qua `npx tsx`; argv[2..] là đối số lệnh.
-const exitCode = main(process.argv.slice(2));
-process.exit(exitCode);
+// Chỉ exit khi được thực thi trực tiếp qua `npx tsx`; khi bị import (spec)
+// không chạy main — argv[1] là file entry này mới là đường chạy thật.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack trace.
+  try {
+    process.exit(main(process.argv.slice(2)));
+  } catch (error) {
+    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  }
+}
