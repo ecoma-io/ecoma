@@ -270,10 +270,8 @@ export async function performBrowserLogin(
   // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
   // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
   const retryButton = page.getByTestId('login-continue-retry');
-  // Pha chờ sau verify là hợp đồng dùng chung của 4 suite (#461 round 2): chờ
-  // target/retry, re-navigate hop `/login/continue` chết một lượt, re-click
-  // `login-code-submit` đúng một lượt khi `login-request-failed` hiện — vòng
-  // bị chặn trên `MAX_VERIFY_ATTEMPTS`, cạn ngân sách là throw kèm stuck state.
+  // Hợp đồng recovery của pha chờ sau verify (#461 round 2) — dùng chung của
+  // 4 suite, tài liệu đầy đủ sống ở `@ecoma-io/system-tests-support`.
   await waitForContinueTargetAfterOtpVerify(page, {
     continueTarget,
     retryButton,
