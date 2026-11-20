@@ -5,11 +5,11 @@
  * (#349), id thật vs placeholder, tên config per-database.
  */
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
@@ -539,6 +539,47 @@ describe('stagingEvidencePath', () => {
     expect(
       stagingEvidencePath(Object.assign(new Error('x'), { recordPath: undefined })),
     ).toBeUndefined();
+  });
+});
+
+describe('runStagingPhase evidence-write failure', () => {
+  it('keeps the original Pulumi error as `cause` when the evidence write also fails', async () => {
+    // OCR round 4: lỗi gốc phải unwrap được qua `cause` (ES2022) — message gộp
+    // là cho operator, caller phân loại lỗi theo lỗi Pulumi gốc.
+    vi.doMock('@ecoma-io/deployment', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
+      deployProjectDir: () => {
+        // Evidence write phải THẤT BẠI: `.staging-evidence` bị thay bằng một
+        // FILE thường — `mkdirSync(recursive)` thoát nhanh, `writeFileSync` ném
+        // ENOTDIR, đúng đường `catch (recordError)` cần khớp.
+        const dir = tempProjectDir();
+        writeFileSync(join(dir, '.staging-evidence'), 'not a directory', 'utf8');
+        return dir;
+      },
+      pulumiRun: () => {
+        throw new Error('pulumi up boom');
+      },
+    }));
+    vi.resetModules();
+    const mocked = await import('./staging-run.js');
+    const thrown = (() => {
+      try {
+        mocked.runStagingPhase(
+          'preview',
+          'backoffice-deploy',
+          { ...fullSourceEnv(), PATH: '/injected/bin', HOME: '/injected/home' },
+          { execFn: () => execResult() },
+        );
+        return undefined;
+      } catch (error) {
+        return error as Error & { cause?: unknown };
+      }
+    })();
+    expect(thrown?.message).toMatch(/pulumi up boom[\s\S]*evidence write failed/u);
+    expect(thrown?.cause).toBeInstanceOf(Error);
+    expect((thrown?.cause as Error | undefined)?.message).toBe('pulumi up boom');
+    vi.doUnmock('@ecoma-io/deployment');
+    vi.resetModules();
   });
 });
 
