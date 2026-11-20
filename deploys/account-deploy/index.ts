@@ -60,4 +60,11 @@ const stagingProgramResult =
 // hyperdriveConfigId` không tìm thấy) — lane staging có default export nên
 // forward đúng object đó; lane local chỉ có named exports (`default` undefined)
 // nên forward nguyên namespace. OCR head 7c145f3b #354.
+//
+// Bất biến của đường forward (OCR round 3): `local-program.ts` và
+// `staging-program.ts` KHÔNG ĐƯỢC thêm `export default` ngoài contract trên —
+// một default export của lane local sẽ bị host unwrap thành giá trị đó thay vì
+// namespace outputs, làm mất `pulumi stack output provisionCommandName`...
+// Contract lane local (chỉ named exports) được ghim bởi test của
+// `local-entry-contract.spec.ts` (`libs/deployment`).
 export default (stagingProgramResult as { default?: unknown }).default ?? stagingProgramResult;

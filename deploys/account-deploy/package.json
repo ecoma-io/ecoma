@@ -15,9 +15,7 @@
     "implicitDependencies": [
       "platform-deploy",
       "@ecoma-io/deployment",
-      "@ecoma-io/account",
-      "@ecoma-io/auth",
-      "@ecoma-io/staff-access"
+      "@ecoma-io/account"
     ],
     "tags": [
       "type:deployment",

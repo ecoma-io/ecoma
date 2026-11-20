@@ -17,15 +17,25 @@
  * `apps/account/tests/wrangler-services.spec.ts`.
  */
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { describe, expect, it } from 'vitest';
 
 /** Đọc text nguồn và extract giá trị hằng `const NAME = <số>;` — thiếu là lỗi test. */
 function readProgramConstant(file: string, name: string): number {
   const source = readFileSync(file, 'utf8');
-  const match = source.match(new RegExp(`^const ${name} = (\\d+);$`, 'mu'));
+  // Chấp nhận biến thể khai báo tường minh (OCR round 3): `export` tuỳ chọn,
+  // khoảng trắng tuỳ ý, type annotation tuỳ chọn — DRIFT GIÁ TRỊ vẫn bắt được
+  // vì số trong khai báo là nhóm bắt duy nhất; khai báo đổi hình ngoài các
+  // biến thể này phải sửa regex một cách tường minh (fail-loud, không đoán).
+  const match = source.match(
+    new RegExp(
+      `^(?:export )?const[ \\t]+${name}(?:[ \\t]*:[^=;\\n]+)?[ \\t]*=[ \\t]*(\\d+)[ \\t]*;[ \\t]*$`,
+      'mu',
+    ),
+  );
   if (match === null) {
     throw new Error(`constant ${name} not found in ${file}`);
   }
@@ -70,6 +80,39 @@ function parseJsonc(path: string): Record<string, unknown> {
   return JSON.parse(out.replace(/,(\s*[}\]])/gu, '$1')) as Record<string, unknown>;
 }
 
+describe('readProgramConstant declaration-shape tolerance', () => {
+  const fixture = [
+    'const STAFF_ACCESS_INTERNAL_PORT = 4206;',
+    'export const STAFF_ACCESS_INTERNAL_PORT = 4206;',
+    'const   STAFF_ACCESS_INTERNAL_PORT   =   4206  ;',
+    'export const STAFF_ACCESS_INTERNAL_PORT: number = 4206;',
+  ].join('\n');
+
+  it('extracts the value across export, whitespace and type-annotation variants', () => {
+    for (const [index, source] of fixture.split('\n').entries()) {
+      const file = join(tmpdir(), `internal-port-shape-${index}.ts`);
+      writeFileSync(file, source, 'utf8');
+      try {
+        expect(readProgramConstant(file, 'STAFF_ACCESS_INTERNAL_PORT')).toBe(4206);
+      } finally {
+        rmSync(file, { force: true });
+      }
+    }
+  });
+
+  it('a declaration that no longer matches the known shapes fails loudly, never silently skips', () => {
+    const file = join(tmpdir(), 'internal-port-shape-broken.ts');
+    writeFileSync(file, 'const STAFF_ACCESS_INTERNAL_PORT = 42 + 6;', 'utf8');
+    try {
+      expect(() => readProgramConstant(file, 'STAFF_ACCESS_INTERNAL_PORT')).toThrow(
+        /constant STAFF_ACCESS_INTERNAL_PORT not found/u,
+      );
+    } finally {
+      rmSync(file, { force: true });
+    }
+  });
+});
+
 describe('internal port pin (local-program.ts)', () => {
   it('STAFF_ACCESS_INTERNAL_PORT matches the dev.port of apps/staff-access/wrangler.jsonc', () => {
     const pinned = readProgramConstant(
@@ -79,10 +122,12 @@ describe('internal port pin (local-program.ts)', () => {
     const config = parseJsonc(
       resolve(import.meta.dirname, '../../apps/staff-access/wrangler.jsonc'),
     );
+    // Parse thuần trước, expect trong test case (OCR round 3) — helper không
+    // gắn bó ngữ cảnh vitest.
     const dev = config['dev'] as { port?: unknown } | undefined;
-    expect(dev?.port, `dev.port not found in apps/staff-access/wrangler.jsonc`).toBeTypeOf(
-      'number',
-    );
-    expect(pinned).toBe(dev?.port as number);
+    if (typeof dev?.port !== 'number') {
+      throw new Error('dev.port not found (or not a number) in apps/staff-access/wrangler.jsonc');
+    }
+    expect(pinned).toBe(dev.port);
   });
 });
