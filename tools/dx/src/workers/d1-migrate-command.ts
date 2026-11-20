@@ -13,10 +13,13 @@ import {
  * app unit (cutover #382, hợp đồng `docs/architecture/02-delivery.md` §3a.4
  * và quyết định A+: authority D1 nằm ở app unit, một call site per app).
  *
- * Hai mode, bắt buộc chọn đúng một:
- * - `--local` (mặc định an toàn cho dev): áp vào D1 local của app qua
- *   `applyLocalD1Migrations` — state nằm ở `<app>/.wrangler/state` (gitignored),
- *   không cần credential nào.
+ * Hai mode:
+ * - `--local` (mặc định khi không có flag nào — an toàn cho dev): áp vào D1
+ *   local của app qua `applyLocalD1Migrations` — state nằm ở
+ *   `<app>/.wrangler/state` (gitignored), không cần credential nào. Mặc định
+ *   này an toàn vì đường remote không thể chạy nhầm: nó fail-closed khi thiếu
+ *   token trong env (OCR #511 run 44679254844 — doc hứa "mặc định" nhưng
+ *   code lỗi khi gọi trần; giờ khớp nhau).
  * - `--remote` (staging/production từ CI): đọc `ECOMA_CLOUDFLARE_API_TOKEN` từ
  *   env — thiếu là fail-closed, không bao giờ nhận token qua argv; token được
  *   map thành `CLOUDFLARE_API_TOKEN` chỉ trong subprocess wrangler.
@@ -58,9 +61,9 @@ export default defineCommand({
   run({ args }) {
     const local = args['local'] === true;
     const remote = args['remote'] === true;
-    if (local === remote) {
+    if (local && remote) {
       console.error(
-        '[d1-migrate] choose exactly one mode: --local (dev, no credentials) or --remote (CI lane)',
+        '[d1-migrate] pass only one mode: --local (dev, no credentials) or --remote (CI lane)',
       );
       process.exitCode = 1;
       return;
@@ -79,7 +82,7 @@ export default defineCommand({
     );
     const configPath = join(appDir, 'wrangler.jsonc');
     try {
-      if (local) {
+      if (!remote) {
         const databaseName = requireSingleD1DatabaseName(configPath);
         const stdout = applyLocalD1Migrations({
           configPath,
