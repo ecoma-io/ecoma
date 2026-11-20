@@ -16,7 +16,11 @@
     "vite.config.mts",
     "vitest.config.ts",
     "vitest.config.mts",
-    "local-env.spec.ts"
+    "local-env.spec.ts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
+    "staging-config.spec.ts",
+    "wrangler-jsonc.ts"
   ],
   "references": [
     {
