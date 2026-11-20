@@ -21,6 +21,7 @@
     "vitest.integration.config.mts",
     "runner.mts",
     "runner.spec.ts",
+    "drizzle.config.spec.ts",
     "tests/integrations/**/*.ts"
   ]
 }
