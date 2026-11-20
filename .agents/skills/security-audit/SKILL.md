@@ -263,8 +263,7 @@ isolation) rather than widen an existing role's contract.
   trust-boundary evidence with `path:line` references before validation.
 - `needs_validation` never receives a severity (upstream anti-pattern 9).
 - No live production, shared infrastructure, provider, identity, or
-  other-user probing; local shared services are in scope only when the user
-  explicitly authorized that target.
+  other-user probing.
 - The target repository's source is never modified during an audit. Full
   audit outputs live outside the target repository by default (the upstream
   default output location); the user may explicitly select an in-repository
