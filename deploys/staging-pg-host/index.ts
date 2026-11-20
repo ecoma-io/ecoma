@@ -8,10 +8,12 @@
  * Phạm vi TƯỜNG MINH của chương trình này (quyền sở hữu §9.1 `02-delivery.md`):
  * bảng ownership giao VPS/PostgreSQL host cho Pulumi, còn Workers VPC Service
  * + Cloudflare Tunnel cho Wrangler. Vì vậy chương trình KHÔNG khai tunnel —
- * TODO(349/blocking): DNS CNAME `pg-staging.ecoma.io.vn` và kết nối Workers →
- * PostgreSQL đợi quyết định VP4 (lệnh `wrangler vpc service create` chưa tồn
- * tại cho lane staging; unit nào provision tunnel — Wrangler hay đây — là
- * quyết định kiến trúc, đã escalate lên orchestrator, KHÔNG tự suy).
+ * kết nối Workers → PostgreSQL thuộc lane connectivity riêng (docs ở
+ * `deploys/staging-connectivity/`, CLI `tools/delivery/src/cli.ts vpc-service
+ * create`): VP4 đã verified trên pin wrangler 4.165.0 (2026-11-20) — lệnh
+ * `wrangler vpc service create` TỒN TẠI (TODO cũ nói "chưa tồn tại" là
+ * stale); DNS CNAME `pg-staging.ecoma.io.vn` thuộc unit DNS của
+ * `platform-deploy`.
  *
  * Ranh giới credential (§6/§7.4.1): private key SSH đọc từ đường dẫn config
  * (file ngoài Git); password DB sinh bằng `openssl rand` TRÊN HOST trong lúc

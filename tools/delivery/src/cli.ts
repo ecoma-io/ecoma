@@ -12,6 +12,12 @@
  *   Giá trị secret đọc từ STDIN (`echo "..." | npx tsx src/cli.ts worker-secret ...`).
  *   `put` deploy ngay (WS1 — provision lần đầu); `stage` chỉ stage version
  *   xoay vòng, publish vẫn qua delivery gate.
+ * - `npx tsx src/cli.ts vpc-service create <NAME> --tunnel-id <uuid> --hostname <host>
+ *   [--tcp-port 5432] [--app-protocol postgresql|mysql]`
+ *   Lane connectivity staging #349: tạo Workers VPC Service TCP tới origin
+ *   PostgreSQL staging qua Cloudflare Tunnel (`02` §9.1 — Wrangler sở hữu;
+ *   VP4 verified trên wrangler 4.165.0). In ra dòng machine-readable
+ *   `service_id=<uuid>` — output contract cho wiring Hyperdrive #350.
  *
  * CLI mỏng: mọi logic nằm trong module có spec; file này chỉ parse argv, đọc
  * stdin và map kết quả ra exit code.
@@ -20,6 +26,11 @@
 import { readFileSync, readSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import {
+  createStagingVpcService,
+  type VpcAppProtocol,
+  type VpcServiceInput,
+} from './staging-connectivity.ts';
 import {
   defaultGhApiDeps,
   ensureStagingEnvironments,
@@ -38,7 +49,8 @@ import {
 const USAGE =
   'usage:\n' +
   '  npx tsx src/cli.ts ensure-staging-environments [--check] [--repo owner/name]\n' +
-  '  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)';
+  '  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)\n' +
+  '  npx tsx src/cli.ts vpc-service create <NAME> --tunnel-id <uuid> --hostname <host> [--tcp-port 5432] [--app-protocol postgresql|mysql]';
 
 /** Shape tối thiểu khi parse argv `worker-secret`. */
 export type ParsedWorkerSecretArgv =
@@ -60,6 +72,51 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
     return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
   }
   return { kind: 'ok', action, secretName, configPath };
+}
+
+/** Đọc một giá trị flag `--name <value>` khỏi argv; thiếu value là lỗi dùng-lệnh. */
+function flagValue(argv: readonly string[], flag: string): string | undefined {
+  const index = argv.indexOf(flag);
+  return index >= 0 ? argv[index + 1] : undefined;
+}
+
+/**
+ * Parse argv của `vpc-service create` — dùng-lệnh sai là lỗi, không đoán.
+ * Mặc định `--tcp-port 5432` / `--app-protocol postgresql` là hằng domain của
+ * lane PG staging (không phải mặc định environment); name/tunnel-id/hostname
+ * bắt buộc tường minh.
+ */
+export function parseVpcServiceArgv(
+  argv: readonly string[],
+): { kind: 'ok'; input: VpcServiceInput } | { kind: 'usage'; message: string } {
+  const [subaction, name] = argv;
+  if (subaction !== 'create') {
+    return { kind: 'usage', message: 'first argument must be "create"' };
+  }
+  if (name === undefined || name.trim().length === 0) {
+    return { kind: 'usage', message: 'missing <NAME> positional argument' };
+  }
+  const tunnelId = flagValue(argv, '--tunnel-id');
+  if (tunnelId === undefined || tunnelId.trim().length === 0) {
+    return { kind: 'usage', message: 'missing --tunnel-id <uuid> (wrangler requires it)' };
+  }
+  const hostname = flagValue(argv, '--hostname');
+  if (hostname === undefined || hostname.trim().length === 0) {
+    return { kind: 'usage', message: 'missing --hostname <origin host>' };
+  }
+  const tcpPortRaw = flagValue(argv, '--tcp-port') ?? '5432';
+  const tcpPort = Number(tcpPortRaw);
+  if (!Number.isInteger(tcpPort)) {
+    return { kind: 'usage', message: `--tcp-port must be an integer, got "${tcpPortRaw}"` };
+  }
+  const appProtocolRaw = flagValue(argv, '--app-protocol') ?? 'postgresql';
+  if (appProtocolRaw !== 'postgresql' && appProtocolRaw !== 'mysql') {
+    return { kind: 'usage', message: `--app-protocol must be "postgresql" or "mysql"` };
+  }
+  return {
+    kind: 'ok',
+    input: { name, tunnelId, hostname, tcpPort, appProtocol: appProtocolRaw as VpcAppProtocol },
+  };
 }
 
 /** Trần dung lượng stdin của giá trị secret — 1 MiB là dư cho mọi secret hiện có. */
@@ -227,6 +284,22 @@ function main(argv: readonly string[]): number {
       parsed.action === 'put'
         ? `secret ${parsed.secretName} provisioned (deployed) on ${worker}\n`
         : `secret ${parsed.secretName} staged on ${worker} — publish goes through the delivery gate, not this path\n`,
+    );
+    return 0;
+  }
+  if (command === 'vpc-service') {
+    const parsed = parseVpcServiceArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    const { serviceId } = createStagingVpcService(parsed.input);
+    // Dòng machine-readable `service_id=` là output contract cho wiring
+    // Hyperdrive #350 (config Pulumi reference service_id này).
+    process.stdout.write(`service_id=${serviceId}\n`);
+    process.stdout.write(
+      `vpc service ${parsed.input.name} created — feed service_id into the Hyperdrive wiring (#350), ` +
+        'not into wrangler.jsonc by hand\n',
     );
     return 0;
   }

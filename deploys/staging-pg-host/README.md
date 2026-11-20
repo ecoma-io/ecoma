@@ -42,8 +42,10 @@ chưa xảy ra).
 
 - KHÔNG provision Cloudflare Tunnel, Workers VPC Service hay DNS CNAME
   `pg-staging.ecoma.io.vn` — §9.1 `02-delivery.md` giao Wrangler (`04` VP4);
-  scope reading chính thức đã ghi trên issue #349. Kết nối Workers →
-  PostgreSQL thuộc lane #350.
+  kết nối Workers → PostgreSQL là lane connectivity riêng tại
+  [`deploys/staging-connectivity/`](../staging-connectivity/) (CLI
+  `tools/delivery/src/cli.ts vpc-service create`); scope reading chính thức đã
+  ghi trên issue #349. Wiring Hyperdrive tiêu thụ `service_id` thuộc #350.
 - KHÔNG chọn công cụ backup cuối — placeholder built-ins + rclone với
   `TODO(349/tool)`; mục "Chưa chốt" `03-operations.md` §10 giữ quyền quyết.
 - KHÔNG sở hữu migration schema (các `deploys/*-db`, §3a) hay runtime Worker;
