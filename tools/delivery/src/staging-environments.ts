@@ -267,10 +267,12 @@ function ensureOne(
     // Environment tồn tại mà trống protection.
     putEnvironment(envPath, deps);
     report.created = true;
-    report.exists = true;
     policyMutated = true;
     // Đọc LẠI sau mutation — không tin response của PUT tự chứng minh state.
+    // `exists` gán theo KẾT QUẢ re-read (payload !== null), không gắn cứng
+    // trước: PUT mà GET lại 404 là state không nhất quán, báo theo re-read.
     payload = getEnvironment(envPath, deps);
+    report.exists = payload !== null;
   } else {
     const policy = payload.deployment_branch_policy;
     policyCustom = isCustomPolicy(policy);
@@ -368,6 +370,14 @@ export function ensureStagingEnvironments(
   deps: GhApiDeps = defaultGhApiDeps(),
   mode: 'ensure' | 'check' = 'ensure',
 ): EnvironmentReport[] {
+  // Defense-in-depth ở mức module: caller production duy nhất (cli.ts) đã
+  // validate ở ingress, nhưng hàm export này tự chặn traversal khỏi path gh
+  // nếu được gọi trực tiếp với repo không tin cậy.
+  if (!isValidRepoIdentifier(repo)) {
+    throw new Error(
+      `invalid repository identifier "${repo}" — expected exactly two owner/name segments without "." or ".."`,
+    );
+  }
   return units.map((unit) => ensureOne(unit, repo, deps, mode));
 }
 

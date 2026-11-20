@@ -33,11 +33,13 @@ npx tsx tools/delivery/src/cli.ts ensure-staging-environments --repo ecoma-io/ec
 # Guard chỉ đọc (không mutation)
 npx tsx tools/delivery/src/cli.ts ensure-staging-environments --repo ecoma-io/ecoma --check
 
-# Provision secret Worker staging (giá trị qua stdin, KHÔNG qua argv)
+# Provision secret Worker staging (giá trị qua stdin, KHÔNG qua argv, KHÔNG ghi giá trị vào log stdout/stderr)
 echo "<value>" | npx tsx tools/delivery/src/cli.ts worker-secret put AXIOM_INGEST_TOKEN --config apps/home/wrangler.jsonc
 # Xoay vòng — chỉ stage version, publish vẫn qua delivery gate
 echo "<rotated>" | npx tsx tools/delivery/src/cli.ts worker-secret stage AXIOM_INGEST_TOKEN --config apps/home/wrangler.jsonc
 ```
+
+KHÔNG BAO GIỜ ghi giá trị secret ra stdout/stderr hay log CI/CD — CLI chỉ in tên secret và tên Worker, không in giá trị. Nếu một wrapper phía ngoài log lại input, purge log ngay.
 
 Token đọc từ `ECOMA_CLOUDFLARE_API_TOKEN` trong env gọi CLI (org secret GitHub khi chạy trong CI); thiếu token là dừng với đúng tên biến, không fallback credential nào khác.
 

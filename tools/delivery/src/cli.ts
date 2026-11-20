@@ -65,6 +65,9 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
 /** Trần dung lượng stdin của giá trị secret — 1 MiB là dư cho mọi secret hiện có. */
 export const STDIN_MAX_BYTES = 1024 * 1024;
 
+/** Cỡ khối đọc stdin — đủ lớn để ít vòng lặp, nhỏ để cap bắt sát. */
+export const STDIN_READ_CHUNK_SIZE = 64 * 1024;
+
 /**
  * Đọc toàn bộ fd cho tới EOF theo khối, chặn ở trần dung lượng — không bao giờ
  * buffer vô hạn. fd là tham số để spec đọc từ file thật mà không đụng stdin.
@@ -75,7 +78,7 @@ export const STDIN_EAGAIN_DEADLINE_MS = 10_000;
 export function readStdinFrom(fd: number, maxBytes: number = STDIN_MAX_BYTES): string {
   const chunks: Buffer[] = [];
   let total = 0;
-  const buffer = Buffer.alloc(64 * 1024);
+  const buffer = Buffer.alloc(STDIN_READ_CHUNK_SIZE);
   const deadline = Date.now() + STDIN_EAGAIN_DEADLINE_MS;
   // EAGAIN là "chưa có dữ liệu" trên fd non-blocking (stdin pipe mặc định của
   // node), không phải lỗi — chờ 1ms (sleep sync qua Atomics) rồi đọc lại, trong
@@ -145,8 +148,10 @@ export function printReports(
 ): number {
   let failed = 0;
   for (const report of reports) {
+    // Ternary lồng tách biến — cùng output, dễ đọc.
+    const status = report.created ? 'created' : report.exists ? 'existed' : 'missing';
     const changes = [
-      report.created ? 'created' : report.exists ? 'existed' : 'missing',
+      status,
       report.policyFixed ? 'branch policy set' : null,
       report.branchPolicyAdded ? '"main" branch policy added' : null,
     ]
@@ -221,29 +226,31 @@ function main(argv: readonly string[]): number {
   return 2;
 }
 
-// Chỉ exit khi được thực thi trực tiếp qua `npx tsx`; khi bị import (spec)
-// không chạy main. So sánh realpath HAI BÊN: argv[1] có thể là symlink hoặc
-// đường tương đối (bin shim) — so nguyên chuỗi sẽ lệch và main không chạy.
-let isMainEntry = false;
-if (process.argv[1] !== undefined) {
+/**
+ * Quyết định `argv1` có trỏ tới chính module CLI này không. So sánh realpath
+ * HAI BÊN: argv[1] có thể là symlink hoặc đường tương đối (bin shim) — so
+ * nguyên chuỗi sẽ lệch và main không chạy. realpath không resolve được →
+ * fallback so raw string; path khớp CHÍNH entry mà vẫn không quyết định được
+ * là state không thể phân loại → rethrow fail-closed thay vì im lặng.
+ */
+export function isCliEntry(argv1: string, selfPath: string): boolean {
   try {
-    isMainEntry = realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+    return realpathSync(argv1) === realpathSync(selfPath);
   } catch (error) {
-    // realpath không resolve được — fallback so raw string; nếu path khớp CHÍNH
-    // entry mà vẫn không quyết định được mode là state không thể phân loại →
-    // rethrow fail-closed thay vì im lặng không chạy gì.
-    const selfPath = fileURLToPath(import.meta.url);
-    if (process.argv[1] === selfPath) {
+    if (argv1 === selfPath) {
       throw new Error(
-        `cannot determine whether this process is the CLI entry (${process.argv[1]}): ` +
+        `cannot determine whether this process is the CLI entry (${argv1}): ` +
           `${error instanceof Error ? error.message : String(error)}`,
         { cause: error },
       );
     }
-    isMainEntry = false;
+    return false;
   }
 }
-if (isMainEntry) {
+
+// Chỉ exit khi được thực thi trực tiếp qua `npx tsx`; khi bị import (spec)
+// không chạy main.
+if (process.argv[1] !== undefined && isCliEntry(process.argv[1], fileURLToPath(import.meta.url))) {
   // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack
   // trace. Dùng exitCode + drain tự nhiên thay vì process.exit: exit ngay sau
   // write có thể cắt ngang stdout/stderr chưa flush (đặc biệt khi pipe).

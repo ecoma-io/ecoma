@@ -2,9 +2,15 @@ import { closeSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { printReports, readStdinFrom, STDIN_MAX_BYTES } from './cli.ts';
+import {
+  isCliEntry,
+  parseWorkerSecretArgv,
+  printReports,
+  readStdinFrom,
+  STDIN_MAX_BYTES,
+} from './cli.ts';
 import type { EnvironmentReport } from './staging-environments.ts';
 
 /** Writer thu thập text vào mảng — spec không đụng stdout thật. */
@@ -49,9 +55,90 @@ describe('printReports', () => {
   });
 });
 
+describe('parseWorkerSecretArgv', () => {
+  it('parses a well-formed put command', () => {
+    expect(parseWorkerSecretArgv(['put', 'AXIOM_TOKEN', '--config', 'wrangler.jsonc'])).toEqual({
+      kind: 'ok',
+      action: 'put',
+      secretName: 'AXIOM_TOKEN',
+      configPath: 'wrangler.jsonc',
+    });
+  });
+
+  it('refuses an action that is neither put nor stage', () => {
+    expect(parseWorkerSecretArgv(['deploy', 'AXIOM_TOKEN', '--config', 'c.jsonc'])).toEqual({
+      kind: 'usage',
+      message: 'first argument must be "put" or "stage"',
+    });
+  });
+
+  it('refuses a missing or blank SECRET_NAME', () => {
+    expect(parseWorkerSecretArgv(['put'])).toEqual({
+      kind: 'usage',
+      message: 'missing SECRET_NAME argument',
+    });
+    expect(parseWorkerSecretArgv(['put', '   ', '--config', 'c.jsonc'])).toEqual({
+      kind: 'usage',
+      message: 'missing SECRET_NAME argument',
+    });
+  });
+
+  it('refuses a missing --config flag and a --config without a value', () => {
+    expect(parseWorkerSecretArgv(['put', 'AXIOM_TOKEN'])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+    expect(parseWorkerSecretArgv(['put', 'AXIOM_TOKEN', '--config'])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+    expect(parseWorkerSecretArgv(['put', 'AXIOM_TOKEN', '--config', '  '])).toEqual({
+      kind: 'usage',
+      message: 'missing --config <wrangler.jsonc> path',
+    });
+  });
+});
+
+describe('isCliEntry', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'delivery-entry-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('resolves identical real paths and symlinks to true', () => {
+    const real = join(dir, 'entry.ts');
+    writeFileSync(real, 'export {};\n');
+    expect(isCliEntry(real, real)).toBe(true);
+  });
+
+  it('returns false for two different existing paths', () => {
+    const a = join(dir, 'a.ts');
+    const b = join(dir, 'b.ts');
+    writeFileSync(a, 'export {};\n');
+    writeFileSync(b, 'export {};\n');
+    expect(isCliEntry(a, b)).toBe(false);
+  });
+
+  it('rethrows when the literal path matches the entry but realpath cannot resolve', () => {
+    const ghost = join(dir, 'ghost.ts');
+    expect(() => isCliEntry(ghost, ghost)).toThrowError(/cannot determine whether this process/u);
+  });
+
+  it('returns false when a nonexistent path differs from the entry', () => {
+    const ghost = join(dir, 'ghost.ts');
+    const real = join(dir, 'real.ts');
+    writeFileSync(real, 'export {};\n');
+    expect(isCliEntry(ghost, real)).toBe(false);
+  });
+});
+
 describe('readStdinFrom', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'delivery-stdin-'));
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'delivery-stdin-'));
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it('reads a whole fd to EOF', () => {
     const path = join(dir, 'small.txt');

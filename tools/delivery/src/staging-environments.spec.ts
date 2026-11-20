@@ -174,6 +174,21 @@ describe('isValidRepoIdentifier', () => {
 describe('ensureStagingEnvironments', () => {
   const unit = { project: '@ecoma-io/home', slug: 'home', environment: 'staging-home' };
 
+  it('refuses a traversal repo identifier at module level before any gh call', () => {
+    // Defense-in-depth: hàm export tự chặn, không phụ thuộc validate ở CLI.
+    const calls: string[][] = [];
+    const deps: GhApiDeps = {
+      ghApi: (args) => {
+        calls.push(args);
+        return { status: 0, stdout: '{}', stderr: '' };
+      },
+    };
+    expect(() => ensureStagingEnvironments([unit], '../evil', deps)).toThrowError(
+      /invalid repository identifier/u,
+    );
+    expect(calls).toEqual([]);
+  });
+
   it('creates the environment with a custom branch policy in the same run when missing', () => {
     const state: FakeEnvState = {
       exists: false,

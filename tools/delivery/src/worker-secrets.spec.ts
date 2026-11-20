@@ -95,6 +95,24 @@ describe('stripJsoncComments', () => {
     );
     expect(() => stripJsoncComments('{"a": "line"}')).not.toThrow();
   });
+
+  it('strips block comments and fails closed on an unterminated one', () => {
+    const stripped = stripJsoncComments('{ /* khoi comment */ "a": 1 }');
+    expect(JSON.parse(stripped)).toEqual({ a: 1 });
+    expect(() => stripJsoncComments('{ "a": /* chua dong 1')).toThrowError(
+      /unterminated block comment/u,
+    );
+    // `*/` bên trong string literal của value KHÔNG nằm trong block comment —
+    // quét string-aware không nhầm nó là terminator của comment.
+    const tricky = stripJsoncComments('{ "a": "x */ y" /* comment */ }');
+    expect(JSON.parse(tricky)).toEqual({ a: 'x */ y' });
+  });
+
+  it('keeps a legitimate comma inside a string literal', () => {
+    const stripped = stripJsoncComments('{"a": "x, y", "b": 1,}');
+    expect(() => JSON.parse(stripped)).not.toThrow();
+    expect(JSON.parse(stripped)).toEqual({ a: 'x, y', b: 1 });
+  });
 });
 
 describe('stagingWorkerNameFromConfig', () => {
@@ -171,6 +189,9 @@ describe('trimTrailingNewline', () => {
     expect(trimTrailingNewline('a\nb\n')).toBe('a\nb');
     expect(trimTrailingNewline('a\r\n')).toBe('a');
     expect(trimTrailingNewline('')).toBe('');
+    // Nhiều newline cuối: chỉ cắt ĐÚNG MỘT — hành vi thiết kế, operator pipe
+    // `printf 'x\n\n' |` vẫn giữ một newline trong secret.
+    expect(trimTrailingNewline('a\n\n')).toBe('a\n');
   });
 });
 
