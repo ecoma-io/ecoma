@@ -57,14 +57,15 @@ const defaultDeps: StagingExecDeps = { execFn: exec };
  * Phân loại stack ref đầy đủ của platform-deploy theo lane.
  *
  * `local-*` — lane local hiện hành (namespace worktree); `staging`/`staging-candidate`
- * — slot staging (chạy marker-only); còn lại — KHÔNG ĐƯỢC chạy: program này
- * khai Docker resource dùng config namespace, chạy trên stack lạ là khai
- * resource sai environment (hazard thật trước #368 — program không có guard).
+ * — slot staging (khai resource thật từ #349/#350 — zone + DNS records qua
+ * `staging-program.ts`); còn lại — KHÔNG ĐƯỢC chạy: mỗi thân lane khai
+ * resource đúng cho lane của nó, chạy trên stack lạ là khai resource sai
+ * environment (hazard thật trước #368 — program không có guard).
  */
-export function classifyPlatformStack(rawStackRef: string): 'local' | 'staging-marker' | 'unknown' {
+export function classifyPlatformStack(rawStackRef: string): 'local' | 'staging' | 'unknown' {
   const slug = rawStackRef.slice(rawStackRef.lastIndexOf('/') + 1);
   if (slug.startsWith('local-')) return 'local';
-  if (slug === 'staging' || slug === 'staging-candidate') return 'staging-marker';
+  if (slug === 'staging' || slug === 'staging-candidate') return 'staging';
   return 'unknown';
 }
 
@@ -270,9 +271,9 @@ export function backendBucket(backendUrl: string): string {
 /**
  * Chạy MỘT phase (`preview` hoặc `up`) trên stack staging của project, trả
  * record evidence. `--json` thay progress hiển thị: record phải mang diff đủ
- * nguyên vẹn, và trên stack marker hiện tại mỗi phase chạy trong vài giây — khi #350
- * khai resource thật, entry có thể đổi sang stream + `stack history` mà không
- * đổi hợp đồng record.
+ * nguyên vẹn. Stack hiện tại khai resource thật từ #349/#350 (zone + DNS
+ * records) nên mỗi phase vẫn nhanh; entry có thể đổi sang stream + `stack
+ * history` mà không đổi hợp đồng record.
  *
  * `pulumiRun` reuse: tự ghép `--stack <fullRef>` và xử lý lỗi spawn/exit đúng
  * cơ chế chung; `prepareStack` để false vì `ensureStack` của local có `mkdir`
