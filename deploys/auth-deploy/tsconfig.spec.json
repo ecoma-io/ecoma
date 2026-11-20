@@ -25,6 +25,8 @@
     "local-generators.ts",
     "scripts.ts",
     "scripts.spec.ts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
     "tests/**/*.ts"
   ]
 }

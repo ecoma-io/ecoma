@@ -2,9 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * Config của target `test` — spec colocated với subject (06-testing.md §4:
- * `test` = unit/component colocated của project sở hữu). Gồm `local-env.spec.ts`
- * và `scripts.spec.ts` (bất biến tĩnh của script text + escaping qua `/bin/sh`
- * thật — không Docker).
+ * `test` = unit/component colocated của project sở hữu). Gồm `local-env.spec.ts`,
+ * `scripts.spec.ts` (bất biến tĩnh của script text + escaping qua `/bin/sh`
+ * thật — không Docker) và `staging-run.spec.ts` (engine lane staging #350 —
+ * pure functions + exec inject, không chạy Pulumi thật).
  *
  * Suite integration chạy Docker + PostgreSQL thật nằm dưới `tests/integrations/`
  * và chạy qua target `test-integration` với config riêng
