@@ -1,4 +1,4 @@
-import { closeSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,10 +106,20 @@ describe('isCliEntry', () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('resolves identical real paths and symlinks to true', () => {
+  it('resolves identical real paths to true', () => {
     const real = join(dir, 'entry.ts');
     writeFileSync(real, 'export {};\n');
     expect(isCliEntry(real, real)).toBe(true);
+  });
+
+  it('resolves a symlink pointing at the entry to true', () => {
+    // Case symlink THẬT: bin shim/symlink khiến argv[1] lệch chữ với entry —
+    // realpath hai bên phải khớp, đúng kịch bản `npx tsx` qua link.
+    const real = join(dir, 'entry.ts');
+    const link = join(dir, 'link.ts');
+    writeFileSync(real, 'export {};\n');
+    symlinkSync(real, link);
+    expect(isCliEntry(link, real)).toBe(true);
   });
 
   it('returns false for two different existing paths', () => {

@@ -66,14 +66,14 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
 export const STDIN_MAX_BYTES = 1024 * 1024;
 
 /** Cỡ khối đọc stdin — đủ lớn để ít vòng lặp, nhỏ để cap bắt sát. */
-export const STDIN_READ_CHUNK_SIZE = 64 * 1024;
+const STDIN_READ_CHUNK_SIZE = 64 * 1024;
 
 /**
  * Đọc toàn bộ fd cho tới EOF theo khối, chặn ở trần dung lượng — không bao giờ
  * buffer vô hạn. fd là tham số để spec đọc từ file thật mà không đụng stdin.
  */
 /** Trần thời gian chờ dữ liệu stdin khi fd non-blocking — không chờ vô hạn. */
-export const STDIN_EAGAIN_DEADLINE_MS = 10_000;
+const STDIN_EAGAIN_DEADLINE_MS = 10_000;
 
 export function readStdinFrom(fd: number, maxBytes: number = STDIN_MAX_BYTES): string {
   const chunks: Buffer[] = [];
@@ -148,8 +148,16 @@ export function printReports(
 ): number {
   let failed = 0;
   for (const report of reports) {
-    // Ternary lồng tách biến — cùng output, dễ đọc.
-    const status = report.created ? 'created' : report.exists ? 'existed' : 'missing';
+    // Chuỗi if/else tường minh thay ternary lồng (review checklist cấm ternary
+    // lồng) — output giữ nguyên.
+    let status: string;
+    if (report.created) {
+      status = 'created';
+    } else if (report.exists) {
+      status = 'existed';
+    } else {
+      status = 'missing';
+    }
     const changes = [
       status,
       report.policyFixed ? 'branch policy set' : null,
@@ -229,11 +237,14 @@ function main(argv: readonly string[]): number {
 /**
  * Quyết định `argv1` có trỏ tới chính module CLI này không. So sánh realpath
  * HAI BÊN: argv[1] có thể là symlink hoặc đường tương đối (bin shim) — so
- * nguyên chuỗi sẽ lệch và main không chạy. realpath không resolve được →
- * fallback so raw string; path khớp CHÍNH entry mà vẫn không quyết định được
- * là state không thể phân loại → rethrow fail-closed thay vì im lặng.
+ * nguyên chuỗi sẽ lệch và main không chạy. Guard `!argv1` ở đây là nơi đúng
+ * cho argv thiếu (REPL, worker, embed) — false, không main. realpath không
+ * resolve được → fallback so raw string; path khớp CHÍNH entry mà vẫn không
+ * quyết định được là state không thể phân loại → rethrow fail-closed thay vì
+ * im lặng.
  */
-export function isCliEntry(argv1: string, selfPath: string): boolean {
+export function isCliEntry(argv1: string | undefined, selfPath: string): boolean {
+  if (!argv1) return false;
   try {
     return realpathSync(argv1) === realpathSync(selfPath);
   } catch (error) {
@@ -250,7 +261,7 @@ export function isCliEntry(argv1: string, selfPath: string): boolean {
 
 // Chỉ exit khi được thực thi trực tiếp qua `npx tsx`; khi bị import (spec)
 // không chạy main.
-if (process.argv[1] !== undefined && isCliEntry(process.argv[1], fileURLToPath(import.meta.url))) {
+if (isCliEntry(process.argv[1], fileURLToPath(import.meta.url))) {
   // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack
   // trace. Dùng exitCode + drain tự nhiên thay vì process.exit: exit ngay sau
   // write có thể cắt ngang stdout/stderr chưa flush (đặc biệt khi pipe).

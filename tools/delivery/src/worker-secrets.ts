@@ -257,9 +257,11 @@ export function putWorkerSecret(
   }
   const args = buildWranglerSecretArgs(action, secretName, configAbs);
   // Giá trị cho wrangler đã cắt newline cuối — 'echo value |' và printf phải
-  // cho ra cùng một secret, bất kể cách pipe của operator.
+  // cho ra cùng một secret, bất kể cách pipe của operator. Chuỗi này ĐÚNG là
+  // cái wrangler nhận qua stdin, nên cũng là khoá redaction chính.
+  const payload = trimTrailingNewline(value);
   const result = deps.execFn('npx', ['wrangler', ...args], dirname(configAbs), env, {
-    input: trimTrailingNewline(value),
+    input: payload,
   });
   if (result.status !== 0) {
     const rawReason =
@@ -271,10 +273,16 @@ export function putWorkerSecret(
           : result.stderr.trim());
     // Lớp redaction rẻ: stderr là text third-party (wrangler/Cloudflare API) —
     // nếu một version sau echo giá trị stdin vào error text thì giá trị gốc
-    // không được phép lọt ra log. Chuỗi rỗng/whitespace bị bỏ qua để replaceAll
-    // không biến mọi ký tự thành marker.
-    const trimmed = value.trim();
-    const reason = trimmed === '' ? rawReason : rawReason.replaceAll(trimmed, '[redacted]');
+    // không được phép lọt ra log. Redact BA form — payload đúng cái vào stdin,
+    // value thô, và payload.trim() vì rawReason trim stderr (mất whitespace
+    // biên của payload khi nó nằm cuối stderr). Bỏ qua khi payload chỉ toàn
+    // whitespace để replaceAll không biến mọi ký tự thành marker.
+    let reason = rawReason;
+    if (payload.trim() !== '') {
+      for (const key of [payload, value, payload.trim()]) {
+        if (key !== '') reason = reason.replaceAll(key, '[redacted]');
+      }
+    }
     throw new Error(`wrangler ${action} ${secretName} on ${worker} failed: ${reason}`);
   }
   return { worker, args };

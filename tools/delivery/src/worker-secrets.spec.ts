@@ -309,6 +309,41 @@ describe('putWorkerSecret', () => {
     expect((thrown as Error).message).toContain('[redacted]');
   });
 
+  it('redacts a value with leading or trailing whitespace in both stdin and raw form', () => {
+    // Gap thật của redaction: key phải là payload ĐÚNG cái vào stdin
+    // (trimTrailingNewline giữ lại leading/trailing whitespace), không phải
+    // bản trim. stderr KẾT THÚC bằng payload — rawReason trim stderr nên mất
+    // whitespace biên của payload, đúng biến thể khó khớp nhất.
+    const deps: WorkerSecretDeps = {
+      readTextFile: () => SAMPLE_CONFIG,
+      execFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: '[ERROR] Cloudflare API rejected payload s p a c e y \n',
+      }),
+    };
+    let thrown: unknown;
+    try {
+      putWorkerSecret(
+        'put',
+        'AXIOM_TOKEN',
+        'apps/home/wrangler.jsonc',
+        ' s p a c e y \n\n',
+        envSource,
+        deps,
+      );
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain('Cloudflare API');
+    // Không form nào của giá trị gốc (payload ' s p a c e y \n' lẫn value thô
+    // ' s p a c e y \n\n' lẫn bản trim) được xuất hiện trong message.
+    expect(message).not.toContain('s p a c e y');
+    expect(message).toContain('[redacted]');
+  });
+
   it('names the config path when the config file cannot be read', () => {
     const deps: WorkerSecretDeps = {
       readTextFile: () => {
