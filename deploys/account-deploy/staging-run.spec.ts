@@ -134,7 +134,7 @@ describe('classifyAccountDeployStack', () => {
 });
 
 describe('resolveStagingRunEnv', () => {
-  it('builds the child env from the full inventory and strips the file-passphrase variant', () => {
+  it('builds the child env from the full inventory and never carries the file-passphrase variant', () => {
     const { backendUrl, env } = resolveStagingRunEnv({
       ...fullSourceEnv(),
       PULUMI_CONFIG_PASSPHRASE_FILE: '/tmp/should-not-win',
@@ -149,6 +149,37 @@ describe('resolveStagingRunEnv', () => {
     // lại config provider, token thì không).
     expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+  });
+
+  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
+    const { env } = resolveStagingRunEnv({
+      ...fullSourceEnv(),
+      PATH: '/usr/bin:/bin',
+      HOME: '/home/operator',
+      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
+      GITHUB_TOKEN: 'decoy-github-token',
+    });
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/operator');
+    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
+    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
+    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
+    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
+    expect(Object.keys(env).toSorted()).toEqual([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'ECOMA_PULUMI_STATE_URL_STAGING',
+      'HOME',
+      'PATH',
+      'PULUMI_BACKEND_URL',
+      'PULUMI_CONFIG_PASSPHRASE',
+      'PULUMI_SKIP_UPDATE_CHECK',
+    ]);
   });
 
   it('fails closed listing every missing key at once', () => {
