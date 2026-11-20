@@ -13,12 +13,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ExecResult } from '@ecoma-io/deployment';
 
 import {
+  STAGING_REMOTE_CACHE_BUCKET_NAME,
   appendStagingRecord,
   backendBucket,
   classifyRemoteCacheApiStack,
   ensureStagingStack,
   parseResourceChanges,
   parseStagingPhaseArg,
+  r2AccountIdFromStateUrl,
   readStagingRevision,
   resolveStagingRunEnv,
   type StagingExecDeps,
@@ -74,7 +76,13 @@ function fullSourceEnv(): NodeJS.ProcessEnv {
     PULUMI_CONFIG_PASSPHRASE: 'test-passphrase',
     AWS_ACCESS_KEY_ID: 'test-key',
     AWS_SECRET_ACCESS_KEY: 'test-secret',
+    CLOUDFLARE_API_TOKEN: 'test-cf-token',
   };
+}
+
+/** State URL hình đúng với endpoint R2 chỉ định — dùng cho khe parser account id. */
+function stateUrlWithEndpoint(host: string): string {
+  return `s3://ecoma-pulumi-staging?endpoint=${encodeURIComponent(`https://${host}`)}&region=auto&s3ForcePathStyle=true`;
 }
 
 function sampleRecord(
@@ -103,13 +111,13 @@ describe('classifyRemoteCacheApiStack', () => {
     );
   });
 
-  it('staging and staging-candidate slugs route to the staging marker lane', () => {
+  it('staging and staging-candidate slugs route to the staging lane', () => {
     expect(classifyRemoteCacheApiStack('organization/remote-cache-api-deploy/staging')).toBe(
-      'staging-marker',
+      'staging',
     );
     expect(
       classifyRemoteCacheApiStack('organization/remote-cache-api-deploy/staging-candidate'),
-    ).toBe('staging-marker');
+    ).toBe('staging');
   });
 
   it('a bare local word without the local- prefix is unknown', () => {
@@ -137,8 +145,10 @@ describe('resolveStagingRunEnv', () => {
     expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
     expect(env.PULUMI_SKIP_UPDATE_CHECK).toBe('1');
     expect(env.PULUMI_CONFIG_PASSPHRASE_FILE).toBeUndefined();
-    // Passthrough giữ nguyên: token Cloudflare (nếu có) vẫn env-only cho bucket
-    // R2 thật của #350.
+    // Token Cloudflare giờ là inventory bắt buộc (program khai bucket R2 #350)
+    // nhưng vẫn env-only — không bao giờ vào provider config (state ghi lại
+    // config provider, token thì không).
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
   });
 
@@ -155,6 +165,12 @@ describe('resolveStagingRunEnv', () => {
     expect(() => resolveStagingRunEnv({ ...fullSourceEnv(), AWS_SECRET_ACCESS_KEY: '  ' })).toThrow(
       /AWS_SECRET_ACCESS_KEY/u,
     );
+  });
+
+  it('a missing Cloudflare token fails closed because the staging program consults the R2 provider', () => {
+    const source = fullSourceEnv();
+    delete source.CLOUDFLARE_API_TOKEN;
+    expect(() => resolveStagingRunEnv(source)).toThrow(/CLOUDFLARE_API_TOKEN/u);
   });
 
   it('a missing state URL means not bootstrapped and refuses without a fallback', () => {
@@ -321,5 +337,48 @@ describe('parseStagingPhaseArg', () => {
 
   it('a missing argument is a usage error, not an assumed preview', () => {
     expect(parseStagingPhaseArg([])).toEqual({ kind: 'missing' });
+  });
+});
+
+describe('r2AccountIdFromStateUrl', () => {
+  it('takes the account id from the R2 path-style endpoint host (04 R22)', () => {
+    expect(
+      r2AccountIdFromStateUrl(
+        stateUrlWithEndpoint('a1b2c3d4e5f60718293a4b5c6d7e8f90.r2.cloudflarestorage.com'),
+      ),
+    ).toBe('a1b2c3d4e5f60718293a4b5c6d7e8f90');
+  });
+
+  it('drops the jurisdiction prefix labels, which are not part of the account id', () => {
+    expect(
+      r2AccountIdFromStateUrl(stateUrlWithEndpoint('eu.a1b2c3d4.r2.cloudflarestorage.com')),
+    ).toBe('a1b2c3d4');
+    expect(
+      r2AccountIdFromStateUrl(stateUrlWithEndpoint('fedramp.a1b2c3d4.r2.cloudflarestorage.com')),
+    ).toBe('a1b2c3d4');
+  });
+
+  it('a missing endpoint query parameter refuses instead of guessing', () => {
+    expect(() =>
+      r2AccountIdFromStateUrl('s3://ecoma-pulumi-staging?region=auto&s3ForcePathStyle=true'),
+    ).toThrow(/endpoint/u);
+  });
+
+  it('a non-R2 endpoint refuses with the R22 shape named', () => {
+    expect(() => r2AccountIdFromStateUrl(stateUrlWithEndpoint('s3.amazonaws.com'))).toThrow(
+      /R2 path-style endpoint/u,
+    );
+  });
+
+  it('a malformed state URL refuses', () => {
+    expect(() => r2AccountIdFromStateUrl('not a url')).toThrow(/valid staging state URL/u);
+  });
+});
+
+describe('STAGING_REMOTE_CACHE_BUCKET_NAME', () => {
+  it('is a proposal within R2 naming rules that names the staging remote-cache surface', () => {
+    expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toMatch(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/u);
+    expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toContain('staging');
+    expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toContain('remote-cache');
   });
 });
