@@ -139,10 +139,12 @@ export interface MigrateScriptInputs {
 }
 
 /**
- * Script migrate: container ephemeral trên platform network chạy đúng
- * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json db/apply.mts` của
- * `apps/remote-cache-app` (advisory lock riêng của database này, mọi DDL
- * idempotent). Repo mount read-only. Kênh `DATABASE_URL` như migrate script của
+ * Script migrate: container ephemeral trên platform network chạy đúng runner
+ * của migration authority `deploys/remote-cache-app-db` —
+ * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
+ * (cutover #377: advisory lock riêng của database này + guard
+ * `current_database()` fail closed; runner cũ `db/apply.mts` của app đã retire).
+ * Repo mount read-only. Kênh `DATABASE_URL` như migrate script của
  * `pact-broker-app-deploy`: `docker run -e DATABASE_URL` chỉ mang TÊN biến.
  */
 export function buildMigrateScript(inputs: MigrateScriptInputs): string {
