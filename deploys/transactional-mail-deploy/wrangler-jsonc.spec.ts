@@ -28,6 +28,10 @@ describe('stripJsoncComments', () => {
   it('an unterminated block comment fails loud instead of silently truncating', () => {
     expect(() => stripJsoncComments('{"a": /* oops')).toThrow(/unterminated block comment/u);
   });
+
+  it('an unterminated string fails loud instead of a confusing JSON.parse error', () => {
+    expect(() => stripJsoncComments('{"a": "oops')).toThrow(/unterminated string/u);
+  });
 });
 
 describe('stripTrailingCommas', () => {

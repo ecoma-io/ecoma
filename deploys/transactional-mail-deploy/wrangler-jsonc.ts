@@ -59,6 +59,11 @@ export function stripJsoncComments(text: string): string {
     out += ch;
     index += 1;
   }
+  // String không đóng là input malformed — fail loud với offset thay vì để
+  // JSON.parse báo lỗi khó đọc (cùng hình với block comment không đóng).
+  if (inString) {
+    throw new Error(`unterminated string at offset ${index} — JSONC input is malformed`);
+  }
   return out;
 }
 

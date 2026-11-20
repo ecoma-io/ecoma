@@ -36,15 +36,20 @@ import {
   type StagingProvisioningRecord,
 } from './staging-run.js';
 
-// `runStagingPhase` dùng `pulumiRun` thật của lib — mock RIÊNG nó thành throw
-// để spec lỗi phase không đụng Pulumi thật; `deployProjectDir` trỏ về tmpdir
-// của spec (engine ghi evidence theo projectDir). Mọi export khác giữ nguyên.
-// vi.mock được hoist lên đầu module bởi vitest nên đứng sau import là đúng.
+// `runStagingPhase` dùng `pulumiRun` thật của lib — mock RIÊNG nó thành vi.fn
+// (mặc định throw để spec lỗi phase không đụng Pulumi thật; test đường thành
+// công ghi đè implementation qua `pulumiRunMock.mockImplementationOnce`).
+// `deployProjectDir` trỏ về tmpdir của spec (engine ghi evidence theo
+// projectDir). Mọi export khác giữ nguyên. vi.mock được hoist lên đầu module
+// bởi vitest nên đứng sau import là đúng.
+const { pulumiRunMock } = vi.hoisted(() => ({
+  pulumiRunMock: vi.fn<() => string>(() => {
+    throw new Error('pulumi up failed: simulated phase error');
+  }),
+}));
 vi.mock('@ecoma-io/deployment', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
-  pulumiRun: () => {
-    throw new Error('pulumi up failed: simulated phase error');
-  },
+  pulumiRun: pulumiRunMock,
   deployProjectDir: (project: string) => join(tmpdir(), `staging-run-spec-${project}`),
 }));
 
@@ -545,5 +550,20 @@ describe('runStagingPhase', () => {
     expect(() =>
       runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps),
     ).not.toThrow(/evidence/u);
+  });
+
+  it('a succeeded phase stays succeeded even when writing the evidence record fails', () => {
+    // Đối xứng test thất bại ngay trên: ghi evidence không được che mất một
+    // provisioning THÀNH CÔNG — throw của evidence chỉ làm mất record path.
+    const projectDir = join(tmpdir(), 'staging-run-spec-transactional-mail-deploy');
+    cleanup.push(projectDir);
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, '.staging-evidence'), 'not a dir');
+    pulumiRunMock.mockImplementationOnce(() => '{"summary":{"resourceChanges":{"create":5}}}');
+    const deps: StagingExecDeps = { execFn: () => execResult() };
+    const outcome = runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps);
+    expect(outcome.record.outcome).toBe('succeeded');
+    expect(outcome.record.resourceChanges).toEqual({ create: 5 });
+    expect(outcome.recordPath).toBe('');
   });
 });
