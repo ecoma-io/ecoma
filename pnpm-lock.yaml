@@ -385,14 +385,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/auth:
     dependencies:
@@ -422,14 +422,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/auth-nonce-prune-job:
     dependencies:
@@ -441,14 +441,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/backoffice:
     dependencies:
@@ -474,15 +474,15 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
       jose:
-        specifier: 6.2.17
-        version: 6.2.17
+        specifier: 6.2.18
+        version: 6.2.18
     devDependencies:
       '@nuxtjs/i18n':
         specifier: 10.6.0
         version: 10.6.0(@nuxt/schema@4.6.4)(db0@0.3.4(better-sqlite3@13.2.0)(drizzle-orm@0.45.4(@cloudflare/workers-types@5.20261119.1)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(better-sqlite3@13.2.0)(pg@8.23.1)(postgres@3.4.9)))(dotenv@17.4.2)(esbuild@0.28.2)(giget@3.3.1)(ioredis@5.11.1(supports-color@10.2.2))(jiti@2.7.0)(rolldown@1.2.19)(rollup@4.68.3)(supports-color@10.2.2)(typescript@6.0.3)(vite@8.3.8)(vue@3.5.45(typescript@6.0.3))
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -493,8 +493,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/home:
     dependencies:
@@ -533,14 +533,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.15.6
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/llm-console:
     dependencies:
@@ -589,8 +589,8 @@ importers:
         specifier: ^4.13.13
         version: 4.13.18
       jose:
-        specifier: 6.2.17
-        version: 6.2.17
+        specifier: 6.2.18
+        version: 6.2.18
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -599,8 +599,8 @@ importers:
         version: 4.6.7
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.15.6
         version: 8.23.1
@@ -617,8 +617,8 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
       jose:
-        specifier: 6.2.17
-        version: 6.2.17
+        specifier: 6.2.18
+        version: 6.2.18
     devDependencies:
       '@nuxtjs/i18n':
         specifier: 10.6.0
@@ -673,14 +673,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.15.6
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/remote-cache-app:
     dependencies:
@@ -694,8 +694,8 @@ importers:
         specifier: workspace:*
         version: link:../../libs/ui-ecoma-logo
       jose:
-        specifier: 6.2.17
-        version: 6.2.17
+        specifier: 6.2.18
+        version: 6.2.18
     devDependencies:
       '@nuxtjs/i18n':
         specifier: 10.6.0
@@ -729,14 +729,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.15.6
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/staff-access-relay:
     dependencies:
@@ -757,14 +757,14 @@ importers:
         version: 8.23.1
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   apps/transactional-mail:
     dependencies:
@@ -811,8 +811,8 @@ importers:
   deploys/account-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -820,8 +820,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/account-deploy:
     dependencies:
@@ -832,8 +832,8 @@ importers:
   deploys/auth-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -841,8 +841,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/auth-deploy:
     dependencies:
@@ -853,8 +853,8 @@ importers:
   deploys/backoffice-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -862,8 +862,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/backoffice-deploy:
     dependencies:
@@ -892,8 +892,8 @@ importers:
   deploys/llm-gateway-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -901,14 +901,14 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/llm-marketplace-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -916,8 +916,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/llm-seller-deploy:
     dependencies:
@@ -928,8 +928,8 @@ importers:
   deploys/llm-tenant-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -937,8 +937,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/pact-broker-api-deploy:
     dependencies:
@@ -949,8 +949,8 @@ importers:
   deploys/pact-broker-app-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -958,8 +958,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/pact-broker-app-deploy:
     dependencies:
@@ -970,8 +970,8 @@ importers:
   deploys/pact-broker-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -979,8 +979,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/platform-deploy:
     dependencies:
@@ -1003,8 +1003,8 @@ importers:
   deploys/remote-cache-app-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -1012,8 +1012,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/remote-cache-app-deploy:
     dependencies:
@@ -1024,8 +1024,8 @@ importers:
   deploys/remote-cache-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -1033,14 +1033,14 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/staff-access-db:
     devDependencies:
       '@testcontainers/postgresql':
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -1048,14 +1048,16 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       testcontainers:
-        specifier: 12.2.1
-        version: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
 
   deploys/staff-access-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
+
+  deploys/staging-connectivity: {}
 
   deploys/staging-pg-host: {}
 
@@ -1164,8 +1166,8 @@ importers:
         specifier: workspace:*
         version: link:../staff-access-contracts
       jose:
-        specifier: 6.2.17
-        version: 6.2.17
+        specifier: 6.2.18
+        version: 6.2.18
       pg:
         specifier: ^8.23.1
         version: 8.23.1
@@ -1555,6 +1557,10 @@ importers:
       citty:
         specifier: ^0.2.2
         version: 0.2.2
+
+  tools/release-validation: {}
+
+  tools/staging-bootstrap: {}
 
 packages:
 
@@ -5470,8 +5476,8 @@ packages:
     peerDependencies:
       vue: ^2.7.0 || ^3.0.0
 
-  '@testcontainers/postgresql@12.2.1':
-    resolution: {integrity: sha512-MIbI5KjZ9M4SY4+xzxg/w4ZLBeV+Jd6ognXoWn7dh/mhIhBbn7ss0MiZHNg2XbCbu03BW9YQ9+H9xW8PFkJWaA==}
+  '@testcontainers/postgresql@12.2.2':
+    resolution: {integrity: sha512-ePhFeUswU6aHJ1HETznfnVKuR0KYtGkMfqE1DTltgSt21WokXFby/I+c7g/fPXSE9sfxfE+GtyoUeohejpVcSA==}
 
   '@tsconfig/node10@1.0.14':
     resolution: {integrity: sha512-UzoEnKAHteIy/qT3dM0eyyviwfJzEDnrLKALKCvu0ToklMLgiDW5waEu/0Pl+6w4nBxGIaUskiFg7NzvQpPs0g==}
@@ -8091,6 +8097,9 @@ packages:
   jose@6.2.17:
     resolution: {integrity: sha512-wOuK9V1yujQFH5S0ZWmLcDZN7+IKh9bUCC2ZPCf2HDlol3WWHy+PPyNjEI75FXRLMp3vDKQcupP59xhVU95hcg==}
 
+  jose@6.2.18:
+    resolution: {integrity: sha512-doV4thUwgkrycJH4yLeqwTGIIZphHl+pk7CPReuMIhYhncmgzdko85MaCG4YQFTxqMFr1/oEH32tZuKKovcDEg==}
+
   js-beautify@2.0.3:
     resolution: {integrity: sha512-cyFbh3tkPhknnTD/0bLf0T0yy2ZIbqL05mttzbt4y1Zfr7NxqXQZ62dkBLKs3oHH/lpjmDRAnciJiSUyOy8XwQ==}
     engines: {node: '>=14'}
@@ -9691,6 +9700,10 @@ packages:
 
   testcontainers@12.2.1:
     resolution: {integrity: sha512-JfbCyOvLdzatwgqUI3AvYCwRW0P5mCkKQVBPO8U5qSH1efC2kHvnfWmi9VHloy1rAFG2MEqWZObRH4bq0gU1kQ==}
+    engines: {node: '>= 22.22'}
+
+  testcontainers@12.2.2:
+    resolution: {integrity: sha512-ndmRB+wQnCd7YkelXoUtLVUFUQ3CrbIPmldSWzY8p1pXy09lBC/Hm99RYRCL2brHve/xNWCJX35173peMj5LUg==}
     engines: {node: '>= 22.22'}
 
   text-decoder@1.2.7:
@@ -12597,7 +12610,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.1
-      jose: 6.2.17
+      jose: 6.2.18
       pkce-challenge: 5.0.1
       zod: 4.6.7
 
@@ -14814,9 +14827,9 @@ snapshots:
       '@tanstack/virtual-core': 3.19.11
       vue: 3.5.45(typescript@6.0.3)
 
-  '@testcontainers/postgresql@12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)':
+  '@testcontainers/postgresql@12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)':
     dependencies:
-      testcontainers: 12.2.1(bare-buffer@3.7.2)(supports-color@10.2.2)
+      testcontainers: 12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -17716,6 +17729,8 @@ snapshots:
 
   jose@6.2.17: {}
 
+  jose@6.2.18: {}
+
   js-beautify@2.0.3:
     dependencies:
       config-chain: 1.1.13
@@ -19849,6 +19864,29 @@ snapshots:
       proper-lockfile: 4.1.2
       properties-reader: 3.0.1(supports-color@10.2.2)
       ssh-remote-port-forward: 1.0.4
+      tar-fs: 3.1.3(bare-buffer@3.7.2)
+      tmp: 0.2.7
+      undici: 8.12.4
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - react-native-b4a
+      - supports-color
+
+  testcontainers@12.2.2(bare-buffer@3.7.2)(supports-color@10.2.2):
+    dependencies:
+      '@balena/dockerignore': 1.0.2
+      '@types/dockerode': 4.0.2
+      archiver: 7.0.1(bare-buffer@3.7.2)
+      async-lock: 1.5.0
+      byline: 5.0.0
+      debug: 4.4.3(supports-color@10.2.2)
+      docker-compose: 1.5.0
+      dockerode: 5.0.1(supports-color@10.2.2)
+      get-port: 5.1.1
+      proper-lockfile: 4.1.2
+      properties-reader: 3.0.1(supports-color@10.2.2)
+      ssh2: 1.17.0
       tar-fs: 3.1.3(bare-buffer@3.7.2)
       tmp: 0.2.7
       undici: 8.12.4

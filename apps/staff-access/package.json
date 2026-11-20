@@ -11,9 +11,9 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.15.6",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "//": [
     "`pg` giu o dependencies cho `db/migrate.mts` — helper type cho suite test",
