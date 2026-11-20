@@ -137,11 +137,10 @@ export const BOOTSTRAP_STEPS: readonly BootstrapStep[] = [
     canonicalRow: '7',
     service: 'auth',
     database: 'db-auth',
-    // TODO(352/blocking): script bootstrap OAuth client của `auth` CHƯA TỒN TẠI
-    // (apps/auth/db chỉ có migrate.mts) — executing PR của #352 phải đặt CLI
-    // này vào `apps/auth/db/` (bề mặt (b) — CLI offline của chính service sở
-    // hữu) trước khi runner chạy được bước này. Runner không tự tạo script
-    // thay service sở hữu dữ liệu.
+    // CLI tồn tại từ executing PR của #352 — `apps/auth/db/bootstrap-oauth-clients.mts`,
+    // bề mặt (b) của ADR-0020 Quyết định 3 (CLI offline của chính service sở
+    // hữu). Runner không tự tạo script thay service sở hữu dữ liệu, và vẫn
+    // không import nó — gọi như tiến trình con.
     argv: ['pnpm', '--filter', '@ecoma-io/auth', 'exec', 'node', 'db/bootstrap-oauth-clients.mts'],
     verify: 'oauth_clients có client_id kỳ vọng với đúng tập redirect URI; URI cũ đã gỡ không còn',
   },
@@ -219,7 +218,7 @@ export function unresolvedBlockers(): readonly string[] {
   ];
   if (!BOOTSTRAP_STEPS.every((step) => existsScript(step.argv))) {
     blockers.push(
-      'TODO(352/blocking): some bootstrap CLIs referenced by the step table do not exist yet (auth-oauth-client) — the executing PR must add them in the owning app',
+      'TODO(352/blocking): some bootstrap CLIs referenced by the step table do not exist yet — the executing PR must add them in the owning app',
     );
   }
   return blockers;

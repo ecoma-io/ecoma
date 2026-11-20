@@ -65,11 +65,11 @@ describe('canonical identities', () => {
 });
 
 describe('bootstrap CLI inventory', () => {
-  it('resolves an existing script for every step except the documented missing auth step', () => {
+  it('resolves an existing script for every step in the table', () => {
     const missing = BOOTSTRAP_STEPS.filter((step) => !existsScript(step.argv)).map(
       (step) => step.id,
     );
-    expect(missing).toEqual(['auth-oauth-client']);
+    expect(missing).toEqual([]);
   });
 });
 
@@ -80,11 +80,7 @@ describe('unresolvedBlockers', () => {
     expect(blockers.some((b) => b.includes('TODO(351/blocking)'))).toBe(true);
   });
 
-  it('reports the missing bootstrap CLI as a #352 blocker', () => {
-    expect(
-      unresolvedBlockers().some(
-        (b) => b.includes('TODO(352/blocking)') && b.includes('auth-oauth-client'),
-      ),
-    ).toBe(true);
+  it('no longer reports a #352 CLI blocker now the auth-oauth-client script exists', () => {
+    expect(unresolvedBlockers().some((b) => b.includes('TODO(352/blocking)'))).toBe(false);
   });
 });
