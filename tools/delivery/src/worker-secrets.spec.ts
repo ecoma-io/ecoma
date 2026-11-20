@@ -68,6 +68,8 @@ describe('classifyWorkerName', () => {
     expect(classifyWorkerName('stg-ecoma-home')).toBe('staging');
     expect(classifyWorkerName('ecoma-home')).toBe('refused');
     expect(classifyWorkerName('')).toBe('refused');
+    // Bare prefix `stg-` không có suffix — nhất quán với trim của stagingWorkerNameFromConfig.
+    expect(classifyWorkerName('stg-')).toBe('refused');
   });
 });
 

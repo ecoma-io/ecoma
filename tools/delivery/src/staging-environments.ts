@@ -232,6 +232,11 @@ function addBranchPolicy(envPath: string, deps: GhApiDeps): void {
 /** Quy tắc protection thủ công mà lane continuous KHÔNG được có (§7.4). */
 const MANUAL_GATE_RULE_TYPES = ['required_reviewers', 'wait_timer'] as const;
 
+// Một chuỗi violation dùng ở HAI chỗ đọc policy (trước và sau mutation) —
+// hằng số cấp module để wording không lệch nhau khi sửa.
+const BRANCH_POLICY_LIST_UNREADABLE_VIOLATION =
+  'branch policy list has an unreadable shape (§6.13)';
+
 /**
  * Ensure + verify MỘT Environment. `mode: 'check'` không mutation — chỉ đọc
  * và báo violations (đường guard CI chống auto-create-không-bảo-vệ, §6.13).
@@ -311,7 +316,7 @@ function ensureOne(
   if (policyCustom) {
     const policies = getBranchPolicyNames(envPath, deps);
     if (policies === null) {
-      report.violations.push('branch policy list has an unreadable shape (§6.13)');
+      report.violations.push(BRANCH_POLICY_LIST_UNREADABLE_VIOLATION);
     } else {
       let addedMain = false;
       if (!policies.names.includes('main') && mode === 'ensure') {
@@ -321,7 +326,7 @@ function ensureOne(
       // Đọc lại danh sách SAU mutations để violations phản ánh state cuối.
       const current = getBranchPolicyNames(envPath, deps);
       if (current === null) {
-        report.violations.push('branch policy list has an unreadable shape (§6.13)');
+        report.violations.push(BRANCH_POLICY_LIST_UNREADABLE_VIOLATION);
       } else {
         if (!current.names.includes('main')) {
           report.violations.push(

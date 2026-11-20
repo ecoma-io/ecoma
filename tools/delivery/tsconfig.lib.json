@@ -20,6 +20,11 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
+  "references": [
+    {
+      "path": "../../libs/deployment/tsconfig.lib.json"
+    }
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",

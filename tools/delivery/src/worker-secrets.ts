@@ -85,9 +85,9 @@ export function resolveSecretRunEnv(source: NodeJS.ProcessEnv = process.env): {
   return { env };
 }
 
-/** Identity Worker hợp lệ cho pipeline này: chỉ staging `stg-<...>`. */
+/** Identity Worker hợp lệ cho pipeline này: chỉ staging `stg-<...>` — suffix bắt buộc không rỗng. */
 export function classifyWorkerName(name: string): 'staging' | 'refused' {
-  return name.startsWith('stg-') ? 'staging' : 'refused';
+  return /^stg-.+$/u.test(name) ? 'staging' : 'refused';
 }
 
 /**
