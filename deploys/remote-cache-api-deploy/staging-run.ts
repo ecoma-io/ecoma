@@ -346,9 +346,9 @@ export function backendBucket(backendUrl: string): string {
 /**
  * Chạy MỘT phase (`preview` hoặc `up`) trên stack staging của project, trả
  * record evidence. `--json` thay progress hiển thị: record phải mang diff đủ
- * nguyên vẹn, và trên stack marker hiện tại mỗi phase chạy trong vài giây — khi
- * #350 khai bucket R2 thật, entry có thể đổi sang stream + `stack history` mà
- * không đổi hợp đồng record.
+ * nguyên vẹn; với scope resource hiện tại của stack — bucket R2 thật khai từ
+ * #350, không còn marker — mỗi phase chạy trong vài giây; khi scope rộng ra,
+ * entry có thể đổi sang stream + `stack history` mà không đổi hợp đồng record.
  *
  * `pulumiRun` reuse: tự ghép `--stack <fullRef>` và xử lý lỗi spawn/exit đúng
  * cơ chế chung; `prepareStack` để false vì `ensureStack` của local có `mkdir`
