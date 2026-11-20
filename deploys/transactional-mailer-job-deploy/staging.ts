@@ -33,13 +33,13 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator.
 
-import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
+import { deployProjectDir } from '@ecoma-io/deployment';
 
 import {
   parseStagingPhaseArg,
   readDatabaseId,
-  resolveStagingRunEnv,
   runStagingPhase,
+  stagingEvidencePath,
 } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
@@ -64,7 +64,10 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'transactional-mailer-job-deploy');
+    const { record, recordPath, selection, env } = runStagingPhase(
+      parsed.phase,
+      'transactional-mailer-job-deploy',
+    );
     console.log(
       `[transactional-mailer-job-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
@@ -72,13 +75,9 @@ function main(argv: readonly string[]): number {
     console.log(`[transactional-mailer-job-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
       // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
-      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
+      // `resolveStagingRunEnv` đã chạy ĐÚNG MỘT lần trong `runStagingPhase`,
+      // entry không gọi lại (env không đổi giữa các lần gọi).
       const projectDir = deployProjectDir('transactional-mailer-job-deploy');
-      const { backendUrl, env } = resolveStagingRunEnv();
-      const selection = stagingDeploymentAdapter.stackSelection('transactional-mailer-job-deploy', {
-        slot: 'staging',
-        backendUrl,
-      });
       const mailJobDatabaseId = readDatabaseId(projectDir, selection, env);
       if (mailJobDatabaseId === undefined) {
         console.error(
@@ -102,6 +101,12 @@ function main(argv: readonly string[]): number {
     console.error(
       `[transactional-mailer-job-deploy] staging failed: ${error instanceof Error ? error.message : String(error)}`,
     );
+    // Một lần chạy thất bại đã ghi evidence append-only trước khi throw (lỗi
+    // mang `recordPath`) — in đường để operator tìm được file, không drop nó.
+    const evidencePath = stagingEvidencePath(error);
+    if (evidencePath !== undefined) {
+      console.error(`[transactional-mailer-job-deploy] evidence record: ${evidencePath}`);
+    }
     return 1;
   }
 }
