@@ -332,20 +332,21 @@ describe(
       }
       await exited;
 
-      // Server cần một lúc để nhận ra peer TCP chết rồi mới rollback (mốc đó
-      // không định trước dưới CI load) — poll backend pg_sleep biến mất tới
-      // deadline thay vì sleep cố định; quá hạn là fail, không nuốt.
+      // Backend đang pg_sleep không ghi gì xuống socket, chỉ hết sống khi
+      // sleep xong và lần ghi kế tiếp chạm socket chết → abort + rollback
+      // (§3a.5) — với pg_sleep(5) rollback hoàn tất ~5s sau kill; poll backend
+      // biến mất tới deadline thay vì sleep cố định; quá hạn là fail, không nuốt.
       const deadBackendGone = (): boolean =>
         target
           .runSql(
             "select count(*) from pg_stat_activity where query ilike '%pg_sleep%' and pid <> pg_backend_pid()",
           )
           .stdout.trim() === '0';
-      const settleDeadline = Date.now() + 10_000;
+      const settleDeadline = Date.now() + 15_000;
       while (!deadBackendGone()) {
         if (Date.now() >= settleDeadline) {
           throw new Error(
-            'pg_sleep backend still alive 10s after SIGKILL — server never noticed the dead TCP peer',
+            'pg_sleep backend still alive 15s after SIGKILL — server never noticed the dead TCP peer',
           );
         }
         await new Promise<void>((done) => {
