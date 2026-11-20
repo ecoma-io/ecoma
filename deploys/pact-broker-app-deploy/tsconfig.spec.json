@@ -22,6 +22,8 @@
     "vitest.config.mts",
     "vitest.integration.config.mts",
     "scripts.ts",
-    "scripts.spec.ts"
+    "scripts.spec.ts",
+    "staging-run.spec.ts",
+    "staging-run.ts"
   ]
 }
