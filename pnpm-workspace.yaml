@@ -5,6 +5,7 @@ packages:
   - 'tools/*'
   - 'docs'
   - 'system-tests/e2e/*'
+  - 'system-tests/support'
   - 'system-tests/local-smoke'
 autoInstallPeers: true
 

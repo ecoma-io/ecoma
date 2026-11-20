@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Response } from '@playwright/test';
+import { waitForContinueTargetAfterOtpVerify } from '@ecoma-io/system-tests-support';
 
 /**
  * Luồng login browser đầy đủ của suite — quay OTP qua mail sink thật.
@@ -212,76 +213,16 @@ export async function performBrowserLogin(
   // trang render thẻ lỗi với nút `login-continue-retry`; push idempotent
   // (`event_id`) nên bấm lại ĐÚNG MỘT LẦN là an toàn. Lỗi lần hai là lỗi thật.
   const retryButton = page.getByTestId('login-continue-retry');
-  // Flake `ERR_NETWORK_CHANGED` ở POST verify OTP (#461 round 2: 4 instance
-  // ngày 2026-11-20 — run 44677226226 và 44678063176 trên main, cùng trang
-  // `account` với suite này): verify chết tầng mạng trước khi tới server →
-  // trang giữ nguyên form mã và render `login-request-failed`; mã CHƯA tiêu
-  // thụ (chính trang `login/index.vue` bảo đảm điều đó cho lỗi ném), nên bấm
-  // `login-code-submit` lại ĐÚNG MỘT LẦN rồi lặp đúng pha chờ này — cùng hình
-  // với nhánh recovery email ở trên. Lỗi lần hai là lỗi thật — không che defect.
-  for (let verifyAttempt = 1; ; verifyAttempt += 1) {
-    const continueOrRetry = await Promise.race([
-      continueTarget
-        .waitFor({ state: 'visible', timeout: 30_000 })
-        .then(() => 'continue' as const)
-        .catch(() => 'none' as const),
-      retryButton
-        .waitFor({ state: 'visible', timeout: 30_000 })
-        .then(() => 'retry' as const)
-        .catch(() => 'none' as const),
-    ]);
-    if (continueOrRetry === 'retry') {
-      await retryButton.click();
-      await expect(continueTarget).toBeVisible({ timeout: 30_000 });
-      break;
-    }
-    if (continueOrRetry === 'continue') {
-      break;
-    }
-    // Cả target lẫn retry vắng mặt 30s: hop điều hướng vào `/login/continue`
-    // chết tầng mạng (ERR_NETWORK_CHANGED family — instance thật ở
-    // `remote-cache-portal-e2e` run 44639848365, #498; cùng trang `account`)
-    // — page.url() còn giữ URL đích kèm `handle`. Điều hướng lại chính URL
-    // đó: `completeHandoff` fire lúc mount và push idempotent (`event_id` từ
-    // `session_ref`, auth trả `already_processed` nếu đã xử lý) — không tiêu
-    // OTP/challenge mới. Chỉ MỘT lượt: cạn lần hai là lỗi thật.
-    const stuckUrl = page.url();
-    if (new URL(stuckUrl).pathname === '/login/continue') {
-      await page.goto(stuckUrl, { waitUntil: 'load' });
-      const secondChance = await Promise.race([
-        continueTarget
-          .waitFor({ state: 'visible', timeout: 30_000 })
-          .then(() => 'continue' as const)
-          .catch(() => 'none' as const),
-        retryButton
-          .waitFor({ state: 'visible', timeout: 30_000 })
-          .then(() => 'retry' as const)
-          .catch(() => 'none' as const),
-      ]);
-      if (secondChance === 'retry') {
-        await retryButton.click();
-        await expect(continueTarget).toBeVisible({ timeout: 30_000 });
-      } else if (secondChance === 'none') {
-        throw new Error(
-          `/login/continue rendered no card even after re-navigation (${await describeStuckState(page)})`,
-        );
-      }
-      break;
-    }
-    // Browser vẫn đứng trên trang login: `login-request-failed` còn hiển thị
-    // nghĩa là POST verify vừa chết tầng mạng — bấm submit lại ĐÚNG MỘT LẦN
-    // (mã chưa tiêu, recovery thứ hai của pha này). Hai trạng thái mã khác
-    // KHÔNG có recovery: `login-code-invalid` (OTP sai) và `login-code-accepted`
-    // (verify OK nhưng hop confirm chết) — lần hai chết là lỗi thật, cạn vòng
-    // vẫn throw kèm `describeStuckState`.
-    if (verifyAttempt === 1 && (await isVisibleSafe(requestFailed))) {
-      await page.getByTestId('login-code-submit').click();
-      continue;
-    }
-    throw new Error(
-      `login continue page never appeared after OTP verify (${await describeStuckState(page)})`,
-    );
-  }
+  // Pha chờ sau verify là hợp đồng dùng chung của 4 suite (#461 round 2): chờ
+  // target/retry, re-navigate hop `/login/continue` chết một lượt, re-click
+  // `login-code-submit` đúng một lượt khi `login-request-failed` hiện — vòng
+  // bị chặn trên `MAX_VERIFY_ATTEMPTS`, cạn ngân sách là throw kèm stuck state.
+  await waitForContinueTargetAfterOtpVerify(page, {
+    continueTarget,
+    retryButton,
+    requestFailed,
+    describeStuckState: () => describeStuckState(page),
+  });
   await continueTarget.click();
 
   // BFF cold start có thể làm push handoff lỗi ở lần bấm đầu: trang render
