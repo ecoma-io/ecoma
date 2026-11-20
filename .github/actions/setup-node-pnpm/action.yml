@@ -1,6 +1,18 @@
 name: Setup Node.js and pnpm
 description: Set up the repository Node.js and pnpm environment and install dependencies
 
+inputs:
+  with-playwright:
+    description: |
+      Also provision the Chromium browser build and its system dependencies for
+      Playwright, concurrently with `pnpm install`. The two lanes share no path
+      or lock (pnpm writes the store and node_modules; Playwright downloads to
+      ~/.cache/ms-playwright and runs apt-get), so overlapping them is safe.
+      Only jobs that run browser suites opt in; provisioning stays a single
+      pass per job before Nx starts (issue #253).
+    required: false
+    default: 'false'
+
 runs:
   using: composite
   steps:
@@ -15,4 +27,42 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: pnpm install --frozen-lockfile
+      env:
+        # Đọc qua `env:` chứ không nội suy thẳng vào `run:`: giá trị input là
+        # dữ liệu vô hại thay vì văn bản script (cùng hình dạng với
+        # run-nx-target).
+        WITH_PLAYWRIGHT: ${{ inputs.with-playwright }}
+      run: |
+        set -euo pipefail
+
+        if [ "$WITH_PLAYWRIGHT" != 'true' ]; then
+          exec pnpm install --frozen-lockfile
+        fi
+
+        # Ghim đúng version Playwright của workspace, đọc từ lockfile thay vì
+        # để `npx playwright` trần: trước khi `pnpm install` xong thì binary
+        # local chưa có, npx sẽ tải bản latest trên registry về và cài một
+        # browser build mà `@playwright/test` pinned không nhận — các script
+        # ensure của project sẽ đỏ fail-loud vì cache thiếu đúng bản (issue
+        # #253). `grep -m1` dừng ở match đầu nên không dính SIGPIPE với
+        # `pipefail`; không tìm thấy thì fail-loud.
+        pw="$(grep -m1 "'@playwright/test@" pnpm-lock.yaml | sed -n "s/^ *'@playwright\/test@\([0-9][0-9.]*\)'.*/\1/p" || true)"
+        if [ -z "$pw" ]; then
+          echo "::error::setup-node-pnpm: could not resolve the @playwright/test version from pnpm-lock.yaml." >&2
+          exit 1
+        fi
+
+        # Hai luồng không dùng chung path hay lock nào: pnpm ghi pnpm store +
+        # node_modules; playwright tải browser vào ~/.cache/ms-playwright và
+        # tự chạy apt-get/dpkg. Vẫn là đúng một lượt cấp browser trên job,
+        # trước khi Nx khởi động (issue #253).
+        pnpm install --frozen-lockfile & p1=$!
+        npx -y "playwright@$pw" install --with-deps chromium & p2=$!
+
+        # `bash -e` không soi tiến trình nền, nên thu lỗi của CẢ hai luồng
+        # bằng `wait` rồi mới thoát — thoát sớm khi một luồng đỏ sẽ bỏ rơi
+        # luồng kia đang chạy.
+        fail=0
+        wait "$p1" || fail=1
+        wait "$p2" || fail=1
+        exit "$fail"
