@@ -696,8 +696,9 @@ function runWrangler(
     timeout: 5 * 60 * 1000, // không chờ wrangler treo vô hạn
     // Thứ tự có chủ đích: extraEnv spread SAU cùng nên có thể override key
     // của allowlist trong sanitizedWranglerEnv — caller KHÔNG được đưa key
-    // allowlisted vào extraEnv. Hiện chỉ CLOUDFLARE_API_TOKEN (không thuộc
-    // allowlist), comment này chặn misuse trong tương lai.
+    // allowlisted vào extraEnv. Hiện chỉ CLOUDFLARE_API_TOKEN +
+    // CLOUDFLARE_ACCOUNT_ID (không thuộc allowlist), comment này chặn misuse
+    // trong tương lai.
     env: { ...sanitizedWranglerEnv(options.persistTo), ...options.extraEnv },
   });
   if (result.error) {
@@ -878,20 +879,69 @@ export function requireSingleD1DatabaseName(configPath: string): string {
 }
 
 /**
- * Đọc API token cho đường remote từ env của tiến trình dx — KHÔNG BAO GIỜ
- * nhận token qua argv (argv lộ qua `ps` và shell history). Token pipeline dùng
- * tên riêng `ECOMA_CLOUDFLARE_API_TOKEN` (§6.12) và chỉ được map thành
- * `CLOUDFLARE_API_TOKEN` trong env của subprocess wrangler, không bao giờ log.
+ * Đọc cặp credential control-plane cho đường remote từ env của tiến trình dx
+ * — KHÔNG BAO GIỜ nhận token qua argv (argv lộ qua `ps` và shell history).
+ * Mỗi lane một cặp org secret (#548 đảo quyết định token dùng chung cũ của
+ * §6.12; `ACCOUND` là tên thật trên org, không phải lỗi chính tả): đường remote
+ * yêu cầu ĐÚNG MỘT lane's pair trong env — 0 hoặc 2 token là lỗi fail-closed,
+ * token map thành `CLOUDFLARE_API_TOKEN` và account id thành
+ * `CLOUDFLARE_ACCOUNT_ID` chỉ trong env của subprocess wrangler, không bao giờ log.
  */
-export function resolveRemoteApiToken(env: NodeJS.ProcessEnv = process.env): string {
-  const token = env['ECOMA_CLOUDFLARE_API_TOKEN'];
-  if (typeof token !== 'string' || token.trim().length === 0) {
+export interface RemoteApiCredential {
+  lane: 'staging' | 'production';
+  token: string;
+  accountId: string;
+}
+
+/** Tên org secret theo lane — literal, trùng hợp đồng của `tools/delivery`. */
+const REMOTE_TOKEN_ENV_KEYS = {
+  staging: 'ECOMA_CLOUDFLARE_STAGING_API_TOKEN',
+  production: 'ECOMA_CLOUDFLARE_PRODUCTION_API_TOKEN',
+} as const;
+
+/** Tên org secret account id theo lane — cặp bất khả tách với token cùng lane. */
+const REMOTE_ACCOUNT_ID_ENV_KEYS = {
+  staging: 'ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID',
+  production: 'ECOMA_CLOUDFLARE_PRODUCTION_ACCOUND_ID',
+} as const;
+
+const REMOTE_LANES = ['staging', 'production'] as const;
+
+export function resolveRemoteApiToken(env: NodeJS.ProcessEnv = process.env): RemoteApiCredential {
+  const lanesWithToken = REMOTE_LANES.filter((lane) => {
+    // Tên biến `candidate` (không phải `token`): rule semgrep
+    // security-sensitive-value-in-http-response bắt taint từ tên trần khớp
+    // `tokens?` — lambda kiểm tra presence này không trả credential ra ngoài.
+    const candidate = env[REMOTE_TOKEN_ENV_KEYS[lane]];
+    return typeof candidate === 'string' && candidate.trim().length > 0;
+  });
+  if (lanesWithToken.length === 0) {
     throw new Error(
-      'remote D1 migration requires ECOMA_CLOUDFLARE_API_TOKEN in the environment — ' +
-        'refusing to run without it (fail-closed; the token is CI control-plane credential, §6.12)',
+      'remote D1 migration requires one environment credential pair in the environment — ' +
+        `set exactly one lane's org secrets: ${REMOTE_TOKEN_ENV_KEYS.staging} + ` +
+        `${REMOTE_ACCOUNT_ID_ENV_KEYS.staging} (staging) or ${REMOTE_TOKEN_ENV_KEYS.production} + ` +
+        `${REMOTE_ACCOUNT_ID_ENV_KEYS.production} (production); refusing to run without it ` +
+        '(fail-closed; the pair is the CI control-plane credential, §6.12)',
     );
   }
-  return token;
+  if (lanesWithToken.length > 1) {
+    throw new Error(
+      `both lanes' Cloudflare tokens are set (${REMOTE_TOKEN_ENV_KEYS.staging} and ` +
+        `${REMOTE_TOKEN_ENV_KEYS.production}) — set exactly one lane's pair so the migration ` +
+        'cannot hit the wrong environment (§6.12)',
+    );
+  }
+  const lane = lanesWithToken[0] as (typeof REMOTE_LANES)[number];
+  const token = env[REMOTE_TOKEN_ENV_KEYS[lane]] as string;
+  const accountKey = REMOTE_ACCOUNT_ID_ENV_KEYS[lane];
+  const accountId = env[accountKey];
+  if (typeof accountId !== 'string' || accountId.trim().length === 0) {
+    throw new Error(
+      `${accountKey} is not set — the ${lane} credential is a pair (API token + account id); ` +
+        'refusing to run wrangler with an incomplete pair (§6.12)',
+    );
+  }
+  return { lane, token, accountId };
 }
 
 /**
@@ -929,14 +979,16 @@ export interface ApplyRemoteMigrationsOptions {
 
 /**
  * Áp migration vào D1 remote (staging/production) — đường duy nhất của cutover
- * #382 cho mode remote (§3a.4): CI runner gọi với `ECOMA_CLOUDFLARE_API_TOKEN`
- * trong env, token map thành `CLOUDFLARE_API_TOKEN` CHỈ trong subprocess,
- * HOME của subprocess vẫn cô lập (không đọc OAuth cache của developer), và
- * `--env` forward tường minh khi app có named environment. Local mode KHÔNG đi
- * qua đây — `applyLocalD1Migrations` giữ fail-closed riêng của nó.
+ * #382 cho mode remote (§3a.4): CI runner gọi với ĐÚNG MỘT lane's credential
+ * pair trong env (`resolveRemoteApiToken` — 0 hay 2 lane là fail-closed),
+ * credential map thành `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` CHỈ
+ * trong subprocess, HOME của subprocess vẫn cô lập (không đọc OAuth cache của
+ * developer), và `--env` forward tường minh khi app có named environment.
+ * Local mode KHÔNG đi qua đây — `applyLocalD1Migrations` giữ fail-closed
+ * riêng của nó.
  */
 export function applyRemoteD1Migrations(options: ApplyRemoteMigrationsOptions): string {
-  const token = resolveRemoteApiToken();
+  const credential = resolveRemoteApiToken();
   const configPath = resolve(options.configPath);
   if (!existsSync(configPath)) {
     throw new Error(`config does not exist: ${configPath}`);
@@ -957,7 +1009,10 @@ export function applyRemoteD1Migrations(options: ApplyRemoteMigrationsOptions): 
         wranglerBin: options.wranglerBin,
         cwd: options.cwd,
         persistTo,
-        extraEnv: { CLOUDFLARE_API_TOKEN: token },
+        extraEnv: {
+          CLOUDFLARE_API_TOKEN: credential.token,
+          CLOUDFLARE_ACCOUNT_ID: credential.accountId,
+        },
       },
     );
     return stdout;

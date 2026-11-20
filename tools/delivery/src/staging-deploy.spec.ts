@@ -14,6 +14,10 @@ import {
   type StagingDeployDeps,
 } from './staging-deploy.ts';
 import type { DeployStagingWorkerOptions } from './wrangler-deploy.ts';
+import {
+  CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS,
+  CONTROL_PLANE_TOKEN_ENV_KEYS,
+} from './worker-secrets.ts';
 
 /** Config wrangler giả với identity staging khai tường minh. */
 const CONFIG_TEXT =
@@ -214,11 +218,16 @@ describe('runStagingDeploy', () => {
 
   it('runs the full preflight in order and then deploys once with the resolved env', async () => {
     const { deps, deployCalls, lines } = fakeDeps(happyFiles());
-    const sourceEnv = { ECOMA_CLOUDFLARE_API_TOKEN: 'cf-token-value', PATH: '/usr/bin' };
+    const sourceEnv = {
+      [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 'cf-token-value',
+      [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging]: 'cf-account-id-value',
+      PATH: '/usr/bin',
+    };
     await runStagingDeploy(params, sourceEnv, deps);
     expect(deployCalls).toHaveLength(1);
     expect(deployCalls[0]?.configPath).toBe(HOME_CONFIG);
     expect(deployCalls[0]?.env.CLOUDFLARE_API_TOKEN).toBe('cf-token-value');
+    expect(deployCalls[0]?.env.CLOUDFLARE_ACCOUNT_ID).toBe('cf-account-id-value');
     expect(lines.join('')).toContain('worker identity resolved (stg-ecoma-home)');
     expect(lines.join('')).toContain('is staging-releaseable');
     expect(lines.join('')).toContain(`build manifest matches run sha ${SHA}`);
@@ -228,7 +237,11 @@ describe('runStagingDeploy', () => {
   it('deploys nothing on an unsafe slug', async () => {
     const { deps, deployCalls } = fakeDeps(happyFiles());
     await expect(
-      runStagingDeploy({ ...params, slug: 'Home_2' }, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps),
+      runStagingDeploy(
+        { ...params, slug: 'Home_2' },
+        { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 't' },
+        deps,
+      ),
     ).rejects.toThrowError(/unsafe slug/u);
     expect(deployCalls).toHaveLength(0);
   });
@@ -236,7 +249,11 @@ describe('runStagingDeploy', () => {
   it('deploys nothing when expect-sha is not a full 40-hex sha', async () => {
     const { deps, deployCalls } = fakeDeps(happyFiles());
     await expect(
-      runStagingDeploy({ ...params, expectSha: 'HEAD' }, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps),
+      runStagingDeploy(
+        { ...params, expectSha: 'HEAD' },
+        { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 't' },
+        deps,
+      ),
     ).rejects.toThrowError(/40-hex commit SHA/u);
     expect(deployCalls).toHaveLength(0);
   });
@@ -244,7 +261,7 @@ describe('runStagingDeploy', () => {
   it('deploys nothing when the wrangler config cannot be read', async () => {
     const { deps, deployCalls } = fakeDeps({});
     await expect(
-      runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps),
+      runStagingDeploy(params, { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 't' }, deps),
     ).rejects.toThrowError(/cannot read wrangler config/u);
     expect(deployCalls).toHaveLength(0);
   });
@@ -254,7 +271,7 @@ describe('runStagingDeploy', () => {
     files[HOME_MANIFEST] = JSON.stringify({ sha: 'b'.repeat(40), worker: 'stg-ecoma-home' });
     const { deps, deployCalls } = fakeDeps(files);
     await expect(
-      runStagingDeploy(params, { ECOMA_CLOUDFLARE_API_TOKEN: 't' }, deps),
+      runStagingDeploy(params, { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 't' }, deps),
     ).rejects.toThrowError(/refusing to deploy an artifact/u);
     expect(deployCalls).toHaveLength(0);
   });
@@ -262,7 +279,7 @@ describe('runStagingDeploy', () => {
   it('fails closed before any command when the control-plane token is missing', async () => {
     const { deps, deployCalls } = fakeDeps(happyFiles());
     await expect(runStagingDeploy(params, {}, deps)).rejects.toThrowError(
-      /ECOMA_CLOUDFLARE_API_TOKEN is not set/u,
+      /ECOMA_CLOUDFLARE_STAGING_API_TOKEN is not set/u,
     );
     expect(deployCalls).toHaveLength(0);
   });

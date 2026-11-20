@@ -15,7 +15,8 @@
  * reviewers / wait timer; một gate thủ công trên staging là cấu hình sai
  * (báo violation, không tự xoá — xoá cấu hình repo là mutation ngoài phạm vi
  * setup, operator tự sửa qua Settings). Credential KHÔNG thuộc Environment:
- * `ECOMA_CLOUDFLARE_API_TOKEN` là org secret dùng chung (§6.12).
+ * cặp org secret theo lane của lane staging — `ECOMA_CLOUDFLARE_STAGING_API_TOKEN`
+ * + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` (§6.12).
  *
  * Danh sách unit là inventory fail-closed: suy từ
  * `config/deploy-eligibility.jsonc` (nguồn phân loại canonical, #360) — chỉ

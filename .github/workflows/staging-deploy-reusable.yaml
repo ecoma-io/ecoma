@@ -53,7 +53,10 @@ on:
         default: ''
     secrets:
       cloudflare_api_token:
-        description: 'Org secret ECOMA_CLOUDFLARE_API_TOKEN — the single control-plane token (§6.12)'
+        description: 'Org secret ECOMA_CLOUDFLARE_STAGING_API_TOKEN — the staging control-plane token (§6.12); the CALLER maps the lane-correct org secret'
+        required: true
+      cloudflare_account_id:
+        description: 'Org secret ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID — staging Cloudflare account id; ACCOUND is the literal org secret name (§6.12)'
         required: true
 
 permissions:
@@ -215,10 +218,13 @@ jobs:
           path: ${{ steps.locate.outputs.project-root }}
       - name: Deploy the staging worker
         env:
-          # Secret tổ duy nhất, map vào đúng tên biến pipeline trong env của
-          # step này; CLI sẽ đưa nó vào subprocess wrangler dưới tên
-          # CLOUDFLARE_API_TOKEN và KHÔNG BAO GIỜ qua argv hay log (§6.12).
-          ECOMA_CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_api_token }}
+          # Cặp org secret staging, map vào đúng tên biến pipeline của lane
+          # staging trong env của step này (#548); CLI sẽ đưa chúng vào
+          # subprocess wrangler dưới tên CLOUDFLARE_API_TOKEN +
+          # CLOUDFLARE_ACCOUNT_ID và KHÔNG BAO GIỜ qua argv hay log (§6.12).
+          # ACCOUND là tên org secret thật, không phải lỗi chính tả.
+          ECOMA_CLOUDFLARE_STAGING_API_TOKEN: ${{ secrets.cloudflare_api_token }}
+          ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID: ${{ secrets.cloudflare_account_id }}
           CONFIG_PATH: ${{ inputs.config-path }}
           PROJECT: ${{ inputs.project }}
           SLUG: ${{ inputs.slug }}
