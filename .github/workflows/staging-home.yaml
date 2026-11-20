@@ -1,0 +1,126 @@
+name: Staging deploy (home)
+
+# Caller mỏng của lane Continuous Staging cho deploy unit `home` (issue #353;
+# hợp đồng `02-delivery.md` §7.4). Mọi logic reusable nằm trong
+# `staging-deploy-reusable.yaml` — file này chỉ:
+#
+# 1. Chọn SHA được phép deploy: `workflow_run` sau CI xanh trên main (§7.2:
+#    PR builds KHÔNG BAO GIỜ deploy; SHA lấy từ `workflow_run.head_sha` qua
+#    env, không bao giờ `github.sha` — event ngữ cảnh của workflow_run là run
+#    CI của merge commit), hoặc `workflow_dispatch` từ main.
+# 2. Guard trong job `context` — checkout default branch (ref tin cậy) và mọi
+#    giá trị event đi qua `env:`, không nội suy vào `run:`.
+# 3. Gọi reusable workflow với đúng unit: Environment `staging-home`, Worker
+#    `stg-ecoma-home`, smoke khai theo khả năng của app (§7.5 mục 9).
+#
+# Origin `https://ecoma.io.vn` là apex của zone thuộc #350: tới khi #350/#362
+# dựng Router non-production và gắn hostname, lần chạy thật đầu tiên của job
+# này ĐỨNG ĐÚNG ở smoke (origin chưa tồn tại) — deploy vẫn đi qua được; đây là
+# dependency thật được khai báo, không phải lỗi wiring.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Reusable deploy job ghi commit status `release/staging-verified/<slug>` —
+# caller phải cấp ĐÚNG quyền đó (quyền của called workflow không vượt được
+# cấp của caller); không cấp gì khác.
+permissions:
+  contents: read
+  statuses: write
+
+# Một SHA chỉ xếp hàng một lần: hai run cùng SHA chạy tuần tự (không cancel —
+# persistent staging, §7.4).
+concurrency:
+  group: staging-home-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  context:
+    name: Resolve and guard the deploy SHA
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      deploy_sha: ${{ steps.guard.outputs.deploy_sha }}
+      skip: ${{ steps.guard.outputs.skip }}
+    steps:
+      # Checkout REF TIN CẬY (default branch) trong ngữ cảnh workflow_run —
+      # guard chạy code của main, không bao giờ code của head ref sự kiện.
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard the deploy SHA
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          WR_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WR_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          # Fail-safe: mặc định skip — mọi đường không qua đủ guard đều không
+          # deploy; ghi TRƯỚC rồi ghi đè ở cuối khi mọi guard đã pass.
+          echo "deploy_sha=" >> "$GITHUB_OUTPUT"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+
+          case "$EVENT_NAME" in
+            workflow_run)
+              if [ "$WR_CONCLUSION" != "success" ]; then
+                echo "skip: the CI run concluded \"$WR_CONCLUSION\" — the lane deploys a green main only"
+                exit 0
+              fi
+              if [ "$WR_HEAD_BRANCH" != "$DEFAULT_BRANCH" ]; then
+                echo "skip: CI ran on \"$WR_HEAD_BRANCH\" — the lane tracks \"$DEFAULT_BRANCH\" only"
+                exit 0
+              fi
+              sha="$WR_HEAD_SHA"
+              ;;
+            workflow_dispatch)
+              if [ "$DISPATCH_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+                echo "skip: dispatch ref \"$DISPATCH_REF\" — the lane deploys \"$DEFAULT_BRANCH\" only (§7.2: PR builds never deploy)"
+                exit 0
+              fi
+              sha="$(git rev-parse HEAD)"
+              ;;
+            *)
+              echo "::error::unsupported trigger event: $EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          if ! printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::deploy SHA is not a full 40-hex commit SHA: \"$sha\" (§7.3: the lane records evidence against the exact SHA only)" >&2
+            exit 1
+          fi
+          # SHA phải là tổ tiên của main hiện tại — không deploy một revision
+          # đã rơi khỏi main (force-push, branch xoá).
+          git merge-base --is-ancestor "$sha" "origin/$DEFAULT_BRANCH"
+
+          echo "deploy_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy home to staging
+    needs: context
+    if: needs.context.outputs.skip != 'true'
+    uses: ./.github/workflows/staging-deploy-reusable.yaml
+    with:
+      project: '@ecoma-io/home'
+      slug: home
+      config-path: apps/home/wrangler.jsonc
+      environment: staging-home
+      origin: https://ecoma.io.vn
+      ref: ${{ needs.context.outputs.deploy_sha }}
+      smoke-args: '--redirect /=/en --health /health --noindex /en'
+    secrets:
+      cloudflare_api_token: ${{ secrets.ECOMA_CLOUDFLARE_API_TOKEN }}

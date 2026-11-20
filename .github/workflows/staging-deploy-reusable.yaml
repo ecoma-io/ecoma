@@ -1,0 +1,289 @@
+name: Staging deploy (reusable)
+
+# Workflow reusable của lane Continuous Staging (02-delivery.md §7.4, issue
+# #353): build KHÔNG secret ở job `build`, deploy + smoke ở job `deploy` dưới
+# GitHub Environment của unit (approval + audit log tách theo unit, §6.12).
+#
+# Hợp đồng fail-closed của lane nằm trong CLI (`tools/delivery/src/cli.ts`
+# `staging-deploy` / `staging-smoke`): thiếu token, lệch identity, artifact
+# không khớp manifest của run — mọi vi phạm là job đỏ với lỗi tiếng Anh nêu
+# đúng thứ phải sửa, KHÔNG có lệnh nào chạy nửa vời.
+#
+# Caller duy nhất hiện tại: `.github/workflows/staging-home.yaml`. Trigger của
+# lane (workflow_run sau CI / dispatch trên main) thuộc caller. Vì MỌI caller
+# tương lai đều gọi được workflow này, nó TỰ guard `inputs.ref` ở job
+# `context` (checkout default branch — ref tin cậy — rồi xác minh ref là
+# commit 40-hex VÀ reachable từ default branch) trước khi job nào khác chạy;
+# build/deploy checkout `needs.context.outputs.verified_sha` — cùng shape
+# checkout-từ-output-đã-guard mà `release-prepare.yaml` dùng. Một caller tùy
+# ý không thể đẩy revision rời main vào job có quyền ghi status / secret
+# Environment.
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: 'Nx project name of the deploy unit (e.g. @ecoma-io/home)'
+        type: string
+        required: true
+      slug:
+        description: 'Deploy unit slug — names GitHub Environment staging-<slug> and the commit-status context'
+        type: string
+        required: true
+      config-path:
+        description: 'Repo-relative path to the wrangler.jsonc of the deploy unit'
+        type: string
+        required: true
+      environment:
+        description: 'GitHub Environment guarding this deploy (e.g. staging-home)'
+        type: string
+        required: true
+      origin:
+        description: 'Staging origin the post-deploy smoke hits (bare https origin)'
+        type: string
+        required: true
+      ref:
+        description: 'Full 40-hex commit SHA to build and deploy — the verified revision of this run'
+        type: string
+        required: true
+      smoke-args:
+        description: 'staging-smoke check flags, e.g. --redirect /=/en --health /health --noindex /en'
+        type: string
+        required: false
+        default: ''
+    secrets:
+      cloudflare_api_token:
+        description: 'Org secret ECOMA_CLOUDFLARE_API_TOKEN — the single control-plane token (§6.12)'
+        required: true
+
+permissions:
+  contents: read
+
+# Staging là môi trường persistent per unit (`stg-<unit>` tracking main): hai
+# run cùng unit XẾP HÀNG, không cancel run đang ghi Worker (§7.4).
+concurrency:
+  group: staging-deploy-${{ inputs.slug }}
+  cancel-in-progress: false
+
+jobs:
+  context:
+    name: Verify the requested revision
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      verified_sha: ${{ steps.guard.outputs.verified_sha }}
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Job này chỉ chạy code của default branch (ref tin cậy): xác minh
+      # `inputs.ref` là 40-hex và là ancestor của default branch. Không qua đủ
+      # guard là lane đỏ trước khi bất kỳ checkout nào khác hay step
+      # ghi-cache nào chạy — và MỌI caller tương lai kế thừa guard này.
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard the verified revision
+        id: guard
+        env:
+          REF_SHA: ${{ inputs.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$REF_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::ref is not a full 40-hex commit SHA: \"$REF_SHA\" — the lane records evidence against the exact SHA only (§7.3)" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$REF_SHA" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::ref $REF_SHA is not reachable from origin/$DEFAULT_BRANCH — the lane deploys only revisions merged into the default branch, regardless of caller" >&2
+            exit 1
+          fi
+          echo "verified_sha=$REF_SHA" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build the deploy unit
+    needs: context
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Checkout SHA ĐÃ VERIFY ở job context — không checkout `inputs.ref`
+      # trực tiếp ở bất kỳ job nào của workflow này.
+      - name: Check out the verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.context.outputs.verified_sha }}
+          persist-credentials: false
+      # Cùng pnpm ghim trong packageManager và cùng Node như setup-node-pnpm,
+      # nhưng KHÔNG `cache: pnpm`: cache-save sau job là sink mà CodeQL
+      # cache-poisoning gắn vào mọi step đọc dữ liệu từ checkout do caller chỉ
+      # định. Job build không ghi cache nào; deploy job giữ action chuẩn vì
+      # checkout của nó là SHA đã qua guard ở job context.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Locate the project root
+        id: locate
+        env:
+          CONFIG_PATH: ${{ inputs.config-path }}
+        run: |
+          set -euo pipefail
+          echo "project-root=${CONFIG_PATH%/*}" >> "$GITHUB_OUTPUT"
+      - name: Build the deploy unit
+        env:
+          NX_PROJECT: ${{ inputs.project }}
+        run: pnpm exec nx run "$NX_PROJECT":build
+      - name: Write the build manifest
+        env:
+          CONFIG_PATH: ${{ inputs.config-path }}
+          EXPECT_SHA: ${{ inputs.ref }}
+          PROJECT_ROOT: ${{ steps.locate.outputs.project-root }}
+        run: |
+          set -euo pipefail
+          # staging-manifest fail-closed khi sha không phải 40-hex và khi config
+          # không khai env.staging.name — manifest là bằng chứng exact-SHA mà
+          # job deploy đối chiếu trước khi wrangler chạy (§7.3, §7.4).
+          npx tsx tools/delivery/src/cli.ts staging-manifest \
+            --config "$CONFIG_PATH" --sha "$EXPECT_SHA" \
+            > "$PROJECT_ROOT/build-manifest.json"
+          cat "$PROJECT_ROOT/build-manifest.json"
+      - name: Upload the build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-deploy-${{ inputs.slug }}
+          # Ba đường dẫn khớp đúng thứ job deploy cần: output build, config
+          # wrangler và manifest. LCA là project root nên artifact giữ nguyên
+          # layout tương đối — job deploy tải về đúng chỗ.
+          path: |
+            ${{ steps.locate.outputs.project-root }}/.output
+            ${{ inputs.config-path }}
+            ${{ steps.locate.outputs.project-root }}/build-manifest.json
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy and smoke the staging worker
+    needs: [context, build]
+    runs-on: ubuntu-26.04
+    # Trần job phải VƯỢT worst case của lớp retry §7.4: 3 lần thử × 4 phút +
+    # backoff 45s ≈ 13 phút, cộng smoke budget 90s và install — 25 phút là
+    # trần đó; một job chết vì timeout tự nó là đỏ đúng (deploy chưa xác nhận).
+    timeout-minutes: 25
+    # Environment là cổng duy nhất nạp secret Cloudflare của job này (§6.12) —
+    # approval và audit log của deployment gắn theo GitHub Environment, không
+    # theo token.
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      # Ghi commit status `release/staging-verified/<slug>` (§7.4).
+      statuses: write
+    steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+      # Job này MANG QUYỀN (statuses: write + secret Environment): checkout
+      # SHA đã verify của job context, không bao giờ `inputs.ref` trực tiếp —
+      # mọi step ghi-cache (setup-node pnpm cache) chỉ chạy trên revision đã
+      # qua guard.
+      - name: Check out the verified revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.context.outputs.verified_sha }}
+          persist-credentials: false
+      - name: Setup Node.js and pnpm
+        uses: ./.github/actions/setup-node-pnpm
+      - name: Locate the project root
+        id: locate
+        env:
+          CONFIG_PATH: ${{ inputs.config-path }}
+        run: |
+          set -euo pipefail
+          echo "project-root=${CONFIG_PATH%/*}" >> "$GITHUB_OUTPUT"
+      - name: Download the build artifact of this run
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: staging-deploy-${{ inputs.slug }}
+          path: ${{ steps.locate.outputs.project-root }}
+      - name: Deploy the staging worker
+        env:
+          # Secret tổ duy nhất, map vào đúng tên biến pipeline trong env của
+          # step này; CLI sẽ đưa nó vào subprocess wrangler dưới tên
+          # CLOUDFLARE_API_TOKEN và KHÔNG BAO GIỜ qua argv hay log (§6.12).
+          ECOMA_CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare_api_token }}
+          CONFIG_PATH: ${{ inputs.config-path }}
+          PROJECT: ${{ inputs.project }}
+          SLUG: ${{ inputs.slug }}
+          EXPECT_SHA: ${{ inputs.ref }}
+          PROJECT_ROOT: ${{ steps.locate.outputs.project-root }}
+        run: |
+          set -euo pipefail
+          npx tsx tools/delivery/src/cli.ts staging-deploy \
+            --config "$CONFIG_PATH" --project "$PROJECT" --slug "$SLUG" \
+            --manifest "$PROJECT_ROOT/build-manifest.json" --expect-sha "$EXPECT_SHA"
+      - name: Smoke the staging origin
+        env:
+          ORIGIN: ${{ inputs.origin }}
+          # SMOKE_ARGS được word-split có chủ đích: một chuỗi nhiều cờ kiểm
+          # khai theo khả năng của app (§7.5 mục 9).
+          SMOKE_ARGS: ${{ inputs.smoke-args }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086 — word-split là hợp đồng của input này.
+          npx tsx tools/delivery/src/cli.ts staging-smoke "$ORIGIN" $SMOKE_ARGS
+      - name: Record the staging-verified status (success)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.ref }}
+          SLUG: ${{ inputs.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=success \
+            -f context="release/staging-verified/$SLUG" \
+            -f description="deploy + staging smoke passed" \
+            -f target_url="$RUN_URL" > /dev/null
+      - name: Record the staging-verified status (failure)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.ref }}
+          SLUG: ${{ inputs.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=failure \
+            -f context="release/staging-verified/$SLUG" \
+            -f description="deploy or staging smoke failed" \
+            -f target_url="$RUN_URL" > /dev/null
+      # Cancel (tay, runner mất, timeout hàng đợi) là KHÔNG verified — commit
+      # không được treo không evidence. Guard !failure(): khi một step đã đỏ,
+      # đường failure ở trên đã ghi kết quả thật và giữ nguyên nó.
+      - name: Record the staging-verified status (cancelled)
+        if: cancelled() && !failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ inputs.ref }}
+          SLUG: ${{ inputs.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=error \
+            -f context="release/staging-verified/$SLUG" \
+            -f description="deploy or staging smoke cancelled" \
+            -f target_url="$RUN_URL" > /dev/null

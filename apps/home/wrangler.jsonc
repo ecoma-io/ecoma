@@ -19,7 +19,18 @@
   "env": {
     "staging": {
       "name": "stg-ecoma-home",
-      "routes": [{ "pattern": "ecoma.io.vn", "custom_domain": true }],
+      // A13/MOD1 (`02-delivery.md` §4.2): staging public hostname là subdomain
+      // của zone `ecoma.io.vn`, apex phục vụ home **qua Router Worker
+      // non-production** — deploy unit riêng sở hữu route table
+      // `ecoma.io.vn/*` + `*.ecoma.io.vn/*` rồi dispatch qua Service Binding
+      // tới Worker `stg-<unit>`. Home vì thế KHÔNG khai `routes` staging nào:
+      // gắn apex trực tiếp bằng Custom Domain (`"custom_domain": true`) là
+      // deviation đã bị loại — nó chiếm đúng hostname apex của Router và sinh
+      // certificate residual không tự xoá. Việc khai apex về Router thuộc
+      // #350/#362 (Router chưa tồn tại trong cây) — cho tới khi đó, home staging
+      // chưa có hostname public thật; smoke staging lấy origin qua tham số
+      // và lần chạy thật đầu tiên chờ đúng dependency đó.
+      "workers_dev": false,
       "vars": {
         "NITRO_PUBLIC_NO_INDEX": "true",
       },

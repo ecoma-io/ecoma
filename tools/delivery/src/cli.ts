@@ -1,5 +1,5 @@
 /**
- * Entry CLI của machinery delivery (issue #351) — hai lệnh, chạy qua `npx tsx`
+ * Entry CLI của machinery delivery (issue #351, #349, #353) — sáu lệnh, chạy qua `npx tsx`
  * (import `@ecoma-io/deployment` dùng specifier `.js` mà node type-stripping
  * thuần không remap được — cùng runner với các entry `deploys/*`):
  *
@@ -18,6 +18,16 @@
  *   PostgreSQL staging qua Cloudflare Tunnel (`02` §9.1 — Wrangler sở hữu;
  *   VP4 verified trên wrangler 4.165.0). In ra dòng machine-readable
  *   `service_id=<uuid>` — output contract cho wiring Hyperdrive #350.
+ * - `npx tsx src/cli.ts staging-manifest --config <wrangler.jsonc> --sha <sha>`
+ *   In build-manifest JSON (`{sha, worker}`) ra stdout — job build của workflow
+ *   ghi vào artifact để job deploy đối chiếu (§7.4).
+ * - `npx tsx src/cli.ts staging-deploy --config <wrangler.jsonc> --project <nx-name>
+ *   --slug <slug> --manifest <build-manifest.json> --expect-sha <sha>`
+ *   Preflight fail-closed (identity, eligibility, manifest, token) rồi
+ *   `wrangler deploy --env staging` qua lớp retry §7.4 — glue của job deploy.
+ * - `npx tsx src/cli.ts staging-smoke <origin> [--redirect <from>=<to>]...
+ *   [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n]`
+ *   Smoke HTTP thật sau deploy, khai theo khả năng của app (§7.5 mục 9).
  *
  * CLI mỏng: mọi logic nằm trong module có spec; file này chỉ parse argv, đọc
  * stdin và map kết quả ra exit code.
@@ -40,6 +50,17 @@ import {
   type EnvironmentReport,
 } from './staging-environments.ts';
 import {
+  buildStagingManifest,
+  runStagingDeploy,
+  type StagingDeployParams,
+} from './staging-deploy.ts';
+import {
+  runStagingSmoke,
+  SMOKE_BUDGET_MS_DEFAULT,
+  SMOKE_REQUEST_TIMEOUT_MS_DEFAULT,
+  type StagingSmokeOptions,
+} from './staging-smoke.ts';
+import {
   putWorkerSecret,
   stripJsoncComments,
   trimTrailingNewline,
@@ -50,7 +71,10 @@ const USAGE =
   'usage:\n' +
   '  npx tsx src/cli.ts ensure-staging-environments [--check] [--repo owner/name]\n' +
   '  npx tsx src/cli.ts worker-secret put|stage <SECRET_NAME> --config <wrangler.jsonc>   (value via stdin)\n' +
-  '  npx tsx src/cli.ts vpc-service create <NAME> --tunnel-id <uuid> --hostname <host> [--tcp-port 5432] [--app-protocol postgresql|mysql]';
+  '  npx tsx src/cli.ts vpc-service create <NAME> --tunnel-id <uuid> --hostname <host> [--tcp-port 5432] [--app-protocol postgresql|mysql]\n' +
+  '  npx tsx src/cli.ts staging-manifest --config <wrangler.jsonc> --sha <sha>\n' +
+  '  npx tsx src/cli.ts staging-deploy --config <wrangler.jsonc> --project <nx-name> --slug <slug> --manifest <build-manifest.json> --expect-sha <sha>\n' +
+  '  npx tsx src/cli.ts staging-smoke <origin> [--redirect <from>=<to>]... [--health <path>]... [--noindex <path>]... [--budget-ms n] [--request-timeout-ms n]';
 
 /** Shape tối thiểu khi parse argv `worker-secret`. */
 export type ParsedWorkerSecretArgv =
@@ -66,9 +90,8 @@ export function parseWorkerSecretArgv(argv: readonly string[]): ParsedWorkerSecr
   if (secretName === undefined || secretName.trim().length === 0) {
     return { kind: 'usage', message: 'missing SECRET_NAME argument' };
   }
-  const configFlag = argv.indexOf('--config');
-  const configPath = configFlag >= 0 ? argv[configFlag + 1] : undefined;
-  if (configPath === undefined || configPath.trim().length === 0) {
+  const configPath = readRequiredFlag(argv, '--config');
+  if (configPath === undefined) {
     return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
   }
   return { kind: 'ok', action, secretName, configPath };
@@ -116,6 +139,145 @@ export function parseVpcServiceArgv(
   return {
     kind: 'ok',
     input: { name, tunnelId, hostname, tcpPort, appProtocol: appProtocolRaw as VpcAppProtocol },
+  };
+}
+
+/**
+ * Đọc giá trị của MỘT flag yêu cầu giá trị; `undefined` khi flag vắng mặt
+ * HOẶC có mặt mà không mang giá trị — caller dịch cả hai thành cùng một lỗi
+ * usage của flag đó (dùng-lệnh sai là lỗi, không đoán). Giá trị bắt đầu bằng
+ * '--' cũng là thiếu: đó là cờ kế đi lạc vào chỗ giá trị (indexOf có thể trúng
+ * tên một cờ xuất hiện làm giá trị của cờ trước), không ăn nhầm.
+ */
+function readRequiredFlag(argv: readonly string[], flag: string): string | undefined {
+  const index = argv.indexOf(flag);
+  if (index < 0) return undefined;
+  const value = argv[index + 1];
+  if (value === undefined || value.trim().length === 0 || value.startsWith('--')) {
+    return undefined;
+  }
+  return value;
+}
+
+/** Shape argv đã parse của lệnh `staging-manifest`. */
+export type ParsedStagingManifestArgv =
+  | { kind: 'ok'; configPath: string; sha: string }
+  | { kind: 'usage'; message: string };
+
+/** Parse argv `staging-manifest` — thiếu flag/giá trị là lỗi dùng-lệnh. */
+export function parseStagingManifestArgv(argv: readonly string[]): ParsedStagingManifestArgv {
+  const configPath = readRequiredFlag(argv, '--config');
+  if (configPath === undefined) {
+    return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
+  }
+  const sha = readRequiredFlag(argv, '--sha');
+  if (sha === undefined) {
+    return { kind: 'usage', message: 'missing --sha <commit-sha> value' };
+  }
+  return { kind: 'ok', configPath, sha };
+}
+
+/** Tham số lệnh `staging-deploy` sau khi parse argv. */
+export type ParsedStagingDeployArgv =
+  | { kind: 'ok'; params: StagingDeployParams }
+  | { kind: 'usage'; message: string };
+
+/** Parse argv `staging-deploy` — đủ năm flag là điều kiện dùng-lệnh đúng. */
+export function parseStagingDeployArgv(argv: readonly string[]): ParsedStagingDeployArgv {
+  const configPath = readRequiredFlag(argv, '--config');
+  if (configPath === undefined) {
+    return { kind: 'usage', message: 'missing --config <wrangler.jsonc> path' };
+  }
+  const project = readRequiredFlag(argv, '--project');
+  if (project === undefined) {
+    return { kind: 'usage', message: 'missing --project <nx-project-name> value' };
+  }
+  const slug = readRequiredFlag(argv, '--slug');
+  if (slug === undefined) {
+    return { kind: 'usage', message: 'missing --slug <slug> value' };
+  }
+  const manifestPath = readRequiredFlag(argv, '--manifest');
+  if (manifestPath === undefined) {
+    return { kind: 'usage', message: 'missing --manifest <build-manifest.json> path' };
+  }
+  const expectSha = readRequiredFlag(argv, '--expect-sha');
+  if (expectSha === undefined) {
+    return { kind: 'usage', message: 'missing --expect-sha <commit-sha> value' };
+  }
+  return { kind: 'ok', params: { configPath, project, slug, manifestPath, expectSha } };
+}
+
+/** Shape argv đã parse của lệnh `staging-smoke`. */
+export type ParsedStagingSmokeArgv =
+  | { kind: 'ok'; options: StagingSmokeOptions }
+  | { kind: 'usage'; message: string };
+
+/** Parse argv `staging-smoke` — cờ kiểm lặp được, origin là positional đầu. */
+export function parseStagingSmokeArgv(argv: readonly string[]): ParsedStagingSmokeArgv {
+  let origin: string | undefined;
+  const redirects: Array<{ from: string; to: string }> = [];
+  const healthPaths: string[] = [];
+  const noindexPaths: string[] = [];
+  let budgetMs = SMOKE_BUDGET_MS_DEFAULT;
+  let requestTimeoutMs = SMOKE_REQUEST_TIMEOUT_MS_DEFAULT;
+  for (let index = 0; index < argv.length; index += 1) {
+    const flag = argv[index];
+    const takeValue = (): string | undefined => {
+      const value = argv[index + 1];
+      // Giá trị bắt đầu '--' là cờ kế, không phải giá trị — trả undefined để
+      // flag hiện tại báo thiếu giá trị và cờ kế được parse bình thường.
+      if (value === undefined || value.trim().length === 0 || value.startsWith('--')) {
+        return undefined;
+      }
+      index += 1;
+      return value;
+    };
+    if (flag === '--redirect' || flag === '--health' || flag === '--noindex') {
+      const value = takeValue();
+      if (value === undefined) {
+        return { kind: 'usage', message: `missing value for ${flag}` };
+      }
+      if (flag === '--health' || flag === '--noindex') {
+        const target = flag === '--health' ? healthPaths : noindexPaths;
+        target.push(value);
+        continue;
+      }
+      const separator = value.indexOf('=');
+      if (separator <= 0 || separator === value.length - 1) {
+        return { kind: 'usage', message: `--redirect must be in <from>=<to> form: ${value}` };
+      }
+      redirects.push({ from: value.slice(0, separator), to: value.slice(separator + 1) });
+      continue;
+    }
+    if (flag === '--budget-ms' || flag === '--request-timeout-ms') {
+      const value = takeValue();
+      if (value === undefined) {
+        return { kind: 'usage', message: `missing value for ${flag}` };
+      }
+      // Chỉ nhận số nguyên dương thập phân thuần: Number() còn nhận '0x10',
+      // '1e2', ' 12 ' — vượt hợp đồng cờ; NaN rơi vào cùng nhánh usage.
+      const parsed = /^\d+$/u.test(value) ? Number(value) : Number.NaN;
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        return { kind: 'usage', message: `${flag} must be a positive integer: ${value}` };
+      }
+      if (flag === '--budget-ms') budgetMs = parsed;
+      else requestTimeoutMs = parsed;
+      continue;
+    }
+    if (flag.startsWith('--')) {
+      return { kind: 'usage', message: `unsupported flag: ${flag}` };
+    }
+    if (origin !== undefined) {
+      return { kind: 'usage', message: `unexpected argument: ${flag}` };
+    }
+    origin = flag;
+  }
+  if (origin === undefined || origin.trim().length === 0) {
+    return { kind: 'usage', message: 'missing <origin> positional argument' };
+  }
+  return {
+    kind: 'ok',
+    options: { origin, redirects, healthPaths, noindexPaths, budgetMs, requestTimeoutMs },
   };
 }
 
@@ -231,7 +393,7 @@ export function printReports(
   return failed;
 }
 
-function main(argv: readonly string[]): number {
+async function main(argv: readonly string[]): Promise<number> {
   const command = argv[0];
   if (command === 'ensure-staging-environments') {
     const check = argv.includes('--check');
@@ -303,6 +465,35 @@ function main(argv: readonly string[]): number {
     );
     return 0;
   }
+  if (command === 'staging-manifest') {
+    const parsed = parseStagingManifestArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    const configText = readFileSync(parsed.configPath, 'utf8');
+    const manifest = buildStagingManifest(configText, parsed.sha);
+    process.stdout.write(`${JSON.stringify(manifest)}\n`);
+    return 0;
+  }
+  if (command === 'staging-deploy') {
+    const parsed = parseStagingDeployArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    await runStagingDeploy(parsed.params);
+    return 0;
+  }
+  if (command === 'staging-smoke') {
+    const parsed = parseStagingSmokeArgv(argv.slice(1));
+    if (parsed.kind === 'usage') {
+      process.stderr.write(`${parsed.message}\n${USAGE}\n`);
+      return 2;
+    }
+    await runStagingSmoke(parsed.options);
+    return 0;
+  }
   process.stderr.write(`${USAGE}\n`);
   return 2;
 }
@@ -338,10 +529,15 @@ if (isCliEntry(process.argv[1], fileURLToPath(import.meta.url))) {
   // Mọi lỗi chưa xử lý là exit 1 với thông điệp gọn — fail-closed, không stack
   // trace. Dùng exitCode + drain tự nhiên thay vì process.exit: exit ngay sau
   // write có thể cắt ngang stdout/stderr chưa flush (đặc biệt khi pipe).
-  try {
-    process.exitCode = main(process.argv.slice(2));
-  } catch (error) {
-    process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
-    process.exitCode = 1;
-  }
+  // main bất đồng bộ (deploy/smoke await network) — promise rejection thay cho
+  // try/catch, semantics exit code giữ nguyên.
+  main(process.argv.slice(2))
+    .then((code) => {
+      process.exitCode = code;
+      return code;
+    })
+    .catch((error: unknown) => {
+      process.stderr.write(`error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exitCode = 1;
+    });
 }
