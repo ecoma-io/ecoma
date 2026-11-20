@@ -108,6 +108,13 @@ export async function createThrowawayDatabase(
   target: { host: string; port: number },
   namePrefix: string,
 ): Promise<ThrowawayDatabase> {
+  // Prefix đi thẳng vào CREATE/DROP DATABASE DDL nên chỉ nhận identifier shape,
+  // fail-closed; tính duy nhất do random suffix đảm nhiệm, không do caller.
+  if (/^[a-z_][a-z0-9_]*$/u.test(namePrefix) === false) {
+    throw new Error(
+      `namePrefix ${JSON.stringify(namePrefix)} must match ^[a-z_][a-z0-9_]*$ - it is interpolated into CREATE/DROP DATABASE DDL; the random suffix supplies uniqueness.`,
+    );
+  }
   const { Client } = await import('pg');
   const name = `${namePrefix}_${randomUUID()}`;
   const admin = new Client({
@@ -118,8 +125,15 @@ export async function createThrowawayDatabase(
     password: SUPERUSER_PASSWORD,
     application_name: 'ecoma-auth-test-throwaway-db',
   });
-  await admin.connect();
-  await admin.query(`CREATE DATABASE "${name}"`);
+  try {
+    await admin.connect();
+    await admin.query(`CREATE DATABASE "${name}"`);
+  } catch (error) {
+    // Nhánh CREATE hỏng chưa từng trả handle cho caller nên không ai gọi
+    // drop() để end() — tự đóng client, không để rò connection.
+    await admin.end().catch(() => undefined);
+    throw error;
+  }
   let dropped = false;
   return {
     name,

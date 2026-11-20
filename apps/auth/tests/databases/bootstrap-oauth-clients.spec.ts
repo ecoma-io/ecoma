@@ -166,6 +166,22 @@ async function restoreSecretParityBaseline(db: AuthDatabase): Promise<void> {
   }
 }
 
+/** CHECK parity có tồn tại và đã validate trên oauth_clients không — pg_constraint là nguồn sự thật của schema. */
+async function isSecretParityConstraintValidated(db: AuthDatabase): Promise<boolean> {
+  const client = await migratorClient(db);
+  try {
+    const { rows } = await client.query<{ convalidated: boolean }>(
+      `SELECT convalidated FROM pg_constraint
+       WHERE conrelid = 'auth.oauth_clients'::regclass
+         AND conname = 'oauth_clients_secret_parity_check'`,
+    );
+    const row = rows[0];
+    return row !== undefined && row.convalidated;
+  } finally {
+    await client.end();
+  }
+}
+
 describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
   let db: AuthDatabase;
 
@@ -332,6 +348,15 @@ describe(`bootstrap of the backoffice OAuth client on ${AUTH_DATABASE}`, () => {
 
   it('fails closed when a public client row carries a client_secret_hash', async () => {
     await resetTables(db);
+
+    // Cổng baseline: test này tháo CHECK parity, nên nó phải mở đầu từ schema
+    // chuẩn — constraint tồn tại và đã validate. Một lần repair trước hỏng
+    // giữa chừng (DROP xong, ADD chưa xong) để constraint mất thì chết ở đây
+    // với lý do rõ thay vì tháo constraint trên schema vốn đã trôi rồi pass
+    // vì lý do sai. Chọn cổng fail-loud thay vì retry: retry lặp lại cùng DDL
+    // trên cùng database không tăng xác suất thành công (repair thật đã chạy
+    // cuối test trước), còn "tự lành" ngầm sẽ che mất việc cơ chế repair hỏng.
+    expect(await isSecretParityConstraintValidated(db)).toBe(true);
 
     // CHECK `oauth_clients_secret_parity_check` cấm trạng thái này qua SQL hợp
     // lệ, nên guard của bootstrap là phòng thủ sâu cho schema đã trôi (ví dụ
