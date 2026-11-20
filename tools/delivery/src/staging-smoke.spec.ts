@@ -230,9 +230,10 @@ describe('runStagingSmoke', () => {
   });
 
   it('fails closed when the response carries no headers — not a TypeError', async () => {
-    const { deps } = fakeFetch([{ status: 200 } as unknown as SmokeResponse]);
+    const { deps, calls } = fakeFetch([{ status: 200 } as unknown as SmokeResponse]);
     await expect(
       runStagingSmoke({ ...HOME_OPTIONS, redirects: [], noindexPaths: [] }, deps),
     ).rejects.toThrowError(/malformed response object/u);
+    expect(calls).toHaveLength(1);
   });
 });

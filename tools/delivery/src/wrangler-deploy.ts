@@ -84,9 +84,11 @@ export function classifyWranglerFailure(text: string): 'transient' | 'fatal' {
   // 429 là tạm thời; 4xx còn lại (401/403/404...) là cấu hình/quyền — fatal.
   // Lấy MATCH CUỐI: khối lỗi API của wrangler luôn nằm cuối stderr, còn mã
   // HTTP đứng trước (trong log tiến trình, body HTML in lại...) là nhiễu.
-  const statusMatch = [...text.matchAll(/HTTP (\d{3})/gu)].at(-1);
+  // `match` với cờ /g trả đủ mọi match mà không giữ match object — lấy chuỗi
+  // cuối (`HTTP ddd`, regex bảo đảm shape) rồi cắt 3 chữ số.
+  const statusMatch = text.match(/HTTP (\d{3})/gu)?.at(-1);
   if (statusMatch !== undefined) {
-    const status = Number(statusMatch[1]);
+    const status = Number(statusMatch.slice(-3));
     if (status >= 500 || status === 429) return 'transient';
     return 'fatal';
   }
