@@ -7,10 +7,14 @@ pre-commit:
   commands:
     'format':
       glob: '*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,vue,json,jsonc,css,scss,html,md,yml,yaml}'
+      # Vendored skill content phải giữ byte-v-byte với upstream — formatter và
+      # linter không được chạm vào (như cam kết trong UPSTREAM.md của skill).
+      exclude: '.agents/skills/security-audit/**'
       run: npx oxfmt --write --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     'lint':
       glob: '*.{js,jsx,ts,tsx,mts,cts,mjs,cjs,vue}'
+      exclude: '.agents/skills/security-audit/**'
       run: npx oxlint --fix --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
     # Commit chưa tồn tại lúc pre-commit chạy, nên chỉ kiểm được cấu hình ký — cũng

@@ -1,0 +1,4 @@
+# Vendored skill content must stay byte-identical to upstream
+# (see .agents/skills/security-audit/UPSTREAM.md) — the formatter must not
+# read or normalize it. CI `oxfmt --check .` picks this file up automatically.
+.agents/skills/security-audit/
