@@ -41,10 +41,48 @@
     },
   ],
   //
-  // KHÔNG có deploy target/staging/production env ở đây: provisioning của
-  // deploy unit thuộc milestone sau, và Wrangler env `staging`/`production`
-  // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api` và
-  // `apps/remote-cache-api`). Custom domain cũng khai báo khi provision.
+  // KHÔNG có env `production` ở đây: production thuộc làn promotion (M3).
+  "env": {
+    // --- Staging (issue #359): Worker `stg-ecoma-llm-api` ---
+    "staging": {
+      "name": "stg-ecoma-llm-api",
+      // Ba Hyperdrive binding của env staging — cùng TÊN binding với top-level
+      // (Wrangler KHÔNG inherit binding từ top-level vào `env.*` — hiện trạng
+      // đã đo ở `02-delivery.md` §4.1, nên env phải khai lại tường minh). `id`
+      // do provisioning Pulumi cung cấp sau một lần `staging-up` xanh
+      // (`deploys/llm-api-deploy/staging-program.ts` — §9.1: id là stack output
+      // `gatewayHyperdriveConfigId`/`tenantHyperdriveConfigId`/
+      // `marketplaceHyperdriveConfigId`); chuỗi rỗng là trạng thái TRƯỚC khi
+      // wiring thật xảy ra, và placeholder toàn-zeros KHÔNG BAO GIỜ được điền
+      // (guard `resource-bindings` chặn). Thiếu id thật khi deploy là fail
+      // closed ở guard — không đường "deploy với binding rỗng".
+      "hyperdrive": [
+        {
+          "binding": "DB_LLM_GATEWAY",
+          "id": "",
+        },
+        {
+          "binding": "DB_LLM_TENANT",
+          "id": "",
+        },
+        {
+          "binding": "DB_LLM_MARKETPLACE",
+          "id": "",
+        },
+      ],
+      // A13/MOD1 (`02-delivery.md` §4.2): staging public hostname là subdomain
+      // của zone `ecoma.io.vn` — `llm-api.ecoma.io.vn` — và được phục vụ qua
+      // Router Worker non-production (dispatch qua Service Binding tới
+      // `stg-ecoma-llm-api`). Worker này vì thế KHÔNG khai `routes` staging:
+      // gắn Custom Domain trực tiếp là deviation đã bị loại ở §4.2 (certificate
+      // residual không tự xoá + chiếm hostname của Router); Router chưa tồn
+      // tại trong cây (#350/#362) nên hostname public thật của staging chưa
+      // có — smoke staging lấy origin qua tham số (pattern `apps/home`
+      // #535). Internal-only surface (worker nội bộ hiện tại) không đòi
+      // hostname nào.
+      "workers_dev": false,
+    },
+  },
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-llm-api",
   "main": "build/index.js",

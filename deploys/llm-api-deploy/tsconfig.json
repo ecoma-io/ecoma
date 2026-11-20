@@ -61,7 +61,11 @@
     "lane-invocation.ts",
     "lane.ts",
     "local.ts",
+    "local-program.ts",
     "scripts.ts",
+    "staging.ts",
+    "staging-run.ts",
+    "staging-program.ts",
     "superadmin-resolver.ts"
   ]
 }
