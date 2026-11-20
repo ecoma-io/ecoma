@@ -73,6 +73,9 @@
       "service": "ecoma-staff-access",
     },
   ],
+  // Hai service binding ở trên KHÔNG inherit vào `env.<lane>` (wrangler không
+  // inherit `services` giữa các env) — `env.staging` khai lại đích staging của
+  // từng binding ở khối `env` phía dưới (#354).
   "dev": {
     "port": 4201,
   },
@@ -103,10 +106,13 @@
       // trường** (thuộc hạ tầng), không phải thông tin kết nối; connection
       // string thật lấy ở runtime qua `binding.connectionString`.
       //
-      // ⚠️ **`id` dưới đây là placeholder toàn số 0 — deploy layer sẽ thay.**
-      // `db-backoffice` chưa được provision; schema của Wrangler bắt buộc có
-      // `id` (placeholder giữ config hợp lệ và fail closed lúc deploy thay vì
-      // deploy xanh rồi lỗi lúc chạy). Credential của runtime role không nằm
+      // ⚠️ **`id` là chuỗi rỗng fail-closed — KHÔNG điền id bịa.** Config
+      // staging `db-backoffice-staging` do Pulumi của `deploys/backoffice-deploy`
+      // sở hữu (§9.1: id do Pulumi cung cấp, Wrangler không tạo config); entry
+      // `staging.ts` của stack đó surface output `hyperdriveConfigId` sau lần
+      // `up` xanh đầu tiên và operator fill giá trị đó vào đây. Chuỗi rỗng giữ
+      // config hợp lệ theo schema và fail closed lúc deploy thay vì deploy
+      // xanh rồi lỗi lúc chạy. Credential của runtime role không nằm
       // ở file này — nó thuộc `wrangler secret` / tầng deploy riêng.
       //
       // ⚠️ **Binding này KHÔNG được Preview dùng** (`01-architecture.md`
@@ -127,22 +133,33 @@
       "hyperdrive": [
         {
           "binding": "DB_BACKOFFICE",
-          "id": "00000000000000000000000000000000",
+          "id": "",
+        },
+      ],
+      // Hai service binding của top-level KHÔNG inherit vào env này — khai
+      // lại đích staging của từng binding: identity staging của unit tương
+      // ứng (`stg-ecoma-*`), không phải shim local `ecoma-account-bridge`
+      // và không phải Worker production. Binding KHÔNG phải authenticator —
+      // mọi request qua nó vẫn ký HMAC `AUTH_INTERNAL_SECRET` như contract
+      // nội bộ.
+      "services": [
+        {
+          "binding": "ACCOUNT_SERVICE",
+          "service": "stg-ecoma-account",
+        },
+        {
+          "binding": "STAFF_ACCESS_SERVICE",
+          "service": "stg-ecoma-staff-access",
         },
       ],
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
-      // bo qua nó; nó tồn tại để pipeline delivery tương lai (§7.2) có một
-      // origin tất định cho deploy unit mà không phải suy đoán từ `account_id`
-      // (subdomain `workers.dev` là cấu hình riêng của Cloudflare account,
-      // không suy ra được từ `account_id`).
-      //
-      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
-      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
-      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
-      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý: một
-      // URL bịa ra sẽ làm smoke fail bằng lý do "DNS không resolve" trong khi
-      // nguyên nhân thật là URL sai từ đầu.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // bo qua nó; nó tồn tại để pipeline delivery (§7.2) có một origin tất
+      // định cho deploy unit. Giá trị theo scheme hostname MOD1
+      // (`02-delivery.md` §4.2, A13): mirror production `office.ecoma.io`
+      // trên zone non-production `ecoma.io.vn`. KHÔNG khai `routes` ở đây:
+      // hostname staging thuộc route table của Router non-production, không
+      // phải Custom Domain per-unit (phương án đã loại ở §4.2).
+      "devOrigin": "https://office.ecoma.io.vn",
       // Gating dữ liệu backoffice (E1, issue #256). `vars` KHÔNG inherit từ
       // top-level, nên khoá này phải khai lại ở từng env.
       //
@@ -151,8 +168,14 @@
       // giá trị đúng bằng chuỗi `prototype` (`data-mode.ts`). Bất kỳ giá trị
       // nào khác — kể cả gõ sai hoa/thường hay thừa khoảng trắng — đều fail
       // closed về trạng thái unavailable.
+      //
+      // `NITRO_PUBLIC_NO_INDEX` bật cờ noindex staging (điều 1 §4: bề mặt
+      // staging không được index) — middleware `server/middleware/no-index.ts`
+      // đặt header `X-Robots-Tag: noindex` khi và chỉ khi giá trị là boolean
+      // `true`; smoke `root-noindex` của pipeline assert header này.
       "vars": {
         "NITRO_PUBLIC_BACKOFFICE_DATA_MODE": "realtime",
+        "NITRO_PUBLIC_NO_INDEX": "true",
       },
       // Bề mặt public của `account` — xem ghi chú cùng khoá ở `apps/home`.
       // App này **phẳng**: không có chiều locale (không `app/pages/[locale]`),
@@ -168,10 +191,11 @@
     },
     "production": {
       "name": "ecoma-backoffice",
-      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa
-      // tay. Production của hai app này chưa có custom domain, nên origin
-      // smoke check của lane production cũng phải đến từ `devOrigin`.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Origin smoke check theo scheme production của `01-architecture.md` §7
+      // (`office.ecoma.io`). Lane production là scope M3
+      // (`deploy-eligibility.jsonc` — production excluded toàn bộ); origin
+      // được ghi sẵn để cổng readiness không chặn placeholder khi M3 wiring.
+      "devOrigin": "https://office.ecoma.io",
       // Gating dữ liệu backoffice (E1, issue #256). Fail-closed: mặc dù
       // `runtimeConfig.public.backofficeDataMode` đã có default `'disabled'`
       // trong `nuxt.config.ts`, production **khai tường minh** giá trị này để
