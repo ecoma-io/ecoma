@@ -12,12 +12,17 @@
  * `//` — ví dụ URL — không được phép bị hỏng.
  */
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-/** Strip line comments (`//`) and block comments outside string literals, then drop trailing commas. */
+/**
+ * Strip line comment (`//`) và block comment ngoài string literal, rồi bỏ
+ * trailing comma — cả hai phase đều string-aware: giá trị chứa `//` hay `,}`
+ * không bị biến đổi.
+ */
 function parseJsonc(path: string): Record<string, unknown> {
   const source = readFileSync(path, 'utf8');
   let out = '';
@@ -59,7 +64,44 @@ function parseJsonc(path: string): Record<string, unknown> {
     }
     out += char;
   }
-  return JSON.parse(out.replace(/,(\s*[}\]])/gu, '$1')) as Record<string, unknown>;
+  // Pass hai — drop trailing comma, string-aware trên text đã strip comment:
+  // `,` kế cận (chỉ qua khoảng trắng) `}`/`]` của struct là trailing comma,
+  // bỏ; `,` bên trong string literal giữ nguyên (giá trị chứa `,}` không bị
+  // biến đổi như replace regex nguyên thủy từng làm).
+  let json = '';
+  inString = false;
+  for (let i = 0; i < out.length; i += 1) {
+    const char = out[i];
+    if (inString) {
+      json += char;
+      // `\"` escape là phần của string, không đóng string.
+      if (char === '\\' && i + 1 < out.length) {
+        json += out[i + 1];
+        i += 1;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      json += char;
+      continue;
+    }
+    if (char === ',') {
+      let j = i + 1;
+      while (j < out.length && /\s/u.test(out[j])) {
+        j += 1;
+      }
+      if (out[j] === '}' || out[j] === ']') {
+        continue;
+      }
+    }
+    json += char;
+  }
+  return JSON.parse(json) as Record<string, unknown>;
 }
 
 type HyperdriveBinding = { binding?: unknown; id?: unknown };
@@ -118,6 +160,40 @@ describe('wrangler.jsonc env.staging (lane #358)', () => {
   });
 
   it('carries no REPLACE-WITH placeholder inside the staging subtree', () => {
+    // JSON.stringify(undefined) là primitive `undefined` — guard trước để
+    // assert không dính thông báo sai lệch khi env.staging vắng mặt.
+    expect(staging, 'env.staging must exist').toBeDefined();
     expect(JSON.stringify(staging)).not.toContain('REPLACE-WITH');
+  });
+});
+
+describe('parseJsonc', () => {
+  const cleanup: string[] = [];
+  afterEach(() => {
+    for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a string value containing `,}` survives parsing intact', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wrangler-jsonc-spec-'));
+    cleanup.push(dir);
+    const file = join(dir, 'wrangler.jsonc');
+    // Giá trị chứa đúng chuỗi mà replace trailing-comma không string-aware
+    // biến đổi trong string literal (`/,(\s*[}\]])/`) — parser string-aware
+    // phải giữ nguyên; comment chứa `, }` cũng không được phá parse.
+    writeFileSync(
+      file,
+      [
+        '{',
+        '  // comment containing , } and a comma,',
+        '  "vars": { "NOTE": "keep ,} intact,}," },',
+        '  "list": [1, 2,],',
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const parsed = parseJsonc(file);
+    expect(parsed['vars']).toEqual({ NOTE: 'keep ,} intact,},' });
+    expect(parsed['list']).toEqual([1, 2]);
   });
 });
