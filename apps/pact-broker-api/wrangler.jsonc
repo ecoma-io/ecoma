@@ -27,16 +27,17 @@
     },
   ],
   //
-  // KHÔNG có deploy target/staging/production env ở đây: đường deploy trực
-  // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
-  // Wrangler env `staging`/`production` sẽ thêm khi provision.
+  // Deploy lane: lane local qua WIC (`deploys/pact-broker-api-deploy`);
+  // staging khai ở `env.staging` dưới đây (provision Hyperdrive staging qua
+  // `deploys/pact-broker-api-deploy` stack `staging`, #358). Production là
+  // M3 — chưa khai.
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-pact-broker-api",
   "main": "dist/main.js",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],
   // KHÔNG có `routes`/`hostname`: hostname dự kiến `pact.ecoma.io` nhưng chưa
-  // provision. Custom domain khai báo cùng staging/production khi provision.
+  // provision. Custom domain khai báo cùng production khi provision (M3).
   "observability": {
     "enabled": true,
   },
@@ -59,5 +60,60 @@
   },
   "dev": {
     "port": 4204,
+  },
+  // --- Staging (#358) — Worker `stg-ecoma-pact-broker-api` ---
+  //
+  // Scheme hostname MOD1 (`02-delivery.md` §4.2, topology Modelling #345):
+  // staging public hostname là subdomain của zone non-production
+  // `ecoma.io.vn` — `pact-broker-api.ecoma.io.vn` — phục vụ **qua Router
+  // Worker non-production** (dispatch theo hostname qua Service Binding tới
+  // `stg-<unit>`; Router là deploy unit riêng, hiện thực thuộc #350/#362).
+  // Cho tới khi Router tồn tại, hostname này chưa serve thật; lần chạy smoke
+  // đầu tiên chờ đúng dependency đó (cùng trạng thái đã merge của home,
+  // #535). `workers_dev: false` tắt hostname song song `*.workers.dev` —
+  // subdomain `workers.dev` đã bị loại cho bề mặt public ở §4.2, và subdomain
+  // thật của account không suy ra được từ repo.
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-pact-broker-api",
+      "workers_dev": false,
+      // Hyperdrive binding `HYPERDRIVE` khai lại TƯỜNG MINH cho env này —
+      // Wrangler KHÔNG inherit binding top-level vào `env.<lane>` (§4.1 điều 1,
+      // đo trên `wrangler` 4.151.0). `id` rỗng CỐ Ý — trạng thái "chưa wire"
+      // trung thực theo wiring contract #539: id thật do Pulumi cấp qua stack
+      // output `hyperdriveConfigId` của `deploys/pact-broker-api-deploy` sau
+      // lần `up` xanh đầu tiên (`nx run pact-broker-api-deploy:staging-up
+      // -c staging`, #358) — operator fill id thật vào đây; audit
+      // `resource-bindings` (#362) chặn id rỗng khi flip eligibility cho tới
+      // khi id thật vào, còn id giả đủ shape sẽ qua mặt gate đó. Origin/config
+      // Hyperdrive là tài sản Pulumi (§9.1); query
+      // cache giữ mặc định server-side (HD3) — không key nào ở đây tắt được nó.
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "",
+        },
+      ],
+      // Origin tất định cho delivery tooling (smoke check) — KHÔNG phải thuộc
+      // tính Wrangler, Wrangler bo qua nó. Giá trị là hostname MOD1 của unit
+      // (record DNS staging do `platform-deploy` khai theo scheme, #540);
+      // chưa serve thật cho tới khi Router non-production tồn tại.
+      "devOrigin": "https://pact-broker-api.ecoma.io.vn",
+      // KHÔNG có `queues.consumers` ở env này — consumer entitlement phụ thuộc
+      // producer `staff-access-relay` (#356, close `not planned`); consumer
+      // path được defer cùng rationale đóng của #356 (#358 ghi rõ đây là điều
+      // kiện, không phải native block). Khai consumer trỏ queue chưa tồn tại
+      // trên staging là lỗi định danh khi deploy — fail-closed đúng hơn là
+      // khai vẽ. Top-level ở trên phục vụ lane local.
+      //
+      // KHÔNG có `PACT_BROKER_AUTH_*` vars/secrets ở đây: thiếu cả issuer và
+      // audience là `null/null` — đường user 503 fail-closed từng request
+      // (`src/config.ts`), machine path (Pact CLI) nguyên vẹn. Cấu hình OIDC
+      // trên staging thuộc identity stack (#354) — khai vẽ issuer staging ở
+      // đây là cấu hình sai hình mà `src/config.ts` phải đỏ lúc deploy.
+      // KHÔNG có `smokeSurface` — bề mặt smoke của unit API được khai khi
+      // wiring smoke staging của lane này (cùng mô hình tham số origin của
+      // #535); file này không bịa check chưa có.
+    },
   },
 }

@@ -87,23 +87,38 @@
   "dev": {
     "port": 4205,
   },
-  // --- Staging / Production — Issue #166 ---
+  // --- Staging / Production — Issue #166, wiring staging #358 ---
   //
   // Mỗi deploy unit có **hai Worker identity riêng**, đặt tên theo
-  // `{target}-{slug}` đúng quy ước của tầng delivery (`02-delivery.md` §7.2,
-  // thiết kế chưa hiện thực):
+  // `{target}-{slug}` đúng quy ước của tầng delivery (`02-delivery.md` §7.2):
   // staging `stg-ecoma-pact-broker-app`, production `ecoma-pact-broker-app`.
   //
-  // ⚠️ Không có target `deploy` nào trong `package.json`: đường deploy trực
-  // tiếp chưa có trong repo, provisioning là việc tiếp theo ngoài phạm vi.
+  // ⚠️ Không có target `deploy` nào trong `package.json`: lane deploy chạy qua
+  // machinery staging dùng chung (`tools/delivery`, #535) — provisioning
+  // Hyperdrive staging là việc của stack `staging` thuộc
+  // `deploys/pact-broker-app-deploy` (#358).
   //
-  // Staging chưa có custom domain: theo §5.4 hostname ưu tiên `workers.dev`.
+  // Staging theo scheme hostname MOD1 (`02-delivery.md` §4.2): public hostname
+  // là subdomain của zone non-production `ecoma.io.vn`, phục vụ qua Router
+  // Worker non-production — KHÔNG phải `workers.dev` (phương án đã loại ở
+  // §4.2); ghi chú "hostname ưu tiên workers.dev" trước đây của env này phản
+  // ánh quyết định cũ trước Modelling #345.
   "env": {
     "staging": {
       "name": "stg-ecoma-pact-broker-app",
+      // Tắt hostname song song `*.workers.dev`: public surface staging là
+      // `pact-broker-app.ecoma.io.vn` qua Router non-production (Router là
+      // deploy unit riêng, hiện thực thuộc #350/#362 — cho tới khi đó hostname
+      // MOD1 chưa serve thật, lần chạy smoke đầu tiên chờ đúng dependency đó,
+      // cùng trạng thái đã merge của home #535).
+      "workers_dev": false,
       // Hyperdrive binding tới `db-pact-broker-app` — database của chính app
-      // này (xem ghi chú binding ở top-level). `id` là placeholder toàn số 0 —
-      // deploy layer sẽ thay.
+      // này (xem ghi chú binding ở top-level). `id` rỗng CỐ Ý — trạng thái
+      // "chưa wire" trung thực theo wiring contract #539: id thật đọc từ stack
+      // output `hyperdriveConfigId` của `deploys/pact-broker-app-deploy` sau
+      // lần `up` xanh đầu tiên (#358) — operator fill; audit
+      // `resource-bindings` (#362) chặn id rỗng khi flip eligibility cho tới
+      // khi id thật vào, còn id giả đủ shape sẽ qua mặt gate đó.
       //
       // ⚠️ **QUERY CACHE OFF — bắt buộc.** Cache được đặt ở **config
       // Hyperdrive**, không phải ở file này, nên không có key nào ở đây tắt
@@ -114,24 +129,22 @@
       "hyperdrive": [
         {
           "binding": "DB_PACT_BROKER_APP",
-          "id": "00000000000000000000000000000000",
+          "id": "",
         },
       ],
-      // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
-      // bo qua nó; nó tồn tại để delivery tooling có một origin tất định cho
-      // deploy unit mà không phải suy đoán từ `account_id` (subdomain
-      // `workers.dev` là cấu hình riêng của Cloudflare account, không suy ra
-      // được từ `account_id`).
-      //
-      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
-      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
-      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
-      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
-      // Địa chỉ của pact-broker-api mà BFF gọi. `vars` KHÔNG inherit từ
-      // top-level, nên khai tường minh cho từng env. Giá trị `https://` này là
-      // placeholder **có cấu trúc hợp lệ** — BFF chấp nhận nó (origin parse
-      // được) nhưng API ở đó chưa tồn tại.
+      // Origin tất định cho delivery tooling (smoke check) — KHÔNG phải thuộc
+      // tính Wrangler, Wrangler bo qua nó. Giá trị là hostname MOD1 của unit:
+      // record DNS staging `pact-broker-app.ecoma.io.vn` do `platform-deploy`
+      // khai theo scheme (#540); không còn suy đoán subdomain `workers.dev`
+      // (cấu hình riêng của Cloudflare account, không suy ra được từ
+      // `account_id`) — placeholder cũ fail closed đúng chủ ý, và đã được thay
+      // bằng origin dẫn ra được từ repo.
+      "devOrigin": "https://pact-broker-app.ecoma.io.vn",
+      // Địa chỉ của pact-broker-api mà BFF gọi: hostname MOD1 của unit API
+      // (`pact-broker-api.ecoma.io.vn`), cùng Router non-production. Giá trị
+      // `*.workers.dev` trước đây là suy đoán subdomain account (không xác
+      // minh được từ repo) — đã thay. `vars` KHÔNG inherit từ top-level, nên
+      // khai tường minh cho từng env.
       //
       // ⚠️ KHÔNG có token nào ở đây nữa (ADR-0031 §5): machine token của BFF
       // bị retire; BFF forward access token của chủ phiên. Issuer/audience của
@@ -139,7 +152,7 @@
       // qua `vars` — client_id là public nhưng vẫn thuộc nhóm cấu hình OIDC
       // mà deploy layer cấp cùng nhau.
       "vars": {
-        "NITRO_PACT_BROKER_API_BASE_URL": "https://stg-ecoma-pact-broker-api.workers.dev",
+        "NITRO_PACT_BROKER_API_BASE_URL": "https://pact-broker-api.ecoma.io.vn",
       },
       // Bề mặt public — xem ghi chú cùng khoá ở `apps/backoffice`.
       "smokeSurface": {},

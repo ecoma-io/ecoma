@@ -1,14 +1,22 @@
 # Pact Broker App Deploy
 
-Pulumi deployment project provision **deploy unit của `apps/pact-broker-app` trên lane LOCAL**: image đóng gói artifact `build:development` (Nuxt preset `node-server`) do Nx build sẵn, container phía sau Traefik, database phiên BFF `db-pact-broker-app` và cấu hình OIDC của BFF. Đây là deploy project (`type:deployment`), không phải application hay bounded context. Chương trình Pulumi nằm ở `index.ts`, entry lifecycle ở `local.ts`, hàm dựng script provision/migrate ở `scripts.ts`, image ở `Dockerfile`.
+Pulumi deployment project provision **deploy unit của `apps/pact-broker-app`**: trên lane LOCAL là image đóng gói artifact `build:development` (Nuxt preset `node-server`) do Nx build sẵn, container phía sau Traefik, database phiên BFF `db-pact-broker-app` và cấu hình OIDC của BFF; trên lane STAGING là HyperdriveConfig `db-pact-broker-app-staging` (#358, §9.1). Đây là deploy project (`type:deployment`), không phải application hay bounded context. Entry `index.ts` là **lane guard** (#358, pattern #453/#539): phân loại stack trước khi nạp thân — `local-program.ts` (lane local), `staging-program.ts` (lane staging), stack lạ là throw; entry lifecycle local ở `local.ts`, entry staging ở `staging.ts` (engine dùng chung `staging-run.ts`), hàm dựng script provision/migrate ở `scripts.ts`, image ở `Dockerfile`.
 
-Nx project `pact-broker-app-deploy`, tags `type:deployment`, `scope:pact`, `runtime:native`. Chỉ có lane local (`configurations: local`); staging/production của app khai trong `apps/pact-broker-app/wrangler.jsonc` (preset `cloudflare-module`) và thuộc delivery lane — không nằm trong chương trình này.
+Nx project `pact-broker-app-deploy`, tags `type:deployment`, `scope:pact`, `runtime:native`. Hai lane: local (`configurations: local`) và staging (`configurations: staging`, #358). Production của app khai trong `apps/pact-broker-app/wrangler.jsonc` (preset `cloudflare-module`) và thuộc delivery lane — không nằm trong chương trình này.
 
 ## Purpose
 
 - Đưa `apps/pact-broker-app` (dashboard BFF của pact-broker) lên local platform với vòng lifecycle provision database → migrate → image → container → readiness.
 - Sở hữu **database riêng của unit** `db-pact-broker-app` (ADR-0031 §2, #206): hai role PostgreSQL + database + migration của app — invariant 1 theo hình mới trong `docs/applications/pact-broker/01-architecture.md` §9 (một service — một database).
 - Ghim đúng cấu hình broker + OIDC của BFF: base URL trỏ alias nội bộ của container `pact-broker-api`; issuer/audience ghim từ platform outputs (structural exact match với auth-deploy); `client_id` đọc cross-stack từ auth-deploy. Thiếu hoặc sai là route tương ứng trả 503 (fail-closed ở tầng app).
+
+## Staging lane (#358)
+
+- **Phủ đúng một resource**: HyperdriveConfig `db-pact-broker-app-staging` cho database riêng của unit `db-pact-broker-app` (inventory §9.1: Hyperdrive config **per-database per-lane** — config chị `db-pact-broker-staging` của `pact-broker-api-deploy` là resource rời). Origin đọc từ stack config (`namespace:originHost`/`originPort`/`originPassword`) và **fail closed** khi chưa có: đường tới origin private là Tunnel/VPC Service của #349, chưa provision lần nào — `pulumi preview` đỏ cho tới khi #349 cấp origin, không có đường "chạy tạm với origin giả".
+- **Chỉ `preview`/`up`** — KHÔNG có down/destroy: teardown staging không có workflow (§7.4.1), checklist tay thuộc runbook #364; entry `staging.ts` từ chối tường minh mọi verb khác.
+- **Prerequisite vận hành fail-closed** (`staging-run.ts`): `ECOMA_PULUMI_STATE_URL_STAGING` (backend R2, bootstrap một lần ngoài mọi stack — thiếu là chưa bootstrapped, tuyệt đối không fallback), `PULUMI_CONFIG_PASSPHRASE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `CLOUDFLARE_API_TOKEN`. Thiếu bất kỳ khóa nào là từ chối TRƯỚC KHI đụng Pulumi; token không bao giờ vào provider config/state.
+- **Evidence append-only**: mỗi lần chạy ghi một bản ghi JSON mới vào `.staging-evidence/` (phase, stack ref, revision, resource changes) — reconstructible, không overwrite.
+- **Wiring id về sau**: sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` và surface id thật để operator fill vào `env.staging.hyperdrive[0].id` (binding `DB_PACT_BROKER_APP`) của `apps/pact-broker-app/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config; deploy với placeholder là lỗi định danh, guard `resource-bindings` chặn). Staging tuyệt đối không trỏ vào Hyperdrive production — mỗi `env` khai binding riêng (Wrangler không inherit giữa các `env.<lane>`).
 
 ## Responsibilities
 
@@ -23,7 +31,7 @@ Nx project `pact-broker-app-deploy`, tags `type:deployment`, `scope:pact`, `runt
 
 ## Boundaries
 
-- Không provision hạ tầng Cloudflare (Worker, route) — chương trình này chỉ phủ lane local.
+- Lane local không provision hạ tầng Cloudflare nào; lane staging chỉ provision HyperdriveConfig của database mình (§9.1) — KHÔNG deploy Worker, route hay custom domain nào (Worker `stg-ecoma-pact-broker-app` deploy bằng machinery staging dùng chung `tools/delivery`, #535; production là M3).
 - Không tạo network, Traefik hay PostgreSQL platform; SỞ HỮU `db-pact-broker-app` bên trong PostgreSQL platform nhưng KHÔNG chạm `db-pact-broker` (của `pact-broker-api`) hay bất kỳ database nào khác.
 - Không sở hữu code của `apps/pact-broker-app` — image build từ source của app; sửa hành vi app thì sửa app.
 - Ngữ nghĩa nghiệp vụ của dashboard (pact, verification, `can-i-deploy`) không được restatement ở đây → `docs/applications/pact-broker/`.
@@ -43,9 +51,16 @@ pnpm nx run pact-broker-app-deploy:local-up -c local    # provision unit này (k
 pnpm nx run pact-broker-app-deploy:local-down -c local  # destroy của riêng project; no-op exit 0 nếu worktree chưa từng deploy
 ```
 
+Lane staging mutate Pulumi state staging thật — chỉ chạy khi đủ prerequisite vận hành (xem §Staging lane):
+
+```bash
+pnpm nx run pact-broker-app-deploy:staging-preview -c staging  # pulumi preview --json trên stack staging, ghi evidence
+pnpm nx run pact-broker-app-deploy:staging-up -c staging       # pulumi up --yes; sau đó surface id Hyperdrive để wiring wrangler.jsonc
+```
+
 ## Testing
 
-- Target `test`: spec colocated `scripts.spec.ts` — bất biến tĩnh của script text (không Docker, không PostgreSQL): script không chứa giá trị secret, chỉ đọc mật khẩu qua TÊN biến env; URL builder percent-encode đúng; migrate script chạy đúng runner của app.
+- Target `test`: spec colocated `scripts.spec.ts` — bất biến tĩnh của script text (không Docker, không PostgreSQL): script không chứa giá trị secret, chỉ đọc mật khẩu qua TÊN biến env; URL builder percent-encode đúng; migrate script chạy đúng runner của app. Cùng target chạy thêm `staging-run.spec.ts` (engine lane staging #358 — classifier stack fail-closed, inventory credential bắt buộc đầy đủ, origin Hyperdrive fail-closed #349, đọc/ghi evidence; pure functions + exec inject, không chạy Pulumi thật).
 - Kiểm tĩnh: `lint` + `typecheck`.
 - Không có system-test suite nào khai `pact-broker-app-deploy:local-up` làm prerequisite (xác nhận qua project graph) — bằng chứng serving của unit là healthcheck `/health` mà `wait: true` của container bắt buộc trong `local-up`.
 

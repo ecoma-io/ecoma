@@ -67,6 +67,28 @@
           "local": {}
         }
       },
+      "staging-preview": {
+        "//": "Lane staging #358 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (port của pattern đã merge #453/#350/#539/#358, giữ pattern copy). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. Chương trình trên stack staging khai HyperdriveConfig của `db-pact-broker-app` (#358, `staging-program.ts`); origin đọc từ stack config và FAIL CLOSED khi chưa có — đường tới origin private là Tunnel/VPC Service của #349. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/pact-broker-app-deploy",
+          "command": "npx tsx staging.ts preview"
+        },
+        "configurations": {
+          "staging": {}
+        }
+      },
+      "staging-up": {
+        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` và surface id thật để wiring `env.staging.hyperdrive` của `apps/pact-broker-app/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config).",
+        "executor": "nx:run-commands",
+        "options": {
+          "cwd": "deploys/pact-broker-app-deploy",
+          "command": "npx tsx staging.ts up"
+        },
+        "configurations": {
+          "staging": {}
+        }
+      },
       "lint": {
         "executor": "@nx/oxlint:lint",
         "cache": true,
