@@ -151,6 +151,8 @@ Quy tắc:
 
 ## 4. GitHub Milestone
 
+> **Lưu ý đánh số:** §3 (GitHub Project) đã bị retire khi loại bỏ GitHub Projects integration; đánh số §4–§7 giữ nguyên để các tham chiếu chéo từ tài liệu khác vẫn hợp lệ.
+
 Milestone chỉ dùng cho **một delivery outcome có biên rõ ràng** — nó là **delivery commitment**, độc lập với product: milestone không phải product boundary, không phải planning horizon, không phải release, và không phải calendar bucket.
 
 - **Scope** — tập capability hoặc thay đổi thuộc milestone.
