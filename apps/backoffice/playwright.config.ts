@@ -88,6 +88,13 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       NITRO_PUBLIC_BACKOFFICE_DATA_MODE: 'prototype',
+      // @nuxt/devtools 4 hard-codes `branding.logo` = URL nuxt.com vào overlay
+      // devtools mà Vite 8 inject vào trang — browser fetch icon external này
+      // mỗi navigation, làm test "never leaves the app origin" đỏ dù app không
+      // tự gọi ra ngoài. `TEST=1` là gate chính thức của module devtools
+      // (module-main.mjs: `process.env.TEST || NODE_ENV === 'test'` → return
+      // sớm), tắt cả overlay lẫn các dock dev khác trong lúc chạy suite.
+      TEST: '1',
     },
   },
 });
