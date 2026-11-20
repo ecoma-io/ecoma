@@ -86,6 +86,9 @@
     },
     {
       "path": "./deploys/pact-broker-db"
+    },
+    {
+      "path": "./deploys/staging-pg-host"
     }
   ]
 }
