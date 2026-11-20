@@ -64,7 +64,14 @@ function recordingExec(results: ExecResult[]): {
     deps: {
       execFn: (command, args) => {
         calls.push({ command, args });
-        const result = results[index] ?? execResult();
+        // Hết mock là lỗi spec, KHÔNG fallback thành công im lặng — fallback cũ
+        // che mất mock thiếu: call thứ n không kịch bản vẫn xanh vẻ vang.
+        if (index >= results.length) {
+          throw new Error(
+            `unmocked exec call: ${command} ${args.join(' ')} — script an ExecResult for every exec the code path performs`,
+          );
+        }
+        const result = results[index];
         index += 1;
         return result;
       },
@@ -143,21 +150,41 @@ describe('classifyPactBrokerAppDeployStack', () => {
 });
 
 describe('resolveStagingRunEnv', () => {
-  it('builds the child env from the full inventory and strips the file-passphrase variant', () => {
+  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
     const { backendUrl, env } = resolveStagingRunEnv({
       ...fullSourceEnv(),
+      PATH: '/usr/bin:/bin',
+      HOME: '/home/operator',
       PULUMI_CONFIG_PASSPHRASE_FILE: '/tmp/should-not-win',
+      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
+      GITHUB_TOKEN: 'decoy-github-token',
     });
     expect(backendUrl).toBe(R2_BACKEND_URL);
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/operator');
     expect(env.PULUMI_BACKEND_URL).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
     expect(env.PULUMI_SKIP_UPDATE_CHECK).toBe('1');
+    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
     expect(env.PULUMI_CONFIG_PASSPHRASE_FILE).toBeUndefined();
     // Token Cloudflare là inventory bắt buộc (program khai HyperdriveConfig
     // #358) nhưng vẫn env-only — không bao giờ vào provider config (state ghi
     // lại config provider, token thì không).
     expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
+    expect(Object.keys(env).toSorted()).toEqual([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'ECOMA_PULUMI_STATE_URL_STAGING',
+      'HOME',
+      'PATH',
+      'PULUMI_BACKEND_URL',
+      'PULUMI_CONFIG_PASSPHRASE',
+      'PULUMI_SKIP_UPDATE_CHECK',
+    ]);
   });
 
   it('fails closed listing every missing key at once', () => {
@@ -396,8 +423,13 @@ describe('readStagingRevision', () => {
       execResult({ status: 0, stdout: JSON.stringify([{ version: 12 }, { version: 11 }]) }),
     ]);
     expect(readStagingRevision('/tmp/pd', selection, {}, deps)).toBe(12);
-    const { deps: deps2, calls } = recordingExec([]);
-    readStagingRevision('/tmp/pd', selection, {}, deps2);
+  });
+
+  it('reads history by the full stack ref', () => {
+    // Lời gọi history luôn xảy ra trước khi assert args — mock ĐỦ một kết quả
+    // (status 1 cho rẻ): recordingExec từ chối call không có mock.
+    const { deps, calls } = recordingExec([execResult({ status: 1 })]);
+    readStagingRevision('/tmp/pd', selection, {}, deps);
     expect(calls[0]?.args).toEqual([
       'stack',
       'history',
