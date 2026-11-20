@@ -115,6 +115,25 @@ describe('stripJsoncComments', () => {
     expect(() => JSON.parse(stripped)).not.toThrow();
     expect(JSON.parse(stripped)).toEqual({ a: 'x, y', b: 1 });
   });
+
+  // Hình dạng thật của apps/account/wrangler.jsonc (#546): comment nằm giữa
+  // dấu phẩy cuối và `}`/`]` — lookahead của trailing comma phải bỏ qua được
+  // comment, nếu không reader dùng chung từ chối file ("not valid JSON(C)").
+  it('drops a trailing comma followed by a line comment before the closing bracket', () => {
+    const stripped = stripJsoncComments('{ "a": [1, 2, // line comment\n]}');
+    expect(JSON.parse(stripped)).toEqual({ a: [1, 2] });
+  });
+
+  it('drops a trailing comma followed by a block comment before the closing bracket', () => {
+    const stripped = stripJsoncComments('{ "a": [1, 2, /* block */], "b": { "c": 1, /* x */ } }');
+    expect(JSON.parse(stripped)).toEqual({ a: [1, 2], b: { c: 1 } });
+  });
+
+  it('does not treat a } inside an interposed comment as the closing bracket', () => {
+    // Nhảy comment nguyên khối: `}` nằm trong comment không kết thúc lookahead.
+    const stripped = stripJsoncComments('{ "a": [1, /* } brace */ 2, // }\n]}');
+    expect(JSON.parse(stripped)).toEqual({ a: [1, 2] });
+  });
 });
 
 describe('stagingWorkerNameFromConfig', () => {

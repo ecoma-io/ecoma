@@ -21,15 +21,30 @@
  * - Retry CHỈ dành cho chữ ký "chưa sẵn sàng": 404/502/503/504, connection
  *   refused/reset, timeout. Mọi thứ khác — TLS sai, 4xx, 500, 3xx bất ngờ,
  *   sai location, thiếu header — fail tức thời: retry chỉ che bug thật.
- * - Hợp đồng output: `staging smoke OK` CHỈ được in khi toàn bộ kiểm pass;
+ * - Hợp đồng output: `staging smoke OK` CHỈ được print khi toàn bộ kiểm pass;
  *   mọi đường fail ném lỗi với `staging smoke FAILED` trong message và
  *   KHÔNG in OK — log vừa FAILED vừa OK là log nói dối đúng lúc người đọc
  *   cần tin nhất.
+ *
+ * Guard `before-status` (§7.4, #362 slice B): NGAY SAU khi toàn bộ kiểm pass
+ * — tức ngay trước điểm caller ghi commit status success — caller có thể bật
+ * stale-run guard qua `options.guard`: một lượt tra cứu run MỚI chạy rồi đưa
+ * vào `evaluateRunnerGuard`; `skip` là exit 0 KHÔNG ghi gì (caller không ghi
+ * success cho revision edge không còn phục vụ), abort là `GuardAbortError`
+ * (CLI in marker + exit khác 0). Guard không bật → hành vi cũ giữ nguyên.
  *
  * Origin là tham số (pattern tái dụng được): lần chạy thật đầu tiên của home
  * trỏ apex `ecoma.io.vn` và chờ dependency thật của #350 (zone DNS) +
  * #350/#362 (Router non-production) — module này không suy hostname từ config.
  */
+
+import {
+  defaultGuardQueryDeps,
+  evaluateGuardAtPoint,
+  queryFreshRunState,
+  type GuardAction,
+  type RunListQueryResult,
+} from './staging-guard.ts';
 
 /** Budget retry tổng — mặc định đo từ local lane: cold start trong ít phút. */
 export const SMOKE_BUDGET_MS_DEFAULT = 90_000;
@@ -63,6 +78,8 @@ export interface StagingSmokeDeps {
     init: { redirect: 'manual'; signal: AbortSignal },
   ) => Promise<SmokeResponse>;
   sleepFn: (ms: number) => Promise<void>;
+  /** MỘT lượt tra cứu run MỚI cho guard `before-status` (§7.4). */
+  queryRuns: () => RunListQueryResult;
   out: { write(text: string): void };
 }
 
@@ -72,6 +89,7 @@ const defaultDeps: StagingSmokeDeps = {
     new Promise((resolve) => {
       setTimeout(resolve, ms);
     }),
+  queryRuns: () => queryFreshRunState(defaultGuardQueryDeps()),
   out: process.stdout,
 };
 
@@ -88,6 +106,16 @@ export interface StagingSmokeOptions {
   noindexPaths: string[];
   budgetMs: number;
   requestTimeoutMs: number;
+  /** Có mặt → guard `before-status` chạy ngay sau khi toàn bộ kiểm pass. */
+  guard?: { runId: number; contextSha: string };
+}
+
+/** Kết quả một lần `runStagingSmoke` — marker cho workflow step đọc. */
+export interface StagingSmokeOutcome {
+  /** Kết quả từng kiểm đã pass (chỉ có khi toàn bộ pass). */
+  checks: SmokeCheckResult[];
+  /** `proceed` khi guard không bật; `skip` khi nhường run mới hơn. */
+  guardAction: GuardAction;
 }
 
 /**
@@ -251,11 +279,14 @@ async function verifyOnce(
  * Chạy smoke với retry budget. In từng kiểm pass ra `out` NGAY khi pass;
  * in `staging smoke OK` duy nhất MỘT lần chỉ khi toàn bộ pass; mọi đường
  * fail ném lỗi với message `staging smoke FAILED after <ms>ms: <lý do>`.
+ * Sau khi toàn bộ pass: guard `before-status` (khi `options.guard` có mặt) —
+ * skip trả outcome với `guardAction: 'skip'` (caller không ghi status),
+ * abort throw `GuardAbortError`, proceed trả `'proceed'`.
  */
 export async function runStagingSmoke(
   options: StagingSmokeOptions,
   deps: StagingSmokeDeps = defaultDeps,
-): Promise<SmokeCheckResult[]> {
+): Promise<StagingSmokeOutcome> {
   validateSmokeOrigin(options.origin);
   // Validate mọi path TRƯỚC vòng retry: path được nối thẳng vào URL, dữ liệu
   // lạ là lỗi usage — dừng trước cả request đầu tiên kể cả khi options dựng
@@ -296,7 +327,22 @@ export async function runStagingSmoke(
       deps.out.write(
         `staging smoke OK: ${results.length} check(s) passed in ${Date.now() - startedAt}ms — ${options.origin}\n`,
       );
-      return results;
+      // Guard `before-status` (§7.4): cửa sổ giữa deploy và ghi status trải
+      // qua smoke retry — tra cứu run MỚI NGAY SAU khi toàn bộ kiểm pass, tại
+      // điểm cuối trước khi caller ghi commit status success.
+      if (options.guard === undefined) {
+        return { checks: results, guardAction: 'proceed' };
+      }
+      const { action, decision } = evaluateGuardAtPoint(
+        {
+          contextSha: options.guard.contextSha,
+          runId: options.guard.runId,
+          point: 'before-status',
+        },
+        deps.queryRuns(),
+      );
+      deps.out.write(`staging guard ${decision.code}: ${decision.message}\n`);
+      return { checks: results, guardAction: action };
     }
     const remainingMs = options.budgetMs - (Date.now() - startedAt);
     if (remainingMs <= 0) {

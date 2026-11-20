@@ -23,7 +23,14 @@
  *    (`resolveSecretRunEnv` — tái dụng pipeline worker-secrets, không tái hiện
  *    thực; §6.12).
  *
- * Sau preflight: `wrangler deploy` qua lớp retry §7.4 (`wrangler-deploy.ts`).
+ * Sau preflight, TRƯỚC `wrangler deploy`: stale-run guard điểm `before-deploy`
+ * (§7.4) — khi caller bật guard qua cờ `--guard-run-id`/`--guard-head-sha`,
+ * một lượt tra cứu run MỚI được chạy rồi đưa vào `evaluateRunnerGuard`;
+ * `skip` là exit 0 KHÔNG deploy, abort là exit khác 0 qua `GuardAbortError`
+ * (marker machine-readable do CLI in). Guard không bật → hành vi cũ giữ
+ * nguyên (lane caller không bật guard không bị đổi contract).
+ *
+ * Sau guard: `wrangler deploy` qua lớp retry §7.4 (`wrangler-deploy.ts`).
  * Token KHÔNG BAO GIỜ qua argv và không được log; mọi thông điệp lỗi chỉ chứa
  * tên biến và path, không chứa giá trị env.
  */
@@ -45,6 +52,13 @@ import {
   type DeployStagingWorkerOptions,
   type DeployStagingWorkerResult,
 } from './wrangler-deploy.ts';
+import {
+  defaultGuardQueryDeps,
+  evaluateGuardAtPoint,
+  queryFreshRunState,
+  type GuardAction,
+  type RunListQueryResult,
+} from './staging-guard.ts';
 
 /** Đường dẫn tuyệt đối của inventory eligibility (cùng nguồn với cli.ts). */
 export function deployEligibilityPath(): string {
@@ -55,14 +69,23 @@ export function deployEligibilityPath(): string {
 export interface StagingDeployDeps {
   readTextFile: (path: string) => string;
   deployStaging: (options: DeployStagingWorkerOptions) => Promise<DeployStagingWorkerResult>;
+  /** MỘT lượt tra cứu run MỚI cho guard `before-deploy` (§7.4) — mỗi lượt gọi tra lại. */
+  queryRuns: () => RunListQueryResult;
   out: { write(text: string): unknown };
 }
 
 const defaultDeps: StagingDeployDeps = {
   readTextFile: (path) => readFileSync(path, 'utf8'),
   deployStaging: (options) => deployStagingWorker(options),
+  queryRuns: () => queryFreshRunState(defaultGuardQueryDeps()),
   out: process.stdout,
 };
+
+/** Nhận dạng run cho guard `before-deploy` — cờ CLI, bật cùng lúc cả hai. */
+export interface StagingDeployGuardInput {
+  runId: number;
+  contextSha: string;
+}
 
 /** Tham số argv đã parse của lệnh `staging-deploy`. */
 export interface StagingDeployParams {
@@ -71,6 +94,16 @@ export interface StagingDeployParams {
   slug: string;
   manifestPath: string;
   expectSha: string;
+  /** Có mặt → guard `before-deploy` chạy ngay trước `wrangler deploy`. */
+  guard?: StagingDeployGuardInput;
+}
+
+/** Kết quả một lần `runStagingDeploy` — marker cho workflow step đọc. */
+export interface StagingDeployRunResult {
+  /** `false` khi guard `skip` — KHÔNG có deploy nào chạy (exit vẫn là 0). */
+  deployed: boolean;
+  /** Hành động guard đã chạy — `proceed` khi guard không bật. */
+  guardAction: GuardAction;
 }
 
 /** Commit SHA đầy đủ — mọi quyết định SHA của lane đọc dạng 40-hex. */
@@ -219,15 +252,16 @@ export function verifyBuildManifest(
 }
 
 /**
- * Chạy trọn preflight + deploy staging cho một unit. Ném lỗi ở bất kỳ bước
- * preflight nào (không có gì được thực thi nửa vời); ghi mỗi bước ra `out`
+ * Chạy trọn preflight + guard `before-deploy` + deploy staging cho một unit.
+ * Ném lỗi ở bất kỳ bước preflight nào (không có gì được thực thi nửa vời) và
+ * throw `GuardAbortError` cho đường abort của guard; ghi mỗi bước ra `out`
  * để log job đọc được thứ tự kiểm.
  */
 export async function runStagingDeploy(
   params: StagingDeployParams,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingDeployDeps = defaultDeps,
-): Promise<void> {
+): Promise<StagingDeployRunResult> {
   if (!/^[a-z0-9-]+$/u.test(params.slug)) {
     throw new Error(
       `unsafe slug "${params.slug}" — expected lowercase letters, digits and hyphens only; ` +
@@ -279,9 +313,23 @@ export async function runStagingDeploy(
   // (§6.12), không nhận credential nào khác và không log giá trị.
   const { env } = resolveSecretRunEnv(sourceEnv);
 
+  // Guard `before-deploy` (§7.4): tra cứu run MỚI NGAY TRƯỚC wrangler deploy.
+  // skip = exit 0 không deploy; abort = throw (CLI in marker + exit khác 0).
+  if (params.guard !== undefined) {
+    const { action, decision } = evaluateGuardAtPoint(
+      { contextSha: params.guard.contextSha, runId: params.guard.runId, point: 'before-deploy' },
+      deps.queryRuns(),
+    );
+    deps.out.write(`staging guard ${decision.code}: ${decision.message}\n`);
+    if (action === 'skip') {
+      return { deployed: false, guardAction: action };
+    }
+  }
+
   const result = await deps.deployStaging({ configPath: configAbs, env });
   deps.out.write(
     `staging deploy: ${worker} deployed from sha ${params.expectSha} ` +
       `after ${result.attempts} attempt(s)\n`,
   );
+  return { deployed: true, guardAction: 'proceed' };
 }

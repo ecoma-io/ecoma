@@ -181,21 +181,15 @@ describe('the committed apps/account/wrangler.jsonc contract (real file)', () =>
   // với id placeholder toàn số 0, không env nào khai lại — bị chặn ở cả hai
   // lane cho tới khi provisioning điền id theo từng env.
   //
-  // ⚠️ Strip hai pha ở spec (comment rồi trailing comma) thay vì
-  // `stripJsoncComments`: bộ đọc dùng chung của repo quét MỘT lượt nên lookahead
-  // của trailing comma không bỏ qua được comment nằm giữa dấu phẩy và `}`/`]` —
-  // đúng hình dạng file `apps/account` có, khiến reader dùng chung từ chối
-  // config này ("not valid JSON(C)"). Sửa reader là ngoài phạm vi slice này —
-  // theo dõi riêng; helper dưới chỉ phục vụ spec đọc file thật.
+  // File thật chứa comment giữa dấu phẩy cuối và `}`/`]` — chính hình dạng
+  // của #546. Đọc bằng `parseWranglerConfig` (bộ đọc dùng chung đã xử lý
+  // được shape đó): spec này vừa khoá hợp đồng audit, vừa là regression test
+  // của fix #546 trên file thật.
   const configText = readFileSync(
     new URL('../../../apps/account/wrangler.jsonc', import.meta.url),
     'utf8',
   );
-  const withoutComments = configText
-    .replace(/\/\*[\s\S]*?\*\//gu, '')
-    .replace(/^\s*\/\/.*$/gmu, '');
-  const withoutTrailingCommas = withoutComments.replace(/,(\s*[}\]])/gu, '$1');
-  const config = parseWranglerConfig(withoutTrailingCommas) as unknown as ResourceBindingConfig;
+  const config = parseWranglerConfig(configText) as unknown as ResourceBindingConfig;
 
   it.each(['staging', 'production'] as const)(
     'blocks the %s lane on the unre-declared and placeholder DB_ACCOUNT hyperdrive binding',
