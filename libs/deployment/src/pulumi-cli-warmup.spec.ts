@@ -153,9 +153,9 @@ describe('warmPulumiCli', () => {
       // Kéo hết 30 lượt retry (2s delay mỗi lượt) mà không chờ wall-clock.
       await vi.advanceTimersByTimeAsync(31 * 2_000);
       await expect(firstAttempt).rejects.toThrow(/after 30 attempts/u);
-      // 30 lượt của module fail + 1 lượt của lần warm-up đầu (top-level default
-      // mock vẫn tính vào cùng mock dùng chung qua các test).
-      expect(execFileMock).toHaveBeenCalledTimes(31);
+      // 30 lượt của module fail. vitest 5 mặc định `clearMocks: true` nên call
+      // của test trước không còn đọng lại trên mock dùng chung như với vitest 4.
+      expect(execFileMock).toHaveBeenCalledTimes(30);
 
       execFileMock.mockImplementation((_file, _args, _opts, cb) =>
         cb(null, { stdout: 'v3.276.0\n', stderr: '' }),
@@ -164,7 +164,7 @@ describe('warmPulumiCli', () => {
       const secondAttempt = second.warmPulumiCli();
       await vi.advanceTimersByTimeAsync(2_000);
       await secondAttempt;
-      expect(execFileMock).toHaveBeenCalledTimes(32);
+      expect(execFileMock).toHaveBeenCalledTimes(31);
     } finally {
       vi.useRealTimers();
     }
