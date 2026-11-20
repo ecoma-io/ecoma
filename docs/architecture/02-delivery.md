@@ -1424,6 +1424,14 @@ suite nhắm tới, với retry budget chỉ áp cho dấu hiệu "chưa sẵn s
 readiness đã xanh (lỗi mã nguồn/candidate); **staging-not-ready** là failure trước readiness, kể cả candidate identity
 chưa khớp (slot/hạ tầng chưa đủ điều kiện để đánh giá).
 
+**Liên kết với hợp đồng release.** Gate tiêu thụ đúng chín quyết định candidate-verification của §7.3: trigger là entry
+point của làn Release Validation từ Release PR (#361, orchestration #389), không phải `workflow_run` sau CI làn liên tục;
+chống mutate là isolation hai chiều của slot (#381) cộng claim `release/staging-testing/<slug>` làm marker; danh tính
+revision là exact head SHA của Release PR; và required check trên Release PR chỉ phát biểu "head này đã được deploy vào
+candidate slot và system-test pass" (bảng status ở §7.3, quyết định 9). Nhận diện Release PR trong CI tái dụng tín hiệu
+trusted metadata của hợp đồng Phase B ở cùng §7.3 — classification metadata-only trên branch `release/*` (hiện thực:
+`release-pr-check.yaml`, #490).
+
 **Bảng suite — tái dụng / adapter / xây mới.** Logic journey của cả 8 suite giữ nguyên; cái phải thích nghi là
 **harness local** (origin resolution, seed/cleanup bằng SQL trực tiếp, TLS pin, container mock) — không suite nào phải
 viết lại:
@@ -1472,11 +1480,16 @@ semantics no-retry của job system-test (`ci.yaml:230–234`). `staging-not-rea
 retry trong budget readiness gate (`06-testing.md` §6); hết budget → kết quả gate là `staging-not-ready` — candidate
 chưa được verify, không tính là test đỏ của mã nguồn và không tính là PASS.
 
-**Platform services staging bắt buộc cho gate** — đã có issue sở hữu, không phát hành follow-up mới: Router
+**Điều kiện tiên quyết để gate chạy được — chuỗi môi trường staging phải tồn tại thật (precondition, không phải tuyên bố
+hiện trạng).** Hợp đồng ở trên là policy đã chốt, chưa phải đường chạy: nó chỉ thực thi được khi toàn bộ chuỗi platform
+services dưới đây tồn tại và được provision — mỗi cái đã có issue sở hữu, không phát hành follow-up mới: Router
 non-production + DNS/Hyperdrive (#350, hiện thực §4.2), bootstrap/seed orchestration (#352), transactional-mail +
 mailer-job với OTP path (#355), identity stack account/auth/staff-access + OAuth clients (#354), product stack theo
 suite (#353 home, #357 remote-cache, #358 pact-broker, #359 llm-marketplace, #354 backoffice), candidate slot (#381),
-gate runner (#363). Push-notification (#356) không bắt buộc cho gate v1 — không suite nào trong 8 dùng push.
+Secrets machinery + GitHub Environments (#351), orchestration làn Release Validation (#389), gate runner (#363). Trước
+khi chuỗi này được provision và #363 nối required check vào merge queue, gate là hợp đồng có chủ chưa có đường chạy —
+trạng thái provision hiện hành thuộc reconciliation #365, tài liệu này không tuyên bố thay. Push-notification (#356)
+không bắt buộc cho gate v1 — không suite nào trong 8 dùng push.
 
 ---
 
