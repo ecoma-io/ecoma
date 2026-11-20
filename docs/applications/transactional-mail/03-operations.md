@@ -18,7 +18,7 @@ transactional-mail
 ```
 
 - D1 `mail` là domain state duy nhất của service (owner: control plane). Không path nào từ service khác tới D1 `mail`; delivery worker truy cập qua private interface (Service Binding `TRANSACTIONAL_MAIL_SERVICE`).
-- Migration D1 bằng `wrangler d1 migrations` (chạy theo track D1 trong `docs/architecture/02-delivery.md` §3). Control plane sở hữu migrations của D1 `mail`, và schema thay đổi theo expand → compatible rollout → contract. Migration comment là English, kể cả `COMMENT ON` text (per root `AGENTS.md`; migration comment chỉ đổi comment thì sửa tại chỗ, không cần forward-fix). D1 **không** thuộc Backup/DR scope — dữ liệu có thể mất, service recover ở mức service; chính sách → `docs/architecture/03-operations.md` §3.1.
+- Migration D1 qua call site duy nhất `pnpm nx run transactional-mail:db-migrate` (mode `-c remote` cho làn staging/production với `ECOMA_CLOUDFLARE_API_TOKEN` — cutover #382; track D1 trong `docs/architecture/02-delivery.md` §3a.4). Control plane sở hữu migrations của D1 `mail`, và schema thay đổi theo expand → compatible rollout → contract. Migration comment là English, kể cả `COMMENT ON` text (per root `AGENTS.md`; migration comment chỉ đổi comment thì sửa tại chỗ, không cần forward-fix). D1 **không** thuộc Backup/DR scope — dữ liệu có thể mất, service recover ở mức service; chính sách → `docs/architecture/03-operations.md` §3.1.
 - Control plane **không** sở hữu provider credential; credential và endpoint của relay là Worker Secret của `transactional-mailer-job`. Private interface chỉ trả runtime data, không credential.
 
 ### 1.1. Trạng thái của scheduled trigger — bốn tầng, phải phân biệt

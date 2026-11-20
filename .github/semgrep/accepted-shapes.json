@@ -865,5 +865,25 @@
     "lines": {
       "99": "^  return response;$"
     }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/dx/src/workers/worker-config.ts",
+    "start": 882,
+    "end": 882,
+    "reason": "Token accessor của call site D1 migrations (#382, section 3a.4): resolveRemoteApiToken đọc ECOMA_CLOUDFLARE_API_TOKEN từ env của process và trả về cho ĐÚNG MỘT caller applyRemoteD1Migrations, nơi nó được map thành CLOUDFLARE_API_TOKEN CHỈ trong env của subprocess wrangler (section 6.12: không qua argv, không log, tools/dx không có HTTP handler). Cùng lớp token accessor đã accept tại deploys/platform-deploy/platform-env.ts:82. Bằng chứng ghim trong worker-config.spec.ts: token không nằm trong argv, chỉ nằm trong env subprocess, HOME của subprocess cô lập, temp dir bị dọn sau chạy.",
+    "lines": {
+      "882": "^  return token;$"
+    }
+  },
+  {
+    "rule": "security-sensitive-value-in-http-response",
+    "path": "tools/dx/src/workers/worker-config.ts",
+    "start": 948,
+    "end": 948,
+    "reason": "Propagation mặc định arg→result của taint engine, cùng lớp với entry tools/project-management/src/github.ts:351: token đi vào extraEnv của runWrangler rồi env của spawnSync, engine lan taint qua giá trị trả về của spawnSync sang stdout được destructuring; stdout trả ra là output apply của wrangler (bảng file đã áp hoặc 'No migrations to apply!'), không chứa bit nào của token (spec ghim argv không có token và output chỉ là bảng migration).",
+    "lines": {
+      "948": "^    return stdout;$"
+    }
   }
 ]

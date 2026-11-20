@@ -29,5 +29,6 @@ export const app = defineCommand({
       import('./workers/local-worker-status-command.js').then((m) => m.default),
     'local-worker-down': () =>
       import('./workers/local-worker-down-command.js').then((m) => m.default),
+    'd1-migrate': () => import('./workers/d1-migrate-command.js').then((m) => m.default),
   },
 });

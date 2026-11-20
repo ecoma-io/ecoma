@@ -14,7 +14,7 @@ web-push-notification-job
 
 Worker không expose public HTTP API và **không truy cập D1 của `push-notification` hay service khác**. D1 `push` thuộc control plane; D1 `push-job` thuộc service này, authoritative cho job state (attempt, processed marker, việc kẹt — `01-architecture.md` §11b). Không có path nào tới PostgreSQL. Private communication với `push-notification` qua `Service Binding` hoặc cơ chế private tương đương.
 
-**D1 `push-job`:** migration bằng `wrangler d1 migrations` (track D1 — `docs/architecture/02-delivery.md` §3). D1 **không** thuộc Backup/DR scope (`docs/architecture/03-operations.md` §3.1); retention/quota chưa chốt → `docs/architecture/03-operations.md` §10; recovery ở mức service → §17. Time Travel không phải cam kết phục hồi (`docs/architecture/04-platform-facts.md` DB5).
+**D1 `push-job`:** migration qua call site duy nhất `pnpm nx run web-push-notification-job:db-migrate` (mode `-c remote` cho làn staging/production với `ECOMA_CLOUDFLARE_API_TOKEN` — cutover #382; track D1 — `docs/architecture/02-delivery.md` §3a.4). D1 **không** thuộc Backup/DR scope (`docs/architecture/03-operations.md` §3.1); retention/quota chưa chốt → `docs/architecture/03-operations.md` §10; recovery ở mức service → §17. Time Travel không phải cam kết phục hồi (`docs/architecture/04-platform-facts.md` DB5).
 
 ## 2. Deployment
 

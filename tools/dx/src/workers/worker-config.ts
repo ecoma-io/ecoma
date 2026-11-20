@@ -20,13 +20,16 @@
 
 import {
   existsSync,
+  mkdtempSync,
   mkdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { normalizeWorktreeRoot, worktreeNamespace } from '@ecoma-io/deployment';
@@ -682,8 +685,8 @@ export function sanitizedWranglerEnv(persistTo: string): NodeJS.ProcessEnv {
 
 function runWrangler(
   args: string[],
-  options: { wranglerBin?: string; cwd?: string; persistTo: string },
-): void {
+  options: { wranglerBin?: string; cwd?: string; persistTo: string; extraEnv?: NodeJS.ProcessEnv },
+): { stdout: string; stderr: string } {
   const { command, prefix } = resolveWranglerInvocation(options.wranglerBin);
   const result = spawnSync(command, [...prefix, ...args], {
     cwd: options.cwd ?? process.cwd(),
@@ -691,7 +694,7 @@ function runWrangler(
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
     timeout: 5 * 60 * 1000, // không chờ wrangler treo vô hạn
-    env: sanitizedWranglerEnv(options.persistTo),
+    env: { ...sanitizedWranglerEnv(options.persistTo), ...options.extraEnv },
   });
   if (result.error) {
     if ((result.error as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
@@ -703,6 +706,9 @@ function runWrangler(
     const detail = (result.stderr ?? '').trim() || (result.stdout ?? '').trim() || 'unknown reason';
     throw new Error(`wrangler ${args.join(' ')} failed:\n${detail}`);
   }
+  // Caller muốn in kết quả (ví dụ banner "No migrations to apply") đọc return;
+  // call-site cũ không đổi hành vi — chỉ là bỏ qua giá trị trả về.
+  return { stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
 /**
@@ -802,7 +808,7 @@ export function applyLocalD1Seeds(options: ApplyLocalSeedsOptions): void {
   }
 }
 
-export function applyLocalD1Migrations(options: ApplyLocalMigrationsOptions): void {
+export function applyLocalD1Migrations(options: ApplyLocalMigrationsOptions): string {
   if (options.remote === true) {
     throw new Error('applyLocalD1Migrations: remote mode is not allowed (PR3 fail-closed)');
   }
@@ -812,7 +818,7 @@ export function applyLocalD1Migrations(options: ApplyLocalMigrationsOptions): vo
   }
   const persistTo = resolvePersistDir(options.persistTo);
   assertDatabaseNameInConfig(configPath, validateDatabaseIdentifier(options.databaseName));
-  runWrangler(
+  const { stdout } = runWrangler(
     [
       'd1',
       'migrations',
@@ -826,4 +832,121 @@ export function applyLocalD1Migrations(options: ApplyLocalMigrationsOptions): vo
     ],
     { wranglerBin: options.wranglerBin, cwd: options.cwd, persistTo },
   );
+  return stdout;
+}
+
+// ---------- Áp dụng migrations remote (cutover D1 #382 — §3a.4) ----------
+
+/**
+ * Tên duy nhất của D1 database mà một app sở hữu, đọc từ committed config.
+ *
+ * Hợp đồng migration (`docs/architecture/02-delivery.md` §3a.4): call site áp
+ * migration dùng **`database_name`**, không phải binding name — binding có thể
+ * đổi tên, database name là định danh của resource. Mỗi app unit sở hữu đúng
+ * MỘT D1 database (quyết định A+ của #373), nên config khai nhiều hơn một entry
+ * là lỗi cấu trúc — refuse thay vì chọn entry đầu âm thầm.
+ */
+export function requireSingleD1DatabaseName(configPath: string): string {
+  const { config } = loadCommittedWranglerConfig(configPath);
+  const databases = Array.isArray(config.d1_databases) ? config.d1_databases : [];
+  const names = databases
+    .map((entry) =>
+      typeof entry === 'object' && entry !== null
+        ? (entry as { database_name?: unknown }).database_name
+        : undefined,
+    )
+    .filter((name): name is string => typeof name === 'string' && name.trim().length > 0);
+  if (names.length !== 1) {
+    throw new Error(
+      `expected exactly one D1 database with a database_name in ${configPath}, found ${names.length}` +
+        (names.length > 0 ? ` (${names.join(', ')})` : ''),
+    );
+  }
+  return names[0] as string;
+}
+
+/**
+ * Đọc API token cho đường remote từ env của tiến trình dx — KHÔNG BAO GIỜ
+ * nhận token qua argv (argv lộ qua `ps` và shell history). Token pipeline dùng
+ * tên riêng `ECOMA_CLOUDFLARE_API_TOKEN` (§6.12) và chỉ được map thành
+ * `CLOUDFLARE_API_TOKEN` trong env của subprocess wrangler, không bao giờ log.
+ */
+export function resolveRemoteApiToken(env: NodeJS.ProcessEnv = process.env): string {
+  const token = env['ECOMA_CLOUDFLARE_API_TOKEN'];
+  if (typeof token !== 'string' || token.trim().length === 0) {
+    throw new Error(
+      'remote D1 migration requires ECOMA_CLOUDFLARE_API_TOKEN in the environment — ' +
+        'refusing to run without it (fail-closed; the token is CI control-plane credential, §6.12)',
+    );
+  }
+  return token;
+}
+
+/**
+ * Argv `wrangler d1 migrations apply` cho một mode — pure để spec phủ trực tiếp
+ * (token không bao giờ đi qua argv, nên hàm này không cần biết token).
+ */
+export function buildD1MigrationsApplyArgs(options: {
+  databaseName: string;
+  configPath: string;
+  remote: boolean;
+  envLane?: string;
+}): string[] {
+  return [
+    'd1',
+    'migrations',
+    'apply',
+    validateDatabaseIdentifier(options.databaseName),
+    '--config',
+    resolve(options.configPath),
+    options.remote ? '--remote' : '--local',
+    ...(options.envLane !== undefined ? ['--env', options.envLane] : []),
+  ];
+}
+
+export interface ApplyRemoteMigrationsOptions {
+  configPath: string;
+  /** Forward tường minh sang named environment của Wrangler khi app đã khai `env.<lane>`. */
+  envLane?: string;
+  wranglerBin?: string;
+  cwd?: string;
+}
+
+/**
+ * Áp migration vào D1 remote (staging/production) — đường duy nhất của cutover
+ * #382 cho mode remote (§3a.4): CI runner gọi với `ECOMA_CLOUDFLARE_API_TOKEN`
+ * trong env, token map thành `CLOUDFLARE_API_TOKEN` CHỈ trong subprocess,
+ * HOME của subprocess vẫn cô lập (không đọc OAuth cache của developer), và
+ * `--env` forward tường minh khi app có named environment. Local mode KHÔNG đi
+ * qua đây — `applyLocalD1Migrations` giữ fail-closed riêng của nó.
+ */
+export function applyRemoteD1Migrations(options: ApplyRemoteMigrationsOptions): string {
+  const token = resolveRemoteApiToken();
+  const configPath = resolve(options.configPath);
+  if (!existsSync(configPath)) {
+    throw new Error(`config does not exist: ${configPath}`);
+  }
+  const databaseName = requireSingleD1DatabaseName(configPath);
+  // HOME isolate cần một thư mục thật; remote không persist state nào khác,
+  // nên dùng một temp dir dùng một lần rồi xoá.
+  const persistTo = mkdtempSync(join(tmpdir(), 'dx-d1-remote-'));
+  try {
+    const { stdout } = runWrangler(
+      buildD1MigrationsApplyArgs({
+        databaseName,
+        configPath,
+        remote: true,
+        envLane: options.envLane,
+      }),
+      {
+        wranglerBin: options.wranglerBin,
+        cwd: options.cwd,
+        persistTo,
+        extraEnv: { CLOUDFLARE_API_TOKEN: token },
+      },
+    );
+    return stdout;
+  } finally {
+    rmSync(persistTo, { recursive: true, force: true });
+  }
 }
