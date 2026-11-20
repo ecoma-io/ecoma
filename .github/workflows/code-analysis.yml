@@ -51,35 +51,62 @@ jobs:
         with:
           category: '/language:${{ matrix.language }}'
 
-  semgrep:
-    name: Semgrep
-    # Xem comment ở job `codeql` phía trên.
-    if: github.event_name != 'merge_group'
+  security-analysis:
+    name: security-analysis
+    # Job LUÔN chạy ở mọi event, kể cả merge_group: check này là required check
+    # của ruleset `main`, và một job bị skip không đáng tin để báo success cho
+    # merge queue — job `analysis-gate` cũ tồn tại chính vì điều đó. Ở
+    # merge_group mọi step scanner bị skip và chỉ còn step cuối ghi notice;
+    # chi phí runner đúng bằng gate cũ từng tốn. Job này là NƠI DUY NHẤT tổng
+    # hợp kết quả Semgrep và Gitleaks: mỗi step scanner carry
+    # `continue-on-error: true` để scanner còn lại vẫn chạy khi một scanner
+    # fail, còn step cuối áp allow-list (mọi step phải 'success') theo đúng
+    # nghĩa của composite action `aggregate-gate` — không nuốt finding, không
+    # biến scanner fail thành pass.
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    # 40 phút: quỹ timeout của hai job cũ (15 + 15) gộp lại + 10 phút headroom,
+    # vì các step giờ chạy tuần tự trên một runner và tăng trưởng của một
+    # scanner không được phép ăn mất ngân sách của scanner kia.
+    timeout-minutes: 40
+    # `security-events: write` là union quyền cũ của job Semgrep (upload
+    # SARIF); Gitleaks không dùng thêm quyền nào.
     permissions:
       contents: read
       security-events: write
     steps:
+      # Một checkout duy nhất phục vụ cả hai scanner: full history là yêu cầu
+      # của Gitleaks (`log-opts` cần commit range), Semgrep quét working tree
+      # nên không bị ảnh hưởng bởi lịch sử đầy đủ.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
-      # Job này chỉ chạy scanner trong docker và `filter-accepted.py` bằng
+          fetch-depth: 0
+
+      # ----- Semgrep -----
+      # Các step chỉ chạy scanner trong docker và `filter-accepted.py` bằng
       # python3 có sẵn trên runner — không cài Node/pnpm. Image ghim theo digest,
       # đúng bằng image hook pre-push của lefthook dùng (`lefthook.yml`); spec
       # `security-tool-pins.spec.ts` assert hai bên bằng nhau nên nâng một bên
       # quên bên kia là đỏ.
       - name: Test the rules against their fixtures
+        id: semgrep-test
+        continue-on-error: true
+        if: github.event_name != 'merge_group'
         run: |
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/src" \
             --workdir /src \
             'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
             semgrep --test --config .github/semgrep .github/semgrep
+
       # Luôn quét, không có điều kiện chạy: một lần scan bị bỏ qua ở đây là
       # required check xanh trong khi chưa quét gì (hook pre-push mới có điều
       # kiện skip theo file đã đổi). Hai nơi dùng chung engine, rule và gate.
       - name: Scan
+        id: semgrep-scan
+        continue-on-error: true
+        if: github.event_name != 'merge_group'
         run: |
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/src" \
@@ -88,9 +115,10 @@ jobs:
             'semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1' \
             bash -c 'semgrep scan --config .github/semgrep --exclude .github/semgrep --timeout 60 --sarif --output /out/semgrep.sarif --quiet && python3 .github/semgrep/filter-accepted.py gate /out/semgrep.sarif .github/semgrep/accepted-shapes.json'
           echo "Semgrep scan passed: $(python3 -c 'import json; print(len(json.load(open("/tmp/semgrep.sarif"))["runs"][0].get("results") or []))') finding(s), all accepted by the allowlist."
-      # Hai bước cuối của job này dùng chung một định nghĩa "finding được chấp
-      # nhận" trong `.github/semgrep/accepted-shapes.json` (xem comment trong
-      # file vì sao 3 shape này là thiết kế có chủ đích chứ không phải né
+
+      # Hai bước cuối của khối Semgrep dùng chung một định nghĩa "finding được
+      # chấp nhận" trong `.github/semgrep/accepted-shapes.json` (xem comment
+      # trong file vì sao 3 shape này là thiết kế có chủ đích chứ không phải né
       # finding): bước `Filter` bỏ chúng khỏi SARIF trước khi upload, bước
       # `Enforce` thay `--error` bằng chế độ gate của cùng script.
       #
@@ -106,17 +134,33 @@ jobs:
       # Script fail-closed theo cả hai hướng: dòng nguồn lệch khỏi regex ghim
       # → FAIL (phải xem lại bởi người); entry không còn khớp result nào → FAIL
       # (ép prune khi finding đã được sửa thật).
+      #
+      # Ba step dưới có `if` khóa vào outcome của step trước: khi scan fail thì
+      # SARIF không tồn tại, filter/upload/enforce không còn gì để làm đúng —
+      # chúng bị skip và step cuối của job vẫn fail job qua aggregate.
       - name: Filter the accepted shapes out of the SARIF
+        id: semgrep-filter
+        # continue-on-error giữ đúng ràng buộc "scanner còn lại vẫn chạy": nếu
+        # filter hard-fail thì Gitleaks phía sau vẫn được chạy, aggregate vẫn
+        # fail job qua outcome 'failure' của step này.
+        continue-on-error: true
+        if: steps.semgrep-scan.outcome == 'success'
         run: >-
           python3 .github/semgrep/filter-accepted.py filter
           /tmp/semgrep.sarif .github/semgrep/accepted-shapes.json
           > /tmp/semgrep.upload.sarif
       - name: Upload to code-scanning
+        id: semgrep-upload
+        continue-on-error: true
+        if: steps.semgrep-filter.outcome == 'success'
         uses: github/codeql-action/upload-sarif@9418214df1f2c4b8128c770156c409013b07d6b9 # v3.39.3
         with:
           sarif_file: /tmp/semgrep.upload.sarif
           category: semgrep
       - name: Enforce the repository's own rules
+        id: semgrep-enforce
+        continue-on-error: true
+        if: steps.semgrep-scan.outcome == 'success'
         run: >-
           docker run --rm
           --volume "$GITHUB_WORKSPACE:/src"
@@ -127,32 +171,22 @@ jobs:
           && python3 .github/semgrep/filter-accepted.py gate
           /tmp/semgrep.gate.sarif .github/semgrep/accepted-shapes.json
 
-  gitleaks:
-    name: Gitleaks
-    # Xem comment ở job `codeql` phía trên.
-    if: github.event_name != 'merge_group'
-    runs-on: ubuntu-26.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      # Job này chỉ chạy scanner docker và git — không cài Node/pnpm.
+      # ----- Gitleaks -----
+      # Job cũ chỉ chạy scanner docker và git — không cài Node/pnpm.
       #
       # `gitleaks detect` không có `--log-opts` thì chạy
       # `git log -p -U0 --full-history --all` — `--all` là MỌI ref trong
       # checkout, nên một PR sạch vẫn đỏ vì secret nằm ở nhánh không liên quan,
-      # và `analysis-gate` (required check) đỏ theo. Bước này chọn đúng range
+      # và required check đỏ theo. Bước này chọn đúng range
       # cho từng event và XÁC MINH nó trước khi gitleaks chạy: gitleaks 8.30.1
       # trả exit 0 cho cả range rỗng lẫn range không tồn tại, tức "quét sai
       # phạm vi" và "không có secret" cùng ra một tín hiệu xanh. Fail-closed
       # nghĩa là range rỗng, không tồn tại hoặc không resolve được thì step đỏ
       # và docker KHÔNG được chạy.
       - name: Resolve the scan scope
-        id: scope
+        id: gitleaks-scope
+        continue-on-error: true
+        if: github.event_name != 'merge_group'
         env:
           GITLEAKS_EVENT_NAME: ${{ github.event_name }}
           GITLEAKS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -239,8 +273,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Scan for secrets
+        id: gitleaks-scan
+        continue-on-error: true
+        if: github.event_name != 'merge_group'
         env:
-          SCAN_LOG_OPTS: ${{ steps.scope.outputs.log-opts }}
+          SCAN_LOG_OPTS: ${{ steps.gitleaks-scope.outputs.log-opts }}
         run: |
           # Bước resolve phía trên đã fail-closed trên range trước khi bước này
           # chạy, nên docker chỉ chạy với một range đã xác minh có commit.
@@ -301,16 +338,75 @@ jobs:
           rm -f "${RUNNER_TEMP}/results.sarif"
           echo 'gitleaks scan passed: no secrets detected in the scanned range.'
       - name: Upload the findings report
+        id: gitleaks-upload
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gitleaks-results.sarif
           path: ${{ runner.temp }}/results.sarif
           if-no-files-found: ignore
 
+      # ----- Aggregate -----
+      # Allow-list duy nhất của job: mọi step của CẢ HAI scanner phải kết thúc
+      # 'success', kể cả khi bị skip vì điều kiện (skip là tín hiệu đỏ khi nó
+      # do một scanner khác fail gây ra). `steps.<id>.outcome` được nạp qua env
+      # — không nội suy expression trực tiếp vào script (rule
+      # `workflow-expression-interpolated-into-run`). Merge_group là nhánh hợp
+      # lệ duy nhất cho phép outcome khác success: các scanner bị skip có chủ
+      # đích và job chỉ ghi notice.
+      - name: Enforce the aggregate result
+        if: always()
+        env:
+          SEMGREP_OUTCOMES: >-
+            ${{ steps.semgrep-test.outcome }}
+            ${{ steps.semgrep-scan.outcome }}
+            ${{ steps.semgrep-filter.outcome }}
+            ${{ steps.semgrep-upload.outcome }}
+            ${{ steps.semgrep-enforce.outcome }}
+          GITLEAKS_OUTCOMES: >-
+            ${{ steps.gitleaks-scope.outcome }}
+            ${{ steps.gitleaks-scan.outcome }}
+            ${{ steps.gitleaks-upload.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = 'merge_group' ]; then
+            echo "::notice::[security-analysis] Security analysis intentionally skipped for merge_group; the pull_request run already scanned this change set."
+            exit 0
+          fi
+          # Allow-list theo nhóm scanner, đúng hình dạng của composite action
+          # `aggregate-gate`: nêu tên duy nhất kết quả có nghĩa là "an toàn"
+          # ('success') và fail với mọi thứ khác. Nếu một step mới được thêm
+          # vào job thì id của nó PHẢI được nạp vào env ở trên và vào danh sách
+          # gọi hàm dưới đây — thêm step mà quên aggregate là nuốt fail im lặng.
+          check_group() {
+            local label="$1"
+            shift
+            if [ "$#" -eq 0 ]; then
+              echo "::error::[security-analysis] got no step outcome for the $label group. Refusing to pass." >&2
+              return 1
+            fi
+            local outcome failed=''
+            for outcome in "$@"; do
+              [ "$outcome" = 'success' ] || failed="$failed $outcome"
+            done
+            if [ -n "$failed" ]; then
+              echo "::error::[security-analysis] the $label steps reported:$failed rather than success." >&2
+              return 1
+            fi
+          }
+          status=0
+          check_group Semgrep $SEMGREP_OUTCOMES || status=1
+          check_group Gitleaks $GITLEAKS_OUTCOMES || status=1
+          if [ "$status" -ne 0 ]; then
+            echo "security-analysis failed: every scanner step must succeed for the job to pass." >&2
+            exit 1
+          fi
+          echo 'security-analysis passed: Semgrep and Gitleaks both completed successfully.'
+
   analysis-gate:
     name: analysis-gate
-    needs: [codeql, semgrep, gitleaks]
+    needs: [codeql, security-analysis]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 5
