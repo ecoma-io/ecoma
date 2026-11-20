@@ -1,4 +1,14 @@
 /**
+ * Thân chương trình Pulumi LAN LOCAL của `backoffice-deploy` — module này được
+ * guard ở `index.ts` nạp QUA dynamic import CHỈ cho stack
+ * `local-<namespace>` (lane local hiện hành); stack
+ * `staging`/`staging-candidate` KHÔNG BAO GIỜ nạp thân này — nó khai Docker
+ * resource namespace-scoped của lane local, chạy trên backend R2 staging là
+ * khai resource sai environment. Thân được TÁCH NGUYÊN VĂN từ `index.ts`
+ * (lane-guard port #354 theo pattern đã merge của `remote-cache-api-deploy`
+ * #350 / `auth-deploy` #539) — không có thay đổi hành vi nào so với thời
+ * thân nằm ngay trong entry.
+ *
  * Chương trình Pulumi của `backoffice-deploy` — deploy unit của `apps/backoffice`
  * ở LAN LOCAL deployment.
  *
