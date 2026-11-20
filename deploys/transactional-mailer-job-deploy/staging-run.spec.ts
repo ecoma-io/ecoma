@@ -26,6 +26,7 @@ import {
   r2AccountIdFromStateUrl,
   readDatabaseId,
   resolveStagingRunEnv,
+  stagingEvidencePath,
   type StagingExecDeps,
   type StagingProvisioningRecord,
 } from './staging-run.js';
@@ -363,6 +364,18 @@ describe('appendStagingRecord', () => {
     expect(files).toHaveLength(2);
     const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
     expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed' });
+  });
+});
+
+describe('stagingEvidencePath', () => {
+  it('extracts the evidence path from a failed-run error and refuses every other shape', () => {
+    const failed = Object.assign(new Error('staging up failed'), {
+      recordPath: '/tmp/r.json',
+    });
+    expect(stagingEvidencePath(failed)).toBe('/tmp/r.json');
+    expect(stagingEvidencePath(new Error('no path attached'))).toBeUndefined();
+    expect(stagingEvidencePath('not an error')).toBeUndefined();
+    expect(stagingEvidencePath({ recordPath: 42 })).toBeUndefined();
   });
 });
 

@@ -395,13 +395,22 @@ export function backendBucket(backendUrl: string): string {
  * duy nhất là một D1. `pulumiRun` reuse: tự ghép `--stack <fullRef>` và xử lý
  * lỗi spawn/exit đúng cơ chế chung; `prepareStack` để false vì stack staging
  * được chuẩn bị bởi `ensureStagingStack` ở trên.
+ *
+ * Trả kèm `selection` + `env` đã resolve: entry (staging.ts) dùng lại đúng
+ * inventory + selection của lần phase vừa chạy cho bước đọc output id sau
+ * `up` — `resolveStagingRunEnv` chạy ĐÚNG MỘT lần, không gọi lại ở entry.
  */
 export function runStagingPhase(
   phase: StagingPhase,
   project: string,
   sourceEnv: NodeJS.ProcessEnv = process.env,
   deps: StagingExecDeps = defaultDeps,
-): { record: StagingProvisioningRecord; recordPath: string } {
+): {
+  record: StagingProvisioningRecord;
+  recordPath: string;
+  selection: StackSelection;
+  env: NodeJS.ProcessEnv;
+} {
   const projectDir = deployProjectDir(project);
   // Inventory credential TRƯỚC: thiếu khóa là fail-closed với danh sách ĐẦY ĐỦ
   // khóa thiếu, trước mọi lời gọi adapter (lần gọi đầu từng đứng trước để sau
@@ -456,7 +465,17 @@ export function runStagingPhase(
   }
   outcome.record.finishedAt = new Date().toISOString();
   outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
-  return outcome;
+  return { ...outcome, selection, env };
+}
+
+/**
+ * Đường evidence record từ một lỗi ném ra bởi `runStagingPhase` (lỗi mang
+ * `recordPath`) — mọi hình khác trả `undefined`, không bịa đường.
+ */
+export function stagingEvidencePath(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('recordPath' in error)) return undefined;
+  const path = (error as { recordPath?: unknown }).recordPath;
+  return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
 /**

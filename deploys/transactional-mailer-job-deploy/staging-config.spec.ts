@@ -66,14 +66,18 @@ describe('env.staging identity', () => {
 
 describe('binding audit — every top-level binding kind is re-declared in env.staging', () => {
   it('d1, queue consumers, services and send_email are all re-declared for the lane', () => {
-    expect(config.d1_databases?.length ?? 0).toBeGreaterThan(0);
-    expect(config.queues?.consumers?.length ?? 0).toBeGreaterThan(0);
-    expect(config.services?.length ?? 0).toBeGreaterThan(0);
-    expect(config.send_email?.length ?? 0).toBeGreaterThan(0);
-    expect(staging?.d1_databases).toHaveLength(config.d1_databases?.length ?? -1);
-    expect(staging?.queues?.consumers).toHaveLength(config.queues?.consumers?.length ?? -1);
-    expect(staging?.services).toHaveLength(config.services?.length ?? -1);
-    expect(staging?.send_email).toHaveLength(config.send_email?.length ?? -1);
+    const topD1 = config.d1_databases ?? [];
+    const topConsumers = config.queues?.consumers ?? [];
+    const topServices = config.services ?? [];
+    const topSendEmail = config.send_email ?? [];
+    expect(topD1.length).toBeGreaterThan(0);
+    expect(topConsumers.length).toBeGreaterThan(0);
+    expect(topServices.length).toBeGreaterThan(0);
+    expect(topSendEmail.length).toBeGreaterThan(0);
+    expect(staging?.d1_databases ?? []).toHaveLength(topD1.length);
+    expect(staging?.queues?.consumers ?? []).toHaveLength(topConsumers.length);
+    expect(staging?.services ?? []).toHaveLength(topServices.length);
+    expect(staging?.send_email ?? []).toHaveLength(topSendEmail.length);
   });
 });
 
