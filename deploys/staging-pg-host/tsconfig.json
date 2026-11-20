@@ -1,0 +1,42 @@
+{
+  // Deploy unit Pulumi của staging PostgreSQL host (#349): chương trình chạy
+  // qua automatic ESM mode của Pulumi runtime `nodejs` (giống `platform-deploy`
+  // — không bước build, ts-node resolve từ peer của `@pulumi/pulumi`), và
+  // lifecycle preview/up KHÔNG có entry riêng của project này: target
+  // `staging-preview`/`staging-up` tái sử dụng engine `staging.ts` của
+  // `platform-deploy` qua cờ `--project staging-pg-host` — một nguồn sự thật
+  // cho inventory credential fail-closed, evidence record và guard stack.
+  // Project KHÔNG import lib hay module của project khác vào graph TS — reuse
+  // diễn ra ở TẦNG LỆNH CLI, không phải import (module boundary giữ nguyên
+  // hướng; `implicitDependencies` chỉ bảo Nx biết thứ tự đồ thị).
+  //
+  // Composite `files` liệt kê tường minh toàn bộ graph: chương trình
+  // (`index.ts`) và inventory thuần có unit test (`pg-inventory.ts`).
+  //
+  // Output của `tsc --build` nằm ở `bin/deploys/staging-pg-host/` (rootDir
+  // `../..`). Pulumi không dùng output này — runtime chạy thẳng `index.ts`.
+  "compilerOptions": {
+    "strict": true,
+    "outDir": "bin",
+    "rootDir": "../..",
+    "target": "es2020",
+    "lib": ["es2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "pretty": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "forceConsistentCasingInFileNames": true,
+    // Không `extends` `tsconfig.base.json` — bật `skipLibCheck` tường minh như
+    // `platform-deploy` để lỗi type `.d.ts` bên thứ ba không làm đỏ typecheck.
+    "skipLibCheck": true,
+    "composite": true,
+    "declaration": true,
+    // Chương trình đọc file private key từ đĩa (`node:fs`) — khai ambient
+    // types của Node tường minh thay vì mặc định "mọi @types".
+    "types": ["node"]
+  },
+  "files": ["index.ts", "pg-inventory.ts"]
+}
