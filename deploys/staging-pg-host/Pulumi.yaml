@@ -1,0 +1,3 @@
+name: staging-pg-host
+description: Staging PostgreSQL host provisioning (#349) - VPS, PostgreSQL cluster, per-DB roles/grants
+runtime: nodejs

@@ -19,11 +19,11 @@
  * (`ECOMA_PULUMI_STATE_URL_STAGING` thiếu nghĩa là staging chưa được bootstrap
  * — #350 — tuyệt đối không "dùng local tạm").
  *
- * Chương trình Pulumi của platform-deploy trên stack staging khai **0
- * resource** (guard ở `index.ts`) — resource staging thật là scope
- * #349/#350/#351. Vì vậy một lần `preview`/`up` hiện tại là vòng đời stack
- * no-op có chủ đích: nó chứng minh backend/stack/credential/evidence contract
- * chạy được, KHÔNG chứng minh resource nào tồn tại.
+ * Chương trình Pulumi của platform-deploy trên stack staging khai resource
+ * thật từ #349 (DNS zone `ecoma.io.vn` qua `staging-program.ts`; trước đó là
+ * marker-only 0-resource theo #368). Guard ở `index.ts` vẫn chặn stack lạ —
+ * resource staging của CÁC unit khác (`staging-pg-host`...) nằm trên stack
+ * Pulumi riêng của unit đó, không phải ở đây.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -86,10 +86,11 @@ export interface StagingRunEnv {
  * - `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` — token R2 scope một bucket
  *   (`04` R23): backend s3 đọc credential chain của AWS env ở MỌI lệnh.
  *
- * `CLOUDFLARE_API_TOKEN` KHÔNG nằm trong inventory bắt buộc: program hiện tại
- * khai 0 resource nên không provider Cloudflare nào được consult; biến (nếu
- * có) vẫn passthrough cho lần #350 khai resource — ranh giới giữ nguyên:
- * env-only, không argv, không Git.
+ * - `CLOUDFLARE_API_TOKEN` — provider control-plane Cloudflare của
+ *   `staging-program.ts` (`Provider` + `Zone` root #349/#350). NẰM TRONG
+ *   inventory bắt buộc: thiếu token bị chặn TẠI ENGINE (throw dưới đây, trước
+ *   khi Pulumi chạy) — không để provider thất bại sâu bên trong Pulumi.
+ *   Ranh giới giữ nguyên: env-only, không argv, không Git.
  *
  * Thiếu bất kỳ khóa nào → throw với danh sách ĐẦY ĐỦ khóa thiếu (không dừng ở
  * khóa đầu — operator phải sửa hết trong một lần, không lặp chuỗi chạy-thất-bại).
@@ -100,6 +101,7 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
     ['PULUMI_CONFIG_PASSPHRASE', source.PULUMI_CONFIG_PASSPHRASE],
     ['AWS_ACCESS_KEY_ID', source.AWS_ACCESS_KEY_ID],
     ['AWS_SECRET_ACCESS_KEY', source.AWS_SECRET_ACCESS_KEY],
+    ['CLOUDFLARE_API_TOKEN', source.CLOUDFLARE_API_TOKEN],
   ];
   const missing = required
     .filter(([, value]) => value === undefined || value.trim().length === 0)

@@ -65,6 +65,7 @@
     "local.ts",
     "staging.ts",
     "staging-run.ts",
+    "staging-program.ts",
     "platform-down.ts",
     "platform-env.ts",
     "platform-status.ts"
