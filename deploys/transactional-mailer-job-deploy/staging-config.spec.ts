@@ -84,6 +84,11 @@ describe('env.staging identity', () => {
   });
 });
 
+/** Binding key là định danh code tham chiếu (handler, service binding) — `name` cho send_email. */
+function bindingKey(entry: { binding?: string; name?: string }): string | undefined {
+  return entry.binding ?? entry.name;
+}
+
 describe('binding audit — every top-level binding kind is re-declared in env.staging', () => {
   it('d1, queue consumers, services and send_email are all re-declared for the lane', () => {
     const topD1 = config.d1_databases ?? [];
@@ -98,6 +103,27 @@ describe('binding audit — every top-level binding kind is re-declared in env.s
     expect(staging?.queues?.consumers ?? []).toHaveLength(topConsumers.length);
     expect(staging?.services ?? []).toHaveLength(topServices.length);
     expect(staging?.send_email ?? []).toHaveLength(topSendEmail.length);
+  });
+
+  it('each re-declared binding keeps its binding key and differs only in the per-lane resource names', () => {
+    // Binding key phải GIỐNG NHAU hai lớp (code hai worker tham chiếu đúng key
+    // này); resource name (database_name, queue, service target) thì per-lane
+    // `stg-` theo §9.1 — so sánh giá trị resource name hai lớp là SAI hợp đồng.
+    const pairs: Array<
+      [Array<{ binding?: string; name?: string }>, Array<{ binding?: string; name?: string }>]
+    > = [
+      [config.d1_databases ?? [], staging?.d1_databases ?? []],
+      [config.queues?.consumers ?? [], staging?.queues?.consumers ?? []],
+      [config.services ?? [], staging?.services ?? []],
+      [config.send_email ?? [], staging?.send_email ?? []],
+    ];
+    for (const [top, lane] of pairs) {
+      for (const [index, topEntry] of top.entries()) {
+        expect(bindingKey(lane[index] ?? {}), `binding key at index ${index}`).toBe(
+          bindingKey(topEntry),
+        );
+      }
+    }
   });
 });
 
@@ -173,5 +199,9 @@ describe('staging delivery plane wiring', () => {
 describe('cron triggers inherited from the top level', () => {
   it('the app pins a top-level cron cadence that the staging env inherits', () => {
     expect(config.triggers?.crons?.length ?? 0).toBeGreaterThan(0);
+    // Kế thừa là hành vi Wrangler đã verify (wrangler 4.165.0, `triggers` thuộc
+    // nhánh inheritable) — env.staging KHÔNG được khai `triggers` riêng, nếu có
+    // nghĩa là ai đó đã giả định sai việc không kế thừa.
+    expect(staging?.triggers).toBeUndefined();
   });
 });

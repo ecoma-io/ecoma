@@ -110,6 +110,11 @@ describe('env.staging identity', () => {
   });
 });
 
+/** Binding key là định danh code tham chiếu (handler, service binding) — `name` cho send_email. */
+function bindingKey(entry: { binding?: string; name?: string }): string | undefined {
+  return entry.binding ?? entry.name;
+}
+
 describe('binding audit — every top-level binding kind is re-declared in env.staging', () => {
   it('control plane re-declares d1 and queue producer bindings for its lane', () => {
     const topD1 = mail.d1_databases ?? [];
@@ -119,6 +124,16 @@ describe('binding audit — every top-level binding kind is re-declared in env.s
     expect(topProducers.length).toBeGreaterThan(0);
     expect(staging?.d1_databases ?? []).toHaveLength(topD1.length);
     expect(staging?.queues?.producers ?? []).toHaveLength(topProducers.length);
+    // Binding key GIỐNG NHAU hai lớp (code tham chiếu đúng key); resource name
+    // per-lane `stg-` theo §9.1 — so giá trị resource name hai lớp là sai hợp đồng.
+    for (const [index, topEntry] of topD1.entries()) {
+      expect(bindingKey((staging?.d1_databases ?? [])[index] ?? {})).toBe(bindingKey(topEntry));
+    }
+    for (const [index, topEntry] of topProducers.entries()) {
+      expect(bindingKey((staging?.queues?.producers ?? [])[index] ?? {})).toBe(
+        bindingKey(topEntry),
+      );
+    }
   });
 
   it('delivery job re-declares d1, queue consumers, services and send_email for its lane', () => {
@@ -135,6 +150,20 @@ describe('binding audit — every top-level binding kind is re-declared in env.s
     expect(staging?.queues?.consumers ?? []).toHaveLength(topConsumers.length);
     expect(staging?.services ?? []).toHaveLength(topServices.length);
     expect(staging?.send_email ?? []).toHaveLength(topSendEmail.length);
+    for (const [index, topEntry] of topD1.entries()) {
+      expect(bindingKey((staging?.d1_databases ?? [])[index] ?? {})).toBe(bindingKey(topEntry));
+    }
+    for (const [index, topEntry] of topConsumers.entries()) {
+      expect(bindingKey((staging?.queues?.consumers ?? [])[index] ?? {})).toBe(
+        bindingKey(topEntry),
+      );
+    }
+    for (const [index, topEntry] of topServices.entries()) {
+      expect(bindingKey((staging?.services ?? [])[index] ?? {})).toBe(bindingKey(topEntry));
+    }
+    for (const [index, topEntry] of topSendEmail.entries()) {
+      expect(bindingKey((staging?.send_email ?? [])[index] ?? {})).toBe(bindingKey(topEntry));
+    }
   });
 });
 
@@ -219,5 +248,11 @@ describe('cron triggers inherited from the top level', () => {
   it('both apps pin a top-level cron cadence that the staging env inherits', () => {
     expect(mail.triggers?.crons?.length ?? 0).toBeGreaterThan(0);
     expect(mailerJob.triggers?.crons?.length ?? 0).toBeGreaterThan(0);
+    // Kế thừa là hành vi Wrangler đã verify (wrangler 4.165.0, `triggers` thuộc
+    // nhánh inheritable) — env.staging KHÔNG được khai `triggers` riêng, nếu có
+    // nghĩa là ai đó đã giả định sai việc không kế thừa.
+    for (const config of [mail, mailerJob]) {
+      expect(config.env?.staging?.triggers).toBeUndefined();
+    }
   });
 });

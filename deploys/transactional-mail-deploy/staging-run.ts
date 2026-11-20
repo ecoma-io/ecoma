@@ -488,7 +488,16 @@ export function runStagingPhase(
     );
   }
   outcome.record.finishedAt = new Date().toISOString();
-  outcome.recordPath = appendStagingRecord(projectDir, outcome.record);
+  // Ghi evidence thất bại trên nhánh thành công KHÔNG được che mất kết quả
+  // provisioning — đối xứng với nhánh thất bại ngay trên: record path chỉ là
+  // chú thích, không phải nguyên nhân.
+  let recordPath: string | undefined;
+  try {
+    recordPath = appendStagingRecord(projectDir, outcome.record);
+  } catch {
+    // giữ nguyên kết quả provisioning thành công
+  }
+  outcome.recordPath = recordPath ?? '';
   return { ...outcome, selection, env };
 }
 
