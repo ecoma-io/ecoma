@@ -60,11 +60,11 @@ jobs:
       # Khi dispatch với force=true thì affected=false → action rơi sang `run-many`.
       # Riêng `schedule` luôn affected=false (điều kiện `github.event_name !=
       # 'schedule'`): đường chạy toàn bộ repository mỗi đêm, issue #264.
-      - name: Linting &  type check
+      - name: Linting & Type check & Unit test
         if: github.event_name != 'merge_group'
         uses: ./.github/actions/run-nx-target
         with:
-          targets: lint typecheck
+          targets: lint typecheck test
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
       # `typecheck-db` đứng ở đây vì cùng ngữ nghĩa với `typecheck` trên dòng
@@ -80,34 +80,6 @@ jobs:
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
       - name: README contract check
         run: pnpm dx readme-check
-
-  unit-test:
-    name: unit-test
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    # Target `test` chạy spec colocated với subject trong project sở hữu
-    # (contract `docs/architecture/06-testing.md` §4); suite app-owned dưới `tests/`
-    # chạy qua target `test-integration` ở job `integration-test` bên dưới.
-    # Suite app-owned dưới `tests/` đã chuyển hết sang tier đúng (validator
-    # `test-target-check` cho phép allowlist rỗng kể từ #385), nên target `test`
-    # chỉ chứa spec colocated hợp lệ. Tách job để hai tầng test chạy song
-    # song trên hai runner thay vì nối tiếp trong cùng một job.
-    steps:
-      - name: Start runner resource monitoring
-        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Setup Node.js and pnpm
-        uses: ./.github/actions/setup-node-pnpm
-      - name: Unit test
-        uses: ./.github/actions/run-nx-target
-        with:
-          targets: test
-          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
-          bail: ${{ github.event_name == 'merge_group' }}
 
   integration-test:
     name: integration-test
@@ -256,7 +228,7 @@ jobs:
 
   ci-gate:
     name: ci-gate
-    needs: [verify, unit-test, integration-test, system-test]
+    needs: [verify, integration-test, system-test]
     if: always()
     runs-on: ubuntu-26.04
     timeout-minutes: 5
