@@ -137,11 +137,7 @@ follow the document and report it.
    change, and the validation that will prove it. Dispatch one unit per
    sub-issue — a root issue that does not decompose acts as its own unit — and
    keep the root issue open until its outcome is met (`work-management.md`
-   §2.6). Root issues belong to the Project and sub-issues never do
-   (`work-management.md` §3.2); admission is automatic via the reconciliation
-   pipeline (`project:track` is retired, never applied), and membership drift
-   is fixed by re-running that pipeline — never by archiving or removing an
-   item by hand (`work-management.md` §3.3).
+   §2.6).
 
    Before dispatching more than one unit, run the conflict analysis — it is
    the core of this step and the source of the integration plan:

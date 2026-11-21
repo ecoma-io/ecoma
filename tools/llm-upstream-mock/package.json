@@ -7,7 +7,7 @@
     "//": [
       "Tags theo schema kiến trúc bắt buộc của `tools/dx arch-tags` (chạy trong `pnpm dx arch-check`,",
       "CI chạy unconditional). Bộ tag này là precedent đúng của project tooling Node trong repo",
-      "(tools/dx, tools/project-management dùng cùng bộ).",
+      "(tools/dx dùng cùng bộ).",
       "",
       "Project này là mock upstream CHỈ phục vụ tầng integration/system test (quyết định owner,",
       "Issue #132): không project unit test nào được phụ thuộc nó, và nó không bao giờ nằm trong",

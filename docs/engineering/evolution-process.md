@@ -20,7 +20,7 @@
 | Lớp                    | Câu hỏi                                                  | Nguồn sự thật                                          | Không làm                                         |
 | ---------------------- | -------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------- |
 | **Knowledge**          | Hệ thống được hiểu như thế nào?                          | Repository — tài liệu canonical, ADR, contract, source | Không theo dõi tiến độ                            |
-| **Work Management**    | Ai đang làm gì, vì outcome nào, theo thứ tự nào?         | GitHub — Issue, Project, Milestone, Pull Request       | Không lưu specification dài hạn                   |
+| **Work Management**    | Ai đang làm gì, vì outcome nào, theo thứ tự nào?         | GitHub — Issue, Milestone, Pull Request                | Không lưu specification dài hạn                   |
 | **Reality & Evidence** | Capability thật sự đạt tới đâu, dựa trên bằng chứng nào? | Code, test result, deployment record, runtime evidence | Không phải một tài liệu cần cập nhật thường xuyên |
 
 Ba lớp bổ sung nhau: Knowledge định nghĩa target, Work Management tổ chức thay đổi, Reality & Evidence xác định khoảng cách giữa target và thực tế. Không lớp nào thay thế lớp khác.
@@ -58,7 +58,7 @@ Quy tắc:
 
 ### 4.1 Năm loại công việc
 
-Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **Issue Type** — native metadata của GitHub — là nguồn classification duy nhất; **sau transition**, không tồn tại kênh song song nào (label, Project field, Issue body). Trong transition, kênh ghi và kênh có thẩm quyền theo từng giai đoạn → [`work-management.md`](./work-management.md) §2.3. Về machine-checkable: native Issue Type là metadata machine-readable và queryable; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. CI/automation chỉ enforcement khi đã được triển khai thật — hiện repository chưa có check nào enforce Issue rules; không tuyên bố enforcement khi chưa có.
+Loại công việc phân loại **bản chất của thay đổi**, không phải kích thước hay người thực hiện. Loại được ghi bằng **Issue Type** — native metadata của GitHub — là nguồn classification duy nhất; **sau transition**, không tồn tại kênh song song nào (label, Issue body). Trong transition, kênh ghi và kênh có thẩm quyền theo từng giai đoạn → [`work-management.md`](./work-management.md) §2.3. Về machine-checkable: native Issue Type là metadata machine-readable và queryable; kênh tạm thời trong Issue body là text, không có enforcement đáng tin cậy bằng metadata. CI/automation chỉ enforcement khi đã được triển khai thật — hiện repository chưa có check nào enforce Issue rules; không tuyên bố enforcement khi chưa có.
 
 | Loại            | Dùng khi                                              | Kết thúc khi                                                       | Artifact                                                      |
 | --------------- | ----------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
@@ -83,7 +83,6 @@ Experiment không đi vào production path. Code thử nằm trên branch riêng
 | Công cụ              | Sở hữu                                                                                                                                                                                                                                                                                                                                                   | Không sở hữu                                                             |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | **GitHub Issue**     | Một unit công việc independently trackable: vấn đề, phạm vi, tiêu chí hoàn thành                                                                                                                                                                                                                                                                         | Specification dài hạn; trạng thái capability                             |
-| **GitHub Project**   | Portfolio visibility của các root issue, điều phối ở cấp portfolio ([`work-management.md`](./work-management.md) §3)                                                                                                                                                                                                                                     | Nguồn sự thật về trạng thái capability; specification                    |
 | **GitHub Milestone** | Delivery commitment có biên gắn với một delivery outcome — của một product hoặc nhiều product phối hợp; horizon của từng product đọc từ khai báo commitment của Milestone ([`work-management.md`](./work-management.md) §4.1); milestone completion, activation và release là các trạng thái độc lập ([`work-management.md`](./work-management.md) §4.2) | Roadmap dài hạn; product boundary; spec kiến trúc; danh sách task vô hạn |
 | **Pull Request**     | Thay đổi reviewable và bằng chứng hiện thực của nó                                                                                                                                                                                                                                                                                                       | Bằng chứng deploy hoặc business outcome                                  |
 
@@ -94,13 +93,13 @@ Quy tắc:
 3. **Đóng Issue không có nghĩa Feature hoàn thành.** Issue chỉ đóng unit công việc của nó; trạng thái capability xác định theo §5.
 4. **Không tạo tầng tài liệu Roadmap.** Kế hoạch thuộc GitHub Issue và Milestone. Không thêm file roadmap, danh sách phase hay backlog thủ công vào `docs/`.
 5. **Milestone không phải roadmap dài hạn và không phải đặc tả kiến trúc.** Nội dung của một Milestone được đo bằng outcome đóng được, không bằng số task.
-6. **Trách nhiệm đích, không phải cấu hình đã có.** Bảng trên mô tả trách nhiệm của Project và Milestone, không tuyên bố chúng đã được thiết lập. Trạng thái cấu hình GitHub hiện tại thuộc PR hoặc Issue thiết lập chúng, không thuộc tài liệu này (§4.3).
+6. **Trách nhiệm đích, không phải cấu hình đã có.** Bảng trên mô tả trách nhiệm của Milestone, không tuyên bố nó đã được thiết lập. Trạng thái cấu hình GitHub hiện tại thuộc PR hoặc Issue thiết lập nó, không thuộc tài liệu này (§4.3).
 
 Việc tạo Issue, branch và draft PR cho một unit tuân theo [`AGENTS.md`](../../AGENTS.md) `Workflow`; tài liệu này không chép lại các bước đó.
 
 ### 4.3 Chưa chốt trong tài liệu này
 
-Chi tiết Issue form, Project field, label và PR template **không** thuộc tài liệu này. Chúng thuộc thay đổi riêng và chỉ có hiệu lực khi được cập nhật ở nguồn canonical tương ứng (`.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE/`, cấu hình GitHub). Tài liệu này không mô tả cấu hình GitHub nào chưa được xác minh.
+Chi tiết Issue form, label và PR template **không** thuộc tài liệu này. Chúng thuộc thay đổi riêng và chỉ có hiệu lực khi được cập nhật ở nguồn canonical tương ứng (`.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE/`, cấu hình GitHub). Tài liệu này không mô tả cấu hình GitHub nào chưa được xác minh.
 
 ## 5. Reality & Evidence — trạng thái thực tế
 
@@ -182,7 +181,7 @@ Mỗi bước nêu mục đích, input, hoạt động, output, điều kiện h
 
 - **Mục đích:** chọn thay đổi tiếp theo theo giá trị, rủi ro, dependency và chi phí.
 - **Input:** danh sách gap/opportunity; ưu tiên hiện hành; dependency giữa các slice.
-- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery, và Project tracking theo quy tắc root issue ([`work-management.md`](./work-management.md) §3.2): root issue được admission khi tạo (§3.3), sub-issue không bao giờ; membership không suy từ Milestone hay priority.
+- **Hoạt động:** chọn một vertical slice (§7); tạo Issue cho unit independently trackable; xác định dependency và thứ tự; gán Issue vào Milestone khi cần biên delivery.
 - **Output:** Issue có outcome, phạm vi và tiêu chí verify.
 - **Hoàn thành khi:** slice phát biểu được outcome quan sát được, giới hạn phạm vi rõ, tiêu chí verify thuộc đúng tầng, dependency đã biết.
 - **Kế tiếp:** sang Deliver. Slice quá lớn, hoặc thiếu bằng chứng để verify, quay lại §6.2 hoặc §6.3.

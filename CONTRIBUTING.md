@@ -11,7 +11,7 @@ Repository dùng một quy trình thống nhất cho người và agent: **Engin
 | Tài liệu                                                                                 | Trả lời                                                        |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)         | Vòng đời kỹ thuật, năm Issue Type, ý nghĩa trạng thái năng lực |
-| [`docs/engineering/work-management.md`](docs/engineering/work-management.md)             | Issue, Project, Milestone và Pull Request được dùng thế nào    |
+| [`docs/engineering/work-management.md`](docs/engineering/work-management.md)             | Issue, Milestone và Pull Request được dùng thế nào             |
 | [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md) | Từng bước thực hiện và handoff giữa các vai trò                |
 
 Ràng buộc kỹ thuật của repository — security, Nx, Cloudflare, database ownership, commit signing, merge queue — nằm trong [`AGENTS.md`](AGENTS.md). Đó là nội dung có thẩm quyền cao hơn tài liệu này.
@@ -49,7 +49,7 @@ Bạn cần:
 
 - **Docker daemon đang chạy.** `pre-push` chạy secret scan và semgrep qua Docker, không có fallback ngoài Docker; push sẽ fail nếu Docker không chạy.
 - **Tool bắt buộc khác** — Helm, kustomize, kubeconform — do `repo-prepare` kiểm và báo nếu thiếu (xem `tools/dx/src/repository/tool-specs.ts`). `repo-prepare` chỉ cảnh báo, không chặn commit; contributor làm product code thường không cần chúng.
-- **`gh` CLI** đã đăng nhập, để search Issue/PR trước khi tạo mới. Thêm scope `read:project` nếu bạn cần đọc Project field; thiếu scope thì `gh project` fail với `your authentication token is missing required scopes [read:project]` (khắc phục bằng `gh auth refresh -s read:project`) — ghi lại là chưa xác minh được, đừng đoán giá trị.
+- **`gh` CLI** đã đăng nhập, để search Issue/PR trước khi tạo mới. Giá trị GitHub không đọc được thì ghi lại là chưa xác minh được, đừng đoán giá trị.
 
 ### 2.2 Đọc gì trước khi bắt đầu
 
@@ -225,7 +225,7 @@ Coding agent làm việc theo cùng quy trình, với các quy tắc bổ sung:
 - **Đọc trước khi sửa.** Canonical document và [`AGENTS.md`](AGENTS.md) có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một Issue Type.
 - **Chọn skill theo trigger** trong `description` của skill, trong `.agents/skills/`. Không load toàn bộ skill không liên quan.
 - **Dừng và báo lại** khi thiếu decision cần thiết, khi canonical artifact mâu thuẫn, khi scope thực tế vượt Issue/PR, khi không thu được bằng chứng, hoặc khi có nguy cơ phá invariant hay backward compatibility.
-- **Không tự mở rộng quyền**: không tạo Project/Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
+- **Không tự mở rộng quyền**: không tạo Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
 - **Báo cáo trung thực**: validation chưa chạy được thì nói rõ.
 
 Skill và định nghĩa subagent là nguồn canonical ở `.agents/`; `.claude/` và `.opencode/` chỉ chứa output sinh. Không author trực tiếp file sinh ra. Quy tắc đầy đủ về skill usage và escalation → [`AGENTS.md`](AGENTS.md) `Workflow`.
@@ -239,7 +239,7 @@ Skill và định nghĩa subagent là nguồn canonical ở `.agents/`; `.claude
 | Ràng buộc repository, ngôn ngữ, PR policy              | [`AGENTS.md`](AGENTS.md)                                                                                       |
 | Bản đồ tài liệu, ownership từng loại artifact          | [`docs/README.md`](docs/README.md), [`docs/AGENTS.md`](docs/AGENTS.md)                                         |
 | Vòng đời, Issue Type, capability state, reconciliation | [`docs/engineering/evolution-process.md`](docs/engineering/evolution-process.md)                               |
-| Issue, Project, Milestone, PR semantics                | [`docs/engineering/work-management.md`](docs/engineering/work-management.md)                                   |
+| Issue, Milestone, PR semantics                         | [`docs/engineering/work-management.md`](docs/engineering/work-management.md)                                   |
 | Từng bước thực hiện và handoff                         | [`docs/engineering/contribution-workflow.md`](docs/engineering/contribution-workflow.md)                       |
 | Kiến trúc hệ thống                                     | [`docs/architecture/01-architecture.md`](docs/architecture/01-architecture.md)                                 |
 | Delivery, CI/CD, migration, release                    | [`docs/architecture/02-delivery.md`](docs/architecture/02-delivery.md)                                         |

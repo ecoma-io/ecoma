@@ -1,8 +1,0 @@
-{
-  "projectNumber": 13,
-  "exclusions": {
-    "issueNumbers": [1, 8],
-    "botAuthorSuffix": "[bot]",
-    "titlePrefixes": ["TEST-FIXTURE-"]
-  }
-}
