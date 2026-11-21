@@ -276,9 +276,12 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
-  if (run.status !== 0 || run.stdout.trim() === '') {
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — ném lỗi
+  // RootlessKit-retryable để vòng retry ở `startPostgresContainer` thử lại.
+  if (run.error !== undefined || run.status !== 0 || run.stdout.trim() === '') {
+    const reason = run.error !== undefined ? run.error.message : `exit ${String(run.status)}`;
     throw new Error(
-      `docker run for the PostgreSQL container failed (exit ${String(run.status)}):\n${run.stderr.slice(-1000)}`,
+      `docker run for the PostgreSQL container failed (${reason}):\n${run.stderr.slice(-1000)}`,
     );
   }
   const stop = (): void => {
@@ -289,6 +292,9 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
       encoding: 'utf8',
       timeout: 30_000,
     });
+    if (portOutput.error !== undefined) {
+      throw new Error(`docker port failed for ${name}: ${portOutput.error.message.slice(-500)}`);
+    }
     if (portOutput.status !== 0) {
       throw new Error(`docker port failed for ${name}:\n${portOutput.stderr.slice(-500)}`);
     }
@@ -309,7 +315,16 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     // is shutting down". PostgreSQL ghi log ra STDERR — `docker logs` tách
     // stream, đọc cả hai.
     const readLogs = (): string => {
-      const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8', timeout: 30_000 });
+      // --tail 200: chỉ cần dòng ready gần cuối; đọc toàn bộ log mỗi vòng poll
+      // là overhead tăng tuyến tính với tuổi container. Timeout kích hoạt
+      // `error` (status null) — coi như chưa sẵn sàng để vòng poll thử lại.
+      const logs = spawnSync('docker', ['logs', '--tail', '200', name], {
+        encoding: 'utf8',
+        timeout: 30_000,
+      });
+      if (logs.error !== undefined) {
+        return '';
+      }
       return `${logs.stdout ?? ''}${logs.stderr ?? ''}`;
     };
     await waitFor(
@@ -346,6 +361,11 @@ function psqlSync(containerName: string, sql: string): void {
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
+  // Timeout/hạn mức spawn (kill signal) đặt `error` và để `status` null —
+  // báo lý do thật thay vì "exit null".
+  if (result.error !== undefined) {
+    throw new Error(`psql in ${containerName} failed to run: ${result.error.message.slice(-500)}`);
+  }
   if (result.status !== 0) {
     // psql in lại SQL lỗi (context LINE n) — với DO $$ CREATE ROLE thì SQL đó
     // chứa mật khẩu role, phải redact trước khi đưa vào error (cùng luật với
@@ -445,6 +465,12 @@ function provisionAppDatabase(containerName: string): void {
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — báo lý do thật.
+  if (existing.error !== undefined) {
+    throw new Error(
+      `psql in ${containerName} failed to run: ${existing.error.message.slice(-500)}`,
+    );
+  }
   if (existing.status !== 0) {
     throw new Error(
       `psql failed (exit ${String(existing.status)}):\n` +

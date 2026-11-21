@@ -110,7 +110,7 @@ function spawnSyncBounded(
   command: string,
   args: readonly string[],
   options: { timeoutMs: number },
-): ReturnType<typeof spawnSync> {
+): ReturnType<typeof spawnSync<string>> {
   return spawnSync(command, args, { encoding: 'utf8', timeout: options.timeoutMs });
 }
 
@@ -168,7 +168,7 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     if (stopped) return;
     stopped = true;
     ACTIVE_CONTAINERS.delete(handle);
-    spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8', timeout: 60_000 });
+    spawnSyncBounded('docker', ['rm', '--force', name], { timeoutMs: 60_000 });
   };
   const handle: PostgresContainer = { name, port: 0, stop };
   ACTIVE_CONTAINERS.add(handle);
@@ -192,7 +192,15 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     // thể dài hơn 1.5s và cả hai probe đều pass vào server tạm → provision
     // chết "the database system is shutting down".
     const readLogs = (): string => {
-      const logs = spawnSyncBounded('docker', ['logs', name], { timeoutMs: 30_000 });
+      // --tail 200: chỉ cần dòng ready gần cuối; đọc toàn bộ log mỗi vòng poll
+      // là overhead tăng tuyến tính với tuổi container. Timeout kích hoạt
+      // `error` (status null) — coi như chưa sẵn sàng để vòng poll thử lại.
+      const logs = spawnSyncBounded('docker', ['logs', '--tail', '200', name], {
+        timeoutMs: 30_000,
+      });
+      if (logs.error !== undefined) {
+        return '';
+      }
       // PostgreSQL ghi log ra STDERR — `docker logs` tách stream, đọc cả hai.
       return `${logs.stdout ?? ''}${logs.stderr ?? ''}`;
     };

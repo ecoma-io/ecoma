@@ -215,9 +215,12 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
-  if (run.status !== 0 || run.stdout.trim() === '') {
+  // Timeout spawn (kill signal) dat `error` va de `status` null — nem loi
+  // RootlessKit-retryable de vong retry o `startPostgresContainer` thu lai.
+  if (run.error !== undefined || run.status !== 0 || run.stdout.trim() === '') {
+    const reason = run.error !== undefined ? run.error.message : `exit ${String(run.status)}`;
     throw new Error(
-      `docker run for the PostgreSQL container failed (exit ${String(run.status)}):\n${run.stderr.slice(-1000)}`,
+      `docker run for the PostgreSQL container failed (${reason}):\n${run.stderr.slice(-1000)}`,
     );
   }
   const stop = (): void => {
@@ -228,6 +231,9 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
       encoding: 'utf8',
       timeout: 30_000,
     });
+    if (portOutput.error !== undefined) {
+      throw new Error(`docker port failed for ${name}: ${portOutput.error.message.slice(-500)}`);
+    }
     if (portOutput.status !== 0) {
       throw new Error(`docker port failed for ${name}:\n${portOutput.stderr.slice(-500)}`);
     }
@@ -246,7 +252,17 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     // chết "the database system is shutting down". PostgreSQL ghi log ra
     // STDERR — `docker logs` tách stream, đọc cả hai.
     const readLogs = (): string => {
-      const logs = spawnSync('docker', ['logs', name], { encoding: 'utf8', timeout: 30_000 });
+      // --tail 200: chỉ cần dòng ready gần cuối; đọc toàn bộ log mỗi vòng poll
+      // là overhead tăng tuyến tính với tuổi container. Timeout kích hoạt
+      // `error` (status null) — coi như chưa sẵn sàng để vòng poll thử lại.
+      const logs = spawnSync('docker', ['logs', '--tail', '200', name], {
+        encoding: 'utf8',
+        timeout: 30_000,
+      });
+      if (logs.error !== undefined) {
+        return '';
+      }
+      // PostgreSQL ghi log ra STDERR — `docker logs` tách stream, đọc cả hai.
       return `${logs.stdout ?? ''}${logs.stderr ?? ''}`;
     };
     await waitFor(
@@ -282,6 +298,10 @@ function psqlSync(containerName: string, sql: string, targetDatabase: string = A
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
+  // Timeout spawn (kill signal) dat `error` va de `status` null — bao ly do that.
+  if (result.error !== undefined) {
+    throw new Error(`psql in ${containerName} failed to run: ${result.error.message.slice(-500)}`);
+  }
   if (result.status !== 0) {
     throw new Error(
       `psql failed (exit ${String(result.status)}):\n` +
@@ -330,6 +350,11 @@ function provisionDatabases(containerName: string): void {
       ],
       { encoding: 'utf8', timeout: 60_000 },
     );
+    if (existing.error !== undefined) {
+      throw new Error(
+        `psql in ${containerName} failed to run: ${existing.error.message.slice(-500)}`,
+      );
+    }
     if (existing.status !== 0) {
       throw new Error(
         `psql failed (exit ${String(existing.status)}):\n` +
