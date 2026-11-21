@@ -233,9 +233,22 @@ async function readAuditLog(): Promise<readonly AuditRow[]> {
 async function waitForBlockedProjectInsert(): Promise<void> {
   const rendezvous = insertProjectRendezvous;
   if (rendezvous === null) {
-    throw new Error('the insertProject rendezvous was never armed');
+    throw new Error(
+      'the insertProject rendezvous was never armed: beforeEach must call armInsertProjectRendezvous()',
+    );
   }
-  await rendezvous;
+  // Deadline de phong: neu request khong bao gio cham insertProject (bi tu choi
+  // o pre-check, loi ket noi...), await thuan se tre vo han va giu ket noi
+  // DB cua holder khong bao gio duoc COMMIT — lam ro ri sang cac test sau.
+  await Promise.race([
+    rendezvous,
+    new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error('the portal request never reached insertProject within 20s')),
+        20_000,
+      ).unref();
+    }),
+  ]);
 }
 
 async function putCache(
@@ -281,17 +294,13 @@ async function machinePostProject(
 }
 
 /**
- * Co hen dong bo cho test UNIQUE race — xem JSDoc chi tiet tai khai bao
- * `insertProjectRendezvous` phia duoi.
- */
-/**
- * Diem hen dong bo: `armInsertProjectRendezvous()` tao mot deferred; mo phan
- * mock cua `insertProject` resolve no. Test `await` deferred do TRUOC khi
- * COMMIT holder — cham insertProject = da qua pre-check (khong thay hang chua
- * commit cua holder) = da trong `db.begin`, nen COMMIT tu luc do chac chan cho
- * request nhan 23505 tu `projects_tenant_name_unique`. Await mot deferred thay
- * vi poll `pg_stat_activity`: sampling khong dam bao bat duoc mot event ngan
- * khi event loop bi nhiễu (nguyen nhan flake CI cua phien ban poll).
+ * Diem hen dong bo cho test UNIQUE race: `armInsertProjectRendezvous()` tao mot
+ * deferred, mock cua `insertProject` resolve no. Test `await` deferred do TRUOC
+ * khi COMMIT holder — cham insertProject = da qua pre-check (khong thay hang
+ * chua commit cua holder) = da trong `db.begin`, nen COMMIT tu luc do chac chan
+ * cho request nhan 23505 tu `projects_tenant_name_unique`. Await mot deferred
+ * thay vi poll `pg_stat_activity`: sampling khong dam bao bat duoc mot event
+ * ngan khi event loop bi nhiễu (nguyen nhan flake CI cua phien ban poll).
  */
 let insertProjectRendezvous: Promise<void> | null = null;
 let resolveInsertProjectRendezvous: (() => void) | null = null;
@@ -310,7 +319,13 @@ vi.mock('@ecoma-io/remote-cache-infrastructure', async (importOriginal) => {
       tx: Parameters<typeof actual.insertProject>[0],
       input: Parameters<typeof actual.insertProject>[1],
     ) => {
-      resolveInsertProjectRendezvous?.();
+      // Chi resolve lan dau: lan invoke thu hai khong the xa deferred da settled,
+      // va lan doi (retry, double insert) khong duoc duot qua len im.
+      if (resolveInsertProjectRendezvous !== null) {
+        const resolve = resolveInsertProjectRendezvous;
+        resolveInsertProjectRendezvous = null;
+        resolve();
+      }
       return actual.insertProject(tx, input);
     },
   };
