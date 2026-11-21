@@ -154,7 +154,7 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
       '--publish-all',
       POSTGRES_IMAGE,
     ],
-    { encoding: 'utf8' },
+    { timeoutMs: 60_000 },
   );
   if (run.status !== 0 || (run.stdout ?? '').trim() === '') {
     throw new Error(
