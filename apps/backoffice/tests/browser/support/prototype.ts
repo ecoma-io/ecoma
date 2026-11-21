@@ -1,6 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 
-import { isNavigationAborted } from './warm-up';
+import { isNavigationAborted, isNavigationCanceledByAnother } from './warm-up';
 
 /**
  * Khoảng lặng xác nhận dev server đã thôi thay trang: không có document request
@@ -8,6 +8,21 @@ import { isNavigationAborted } from './warm-up';
  * từ cache, không gây `full-reload` nữa.
  */
 const QUIET_MS = 3_000;
+
+/**
+ * Khoảng nghỉ giữa hai lần reload khi race warm-up ở dạng chưa được đo (frame
+ * detached, context destroyed — run 44900808358): đủ để dev server kịp phát xong
+ * full-reload, không đủ dài để đội thêm thời gian đáng kể vào warm-up.
+ */
+const RACE_RETRY_GAP_MS = 3_000;
+
+/**
+ * Số lần reload thử lại tối đa cho dạng race chưa được đo. Dạng gốc
+ * ("canceled by another one") đã được đo là lặp theo vòng pre-bundle nên retry
+ * deadline-bounded; các dạng mới chưa có số đo đó — một lần retry là đủ để "ăn"
+ * race nhất thời, vượt qua đó là lỗi thật phải ném ra.
+ */
+const RACE_RETRY_LIMIT = 1;
 
 /**
  * Hạ tầng dùng chung cho bộ test browser của backoffice.
@@ -86,6 +101,9 @@ export async function waitForRouteReady(
   }
 
   const deadline = Date.now() + (timeoutMs ?? 30_000);
+  // Đếm riêng cho dạng race chưa được đo (xem `RACE_RETRY_LIMIT`); dạng gốc
+  // deadline-bounded không tốn lượt của nó.
+  let raceRetries = 0;
 
   for (;;) {
     const remainingMs = deadline - Date.now();
@@ -121,20 +139,49 @@ export async function waitForRouteReady(
       try {
         await page.reload({ waitUntil: 'domcontentloaded' });
       } catch (reloadCause) {
-        // Lỗi thật (không phải abort do dev server thay trang): đẩy lên ngay.
+        // Lỗi thật (không phải race warm-up): đẩy lên ngay.
         if (!isNavigationAborted(reloadCause)) {
           throw reloadCause;
         }
-        // Abort là race warm-up "ăn" - nhưng hết trần thì ném lỗi trần, không ném
-        // lỗi abort: nguyên nhân thật là hết ngân sách, nguyên nhân abort chỉ là
-        // cách lượt chờ cuối kết thúc (issue #323, OCR thread 4581181376).
-        if (Date.now() >= deadline) {
+
+        // Dạng gốc ("canceled by another one") là race đã đo được, lặp theo vòng
+        // pre-bundle: retry theo deadline như cũ.
+        if (isNavigationCanceledByAnother(reloadCause)) {
+          // Abort là race warm-up "ăn" - nhưng hết trần thì ném lỗi trần, không ném
+          // lỗi abort: nguyên nhân thật là hết ngân sách, nguyên nhân abort chỉ là
+          // cách lượt chờ cuối kết thúc (issue #323, OCR thread 4581181376).
+          if (Date.now() >= deadline) {
+            throw new Error(
+              `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; lần reload cuối bị dev server thay trang huỷ.`,
+              { cause: reloadCause },
+            );
+          }
+          console.log(`[warm-up] reload ${path} aborted by dev server full-reload, retrying`);
+          continue;
+        }
+
+        // Dạng race chưa được đo (frame detached, context destroyed — run
+        // 44900808358): một lần reload thử lại trong trần, hết lượt thì ném —
+        // không retry vô hạn vì chưa có số đo chứng minh nó tự hồi phục.
+        raceRetries += 1;
+
+        if (raceRetries > RACE_RETRY_LIMIT) {
           throw new Error(
-            `Chờ route "${path}" hết trần sau ${String(timeoutMs ?? 30_000)} ms; lần reload cuối bị dev server thay trang huỷ.`,
+            `Chờ route "${path}" hết lượt retry sau race warm-up chưa được đo (${String(RACE_RETRY_LIMIT)} reload); lỗi gốc:`,
             { cause: reloadCause },
           );
         }
-        console.log(`[warm-up] reload ${path} aborted by dev server full-reload, retrying`);
+
+        if (Date.now() >= deadline) {
+          throw reloadCause;
+        }
+
+        console.log(
+          `[warm-up] reload ${path} hit an unrecognized warm-up race, retrying once in ${String(RACE_RETRY_GAP_MS)} ms`,
+        );
+        await new Promise((resolve) => {
+          setTimeout(resolve, RACE_RETRY_GAP_MS);
+        });
       }
     }
   }
