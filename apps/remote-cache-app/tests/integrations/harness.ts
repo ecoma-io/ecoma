@@ -18,7 +18,7 @@
  * — hai deploy unit, import chéo bị cấm (06-testing.md §6, 05-code-architecture.md §7).
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import process from 'node:process';
@@ -110,7 +110,7 @@ function spawnSyncBounded(
   command: string,
   args: readonly string[],
   options: { timeoutMs: number },
-): ReturnType<typeof spawnSync<string>> {
+): SpawnSyncReturns<string> {
   return spawnSync(command, args, { encoding: 'utf8', timeout: options.timeoutMs });
 }
 
