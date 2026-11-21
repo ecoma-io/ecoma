@@ -81,7 +81,7 @@ function fakePage(options: {
 
   const page = {
     getByTestId: () => ({
-      waitFor: () => {
+      waitFor: (waitForOptions?: { readonly timeout?: number }) => {
         const outcome =
           options.waitForOutcomes[Math.min(waitForIndex, options.waitForOutcomes.length - 1)];
         waitForIndex += 1;
@@ -91,11 +91,13 @@ function fakePage(options: {
         }
 
         return new Promise((_resolve, reject) => {
+          // Tôn trọng `timeout` được truyền (sliceTimeoutMs của waitForRouteReady)
+          // thay vì một giá trị cố định — đúng hợp đồng của Locator.waitFor.
           setTimeout(() => {
             const error = new Error('Timeout 3000ms exceeded');
             error.name = 'TimeoutError';
             reject(error);
-          }, 1_000);
+          }, waitForOptions?.timeout ?? 1_000);
         });
       },
     }),

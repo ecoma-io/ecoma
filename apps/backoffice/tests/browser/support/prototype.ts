@@ -167,7 +167,7 @@ export async function waitForRouteReady(
 
         if (raceRetries > RACE_RETRY_LIMIT) {
           throw new Error(
-            `Chờ route "${path}" hết lượt retry sau race warm-up chưa được đo (${String(RACE_RETRY_LIMIT)} reload); lỗi gốc:`,
+            `Chờ route "${path}" hết lượt retry sau race warm-up chưa được đo (${String(RACE_RETRY_LIMIT)} reload); lỗi gốc: ${reloadCause.message}`,
             { cause: reloadCause },
           );
         }
@@ -180,7 +180,9 @@ export async function waitForRouteReady(
           `[warm-up] reload ${path} hit an unrecognized warm-up race, retrying once in ${String(RACE_RETRY_GAP_MS)} ms`,
         );
         await new Promise((resolve) => {
-          setTimeout(resolve, RACE_RETRY_GAP_MS);
+          // Deadline đã kiểm ở trên nên phần còn lại dương; kẹp khoảng nghỉ bằng
+          // phần còn lại để không ngủ vượt deadline rồi mới ném ở đầu vòng lặp.
+          setTimeout(resolve, Math.min(RACE_RETRY_GAP_MS, deadline - Date.now()));
         });
       }
     }
