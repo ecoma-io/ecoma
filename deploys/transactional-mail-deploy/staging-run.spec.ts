@@ -433,6 +433,17 @@ describe('appendStagingRecord', () => {
     const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
     expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed', revision: 7 });
   });
+
+  it('two records sharing the same millisecond, phase and outcome never overwrite each other', () => {
+    // OCR round 6: hậu tố counter phân biệt filename — cùng mili-giây vẫn là
+    // hai file, hợp đồng append-only không có ngoại lệ.
+    const projectDir = tempProjectDir();
+    const startedAt = '2026-11-20T01:02:03.000Z';
+    const first = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
+    const second = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
+    expect(first).not.toBe(second);
+    expect(readdirSync(join(projectDir, '.staging-evidence'))).toHaveLength(2);
+  });
 });
 
 describe('stagingEvidencePath', () => {

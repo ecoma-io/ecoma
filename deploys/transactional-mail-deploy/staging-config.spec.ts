@@ -215,6 +215,15 @@ describe('staging D1 bindings follow the not-yet-provisioned contract (9.1)', ()
     expect(jobBinding?.database_id).toBeUndefined();
   });
 
+  it('top-level D1 names never use the per-lane stg- prefix (lane separation)', () => {
+    // Đối xứng test non-collision của queue chain phía trên: nếu CẢ HAI lớp
+    // khai cùng tên D1 `stg-` (provisioning đè tên production) thì test này
+    // phải đỏ — lane separation §9.1 là hợp đồng được ép bởi test.
+    for (const entry of [...(mail.d1_databases ?? []), ...(mailerJob.d1_databases ?? [])]) {
+      expect(entry.database_name).not.toMatch(/^stg-/u);
+    }
+  });
+
   it('no placeholder id exists anywhere in either wrangler file', () => {
     const raw =
       readFileSync(join(APP_ROOT, 'transactional-mail', 'wrangler.jsonc'), 'utf8') +

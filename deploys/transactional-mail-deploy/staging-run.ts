@@ -386,14 +386,19 @@ export interface StagingProvisioningRecord {
  * Ghi evidence append-only: mỗi lần chạy MỘT file JSON mới trong
  * `.staging-evidence/` của project (ngoài Git — `.gitignore`; CI wiring #350+
  * upload record vào provenance store thay vị trí này). Filename mang
- * timestamp + phase nên chạy lại KHÔNG BAO GIỜ ghi đè record cũ.
+ * timestamp + phase nên chạy lại KHÔNG BAO GIỜ ghi đè record cũ; hậu tố
+ * counter phân biệt hai lần chạy cùng mili-giây với cùng phase/outcome
+ * (hợp đồng append-only không ngoại lệ — đồng bộ pattern #551).
  */
+let appendCounter = 0;
+
 export function appendStagingRecord(projectDir: string, record: StagingProvisioningRecord): string {
   const dir = join(projectDir, '.staging-evidence');
   mkdirSync(dir, { recursive: true });
+  appendCounter = (appendCounter + 1) % 10_000;
   const file = join(
     dir,
-    `${record.startedAt.replace(/[:.]/gu, '-')}-${record.phase}-${record.outcome}.json`,
+    `${record.startedAt.replace(/[:.]/gu, '-')}-${record.phase}-${record.outcome}-${String(appendCounter).padStart(4, '0')}.json`,
   );
   writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
   return file;

@@ -33,7 +33,7 @@ const mailerJobDeployStackLane = classifyTransactionalMailerJobDeployStack(curre
 if (mailerJobDeployStackLane !== 'staging') {
   throw new Error(
     `refused stack "${currentStackRef}" for transactional-mailer-job-deploy — the only allowed ` +
-      'stack is the continuous staging slot staging (D1 stg-mail-job provisioning, #355). ' +
+      'stack is the continuous staging slot (D1 stg-mail-job provisioning, #355). ' +
       'The staging-candidate slot is owned by #381 (its resource names are not defined yet and ' +
       'D1 names are account-unique); the local lane has no program here — the worker runs in the ' +
       'WIC container of transactional-mail-deploy',
