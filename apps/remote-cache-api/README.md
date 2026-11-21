@@ -36,7 +36,6 @@ Nx project `@ecoma-io/remote-cache-api`, tags `type:composition`, `scope:remote-
 ```bash
 pnpm nx run @ecoma-io/remote-cache-api:build          # esbuild → dist/main.js
 pnpm nx run @ecoma-io/remote-cache-api:lint
-pnpm nx run @ecoma-io/remote-cache-api:typecheck      # tsc --build (phần TS)
 pnpm nx run @ecoma-io/remote-cache-api:typecheck   # tsc --build + tsc --noEmit -p tsconfig.db.json
 ```
 
