@@ -142,6 +142,32 @@ jobs:
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
           exclude: '@ecoma-io/backoffice,@ecoma-io/pact-broker-app'
+      # Instrumentation cho họ flake F2 (lane `unavailable` đứng ở pha nitro
+      # "Building server" đến khi webServer timeout 180s — giả thuyết H4: workerd
+      # của getPlatformProxy không báo cổng). Dump môi trường runner NGAY TRƯỚC
+      # lane browser để lần đỏ sau có số đo: /dev/shm (workerd dùng), bộ nhớ,
+      # cổng còn nghe, và stdout/stderr đầy đủ của lane đã vào artifact log.
+      - name: Runner diagnostics before the browser lane
+        if: always()
+        run: |
+          echo "::group::/dev/shm"
+          df -h /dev/shm || true
+          echo "::endgroup::"
+          echo "::group::memory"
+          free -m || true
+          echo "::endgroup::"
+          echo "::group::limits"
+          ulimit -a || true
+          echo "::endgroup::"
+          echo "::group::listening ports 4311-4312"
+          ss -tlnp 2>/dev/null | grep -E '4311|4312' || echo "none"
+          echo "::endgroup::"
+          echo "::group::top processes"
+          ps aux --sort=-%mem 2>/dev/null | head -15 || true
+          echo "::endgroup::"
+          echo "::group::workerd/miniflare leftovers"
+          pgrep -af 'workerd|miniflare' || echo "none"
+          echo "::endgroup::"
       - name: Integration test (browser, serialized)
         uses: ./.github/actions/run-nx-target
         with:
