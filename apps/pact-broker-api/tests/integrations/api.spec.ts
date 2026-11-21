@@ -163,73 +163,76 @@ describe(`${PACT_BROKER_DATABASE} API end-to-end`, () => {
     expect(noConfig.headers.get('access-control-allow-origin')).toBeNull();
 
     // Bật dashboard origin rồi kiểm cả happy path lẫn preflight. Config được
-    // cache theo isolate nên phải reset trước khi nạp env khác.
+    // cache theo isolate nên phải reset trước khi nạp env khác. Reset cuối
+    // đặt trong finally để test fail giữa chừng không để lại cache poisoned.
     const { resetCachedConfig } = await import('../../src/main');
-    resetCachedConfig();
-    const envWithDashboard = {
-      ...workerEnv,
-      PACT_BROKER_DASHBOARD_ORIGIN: 'https://dashboard.example.com',
-    };
+    try {
+      resetCachedConfig();
+      const envWithDashboard = {
+        ...workerEnv,
+        PACT_BROKER_DASHBOARD_ORIGIN: 'https://dashboard.example.com',
+      };
 
-    const allowed = await app.request(
-      `${BASE}/health`,
-      {
-        headers: { origin: 'https://dashboard.example.com' },
-      },
-      envWithDashboard,
-    );
-    expect(allowed.status).toBe(200);
-    expect(allowed.headers.get('access-control-allow-origin')).toBe(
-      'https://dashboard.example.com',
-    );
-    expect(allowed.headers.get('vary')).toContain('Origin');
-
-    // Origin khác dashboard origin → không ACAO, request thường vẫn đi tiếp.
-    const foreign = await app.request(
-      `${BASE}/health`,
-      {
-        headers: { origin: 'https://evil.example.net' },
-      },
-      envWithDashboard,
-    );
-    expect(foreign.status).toBe(200);
-    expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
-
-    // Preflight từ origin được phép: 204 ngay tại middleware, không cần token.
-    const preflight = await app.request(
-      `${BASE}/pacticipants`,
-      {
-        method: 'OPTIONS',
-        headers: {
-          origin: 'https://dashboard.example.com',
-          'access-control-request-method': 'GET',
+      const allowed = await app.request(
+        `${BASE}/health`,
+        {
+          headers: { origin: 'https://dashboard.example.com' },
         },
-      },
-      envWithDashboard,
-    );
-    expect(preflight.status).toBe(204);
-    expect(preflight.headers.get('access-control-allow-origin')).toBe(
-      'https://dashboard.example.com',
-    );
-    expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+        envWithDashboard,
+      );
+      expect(allowed.status).toBe(200);
+      expect(allowed.headers.get('access-control-allow-origin')).toBe(
+        'https://dashboard.example.com',
+      );
+      expect(allowed.headers.get('vary')).toContain('Origin');
 
-    // Preflight từ origin lạ: 403, không ACAO.
-    const preflightForeign = await app.request(
-      `${BASE}/pacticipants`,
-      {
-        method: 'OPTIONS',
-        headers: {
-          origin: 'https://evil.example.net',
-          'access-control-request-method': 'GET',
+      // Origin khác dashboard origin → không ACAO, request thường vẫn đi tiếp.
+      const foreign = await app.request(
+        `${BASE}/health`,
+        {
+          headers: { origin: 'https://evil.example.net' },
         },
-      },
-      envWithDashboard,
-    );
-    expect(preflightForeign.status).toBe(403);
-    expect(preflightForeign.headers.get('access-control-allow-origin')).toBeNull();
+        envWithDashboard,
+      );
+      expect(foreign.status).toBe(200);
+      expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
 
-    // Trả config cache về trạng thái không dashboard cho các test sau.
-    resetCachedConfig();
+      // Preflight từ origin được phép: 204 ngay tại middleware, không cần token.
+      const preflight = await app.request(
+        `${BASE}/pacticipants`,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: 'https://dashboard.example.com',
+            'access-control-request-method': 'GET',
+          },
+        },
+        envWithDashboard,
+      );
+      expect(preflight.status).toBe(204);
+      expect(preflight.headers.get('access-control-allow-origin')).toBe(
+        'https://dashboard.example.com',
+      );
+      expect(preflight.headers.get('access-control-allow-methods')).toContain('GET');
+
+      // Preflight từ origin lạ: 403, không ACAO.
+      const preflightForeign = await app.request(
+        `${BASE}/pacticipants`,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: 'https://evil.example.net',
+            'access-control-request-method': 'GET',
+          },
+        },
+        envWithDashboard,
+      );
+      expect(preflightForeign.status).toBe(403);
+      expect(preflightForeign.headers.get('access-control-allow-origin')).toBeNull();
+    } finally {
+      // Trả config cache về trạng thái không dashboard cho các test sau.
+      resetCachedConfig();
+    }
   });
 
   it('rejects missing, unknown, and revoked tokens with identical 401', async () => {
