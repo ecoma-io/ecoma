@@ -23,8 +23,8 @@ import { defineConfig } from 'vitest/config';
  * ⚠️ `globalSetup` probe Docker một lần mỗi lần chạy bằng chính container
  * PostgreSQL mà browser suite dùng — xem
  * `tests/browser/docker-probe.global-setup.ts`. Suite `tests/integrations/`
- * không chạm Docker, nhưng probe chỉ tốn một container ngắn hạn và giữ luật
- * fail-loud thống nhất cho cả target.
+ * cũng dựng container riêng (`roles.spec.ts` qua `startRemoteCacheAppDatabase`,
+ * docker CLI), nên probe giữ luật fail-loud thống nhất cho cả target.
  *
  * ⚠️ `hookTimeout` 300s: stack full (container PG → migrations → bootstrap →
  * workerd ×2 → seed) là công việc của phút đầu. `testTimeout` 120s cho từng
