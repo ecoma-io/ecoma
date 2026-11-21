@@ -366,9 +366,12 @@ describe('authn middleware boundary and classification', () => {
       const client = await db.connect();
       try {
         // Phiên sống nhưng **sắp** hết hạn idle: `created_at` 2s trong quá khứ,
-        // `expires_at` chỉ 500ms nữa. Một request hợp lệ phải verify token rồi
-        // trượt `expires_at` lên `now() + 12h` — sau request, cột này là bằng
-        // chứng touch đã chạy (CHECK `expires_at > created_at` vẫn thỏa).
+        // `expires_at` chỉ 3s nữa (cùng biên độ với test probe-no-touch bên
+        // dưới — đủ dư địa cho request probe + fetch JWKS trên runner đang
+        // tải cao, flake #565: 500ms là quá chặt). Một request hợp lệ phải
+        // verify token rồi trượt `expires_at` lên `now() + 12h` — sau request,
+        // cột này là bằng chứng touch đã chạy (CHECK `expires_at > created_at`
+        // vẫn thỏa).
         const created = new Date(Date.now() - 2_000);
         await client.query(
           `INSERT INTO backoffice.bff_sessions
@@ -382,7 +385,7 @@ describe('authn middleware boundary and classification', () => {
             null,
             null,
             created,
-            new Date(Date.now() + 500),
+            new Date(Date.now() + 3_000),
           ],
         );
       } finally {
