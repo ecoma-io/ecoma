@@ -630,20 +630,24 @@ describe('database enforcement of domain invariants', () => {
             `SELECT id FROM staff_access.roles WHERE kind = 'system' AND name = 'system-administrator'`,
           );
           const roleId = rows[0]?.id;
-          if (roleId !== undefined) {
+          // no-unsafe-finally: khong throw trong try co finally — gan loi vao
+          // bien va return, catch ben ngoai se gan vao restoreError.
+          if (roleId === undefined) {
+            restoreError = new Error(
+              'system-administrator role not found; cannot restore permission.read catalog state',
+            );
+          } else {
             await superuser.query(
               `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'permission.read'`,
               [roleId],
             );
-          }
-          await superuser.query(
-            `DELETE FROM staff_access.permissions WHERE id = 'permission.read'`,
-          );
-          await superuser.query(
-            `INSERT INTO staff_access.permissions (id, domain, action, status)
-             VALUES ('permission.read', 'permission', 'read', 'active')`,
-          );
-          if (roleId !== undefined) {
+            await superuser.query(
+              `DELETE FROM staff_access.permissions WHERE id = 'permission.read'`,
+            );
+            await superuser.query(
+              `INSERT INTO staff_access.permissions (id, domain, action, status)
+               VALUES ('permission.read', 'permission', 'read', 'active')`,
+            );
             await superuser.query(
               `INSERT INTO staff_access.role_permissions (role_id, permission_id)
                VALUES ($1, 'permission.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
@@ -656,7 +660,10 @@ describe('database enforcement of domain invariants', () => {
       } catch (error) {
         restoreError = error;
       }
-      await migrator.end();
+      // end() cua migrator khong duoc de phep che loi restoreError goc.
+      await migrator.end().catch((endError: unknown) => {
+        if (restoreError === undefined) restoreError = endError;
+      });
     }
     // Ném sau finally để không che lỗi gốc của test (no-unsafe-finally).
     if (restoreError !== undefined) throw restoreError;
