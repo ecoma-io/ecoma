@@ -52,7 +52,7 @@
         ],
         "options": {
           "cwd": "apps/backoffice",
-          "command": "npx nuxt typecheck"
+          "command": "npx nuxt typecheck && npx tsc --noEmit -p tsconfig.db.json"
         },
         "//": [
           "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
@@ -204,13 +204,6 @@
           "(nhánh `parallel: false`) chạy lệnh nối tiếp, mỗi lệnh chờ lệnh trước",
           "thoát ⇒ hai webServer không còn tranh lock."
         ]
-      },
-      "typecheck-db": {
-        "executor": "nx:run-commands",
-        "options": {
-          "cwd": "apps/backoffice",
-          "command": "npx tsc --noEmit -p tsconfig.db.json"
-        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",

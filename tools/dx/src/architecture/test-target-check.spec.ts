@@ -724,12 +724,12 @@ describe('collectCiTargets', () => {
 
   it('strips inline YAML comments from targets values', () => {
     const yaml = [
-      '      - name: DB migration type check',
+      '      - name: Linting & Type check & Unit test',
       '        uses: ./.github/actions/run-nx-target',
       '        with:',
-      '          targets: typecheck-db # migration check',
+      '          targets: lint typecheck test # verify lane',
     ].join('\n');
-    expect(collectCiTargets(yaml)).toEqual(['typecheck-db']);
+    expect(collectCiTargets(yaml)).toEqual(['lint', 'typecheck', 'test']);
   });
 });
 
@@ -745,21 +745,21 @@ const ciYaml = (targets: string[]): string =>
   ].join('\n');
 
 describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
-  it('reports a project that declares typecheck-db while CI invokes no such target', () => {
+  it('reports a project that declares typecheck while CI invokes no such target', () => {
     const { files, project } = goodApp();
-    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck-db']);
-    files['.github/workflows/ci.yaml'] = ciYaml(['lint', 'typecheck', 'test']);
+    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck']);
+    files['.github/workflows/ci.yaml'] = ciYaml(['lint', 'test']);
     const violations = run(files, [project]);
     expect(kinds(violations)).toEqual(['orphan-nx-target']);
     expect(violations[0].project).toBe('@ecoma-io/widget');
-    expect(violations[0].detail).toContain("'typecheck-db'");
+    expect(violations[0].detail).toContain("'typecheck'");
     expect(violations[0].detail).toContain('issue #265');
   });
 
   it('passes when the CI target list invokes the declared target', () => {
     const { files, project } = goodApp();
-    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck-db']);
-    files['.github/workflows/ci.yaml'] = ciYaml(['test', 'typecheck-db']);
+    files['apps/widget/package.json'] = pkg(['test', 'test-integration', 'typecheck']);
+    files['.github/workflows/ci.yaml'] = ciYaml(['test', 'typecheck']);
     expect(run(files, [project])).toEqual([]);
   });
 
@@ -778,7 +778,7 @@ describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
     // phán. Workspace KHÔNG có ci.yaml thì check không có gì để đối chiếu và
     // được bỏ qua (workspace tổng hợp của các fixture khác phụ thuộc điều đó).
     const { files, project } = goodApp();
-    files['apps/widget/package.json'] = pkg(['test', 'typecheck-db']);
+    files['apps/widget/package.json'] = pkg(['test', 'typecheck']);
     files['.github/workflows/ci.yaml'] = 'targets: test';
     const failing: TestTargetFs = {
       ...memFs(files),
@@ -792,7 +792,7 @@ describe('validateTestTargets — orphan Nx targets in CI (#265)', () => {
       fs: failing,
       allowlist: [],
     });
-    // Fixture dùng pkg(['test','typecheck-db']) — khai test-integration qua
+    // Fixture dùng pkg(['test','typecheck']) — khai test-integration qua
     // helper `pkg` chỉ đặt tên target, thiếu nó là nhóm (1) báo thêm lỗi của
     // riêng nhóm đó. Các lỗi này độc lập với lỗi fail-closed đang assert.
     expect(kinds(violations)).toContain('unreadable-test-config');

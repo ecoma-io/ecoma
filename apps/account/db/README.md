@@ -4,13 +4,13 @@ Thư mục này là **nguồn sự thật duy nhất** cho schema của `db-acco
 không có `drizzle-kit`, không có generate step: `db-account` là PostgreSQL thuần và
 migration là file SQL thuần.
 
-| Đường dẫn                | Vai trò                                                              |
-| ------------------------ | -------------------------------------------------------------------- |
-| `migrations/*.sql`       | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.ts`             | Hằng số và helper dùng chung cho runner và test harness              |
-| `apply.ts`               | CLI runner, chạy trong CI                                            |
-| `bootstrap.mts`          | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`     |
-| `../tests/integrations/` | Test integration trên PostgreSQL thật (testcontainers)               |
+| Đường dẫn                             | Vai trò                                                                                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `deploys/account-db/migrations/*.sql` | Migration authority (02-delivery.md §3a.1), áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.ts`                          | Hằng số và helper dùng chung cho runner và test harness                                               |
+| `apply.ts`                            | CLI runner, chạy trong CI                                                                             |
+| `bootstrap.mts`                       | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`                                      |
+| `../tests/integrations/`              | Test integration trên PostgreSQL thật (testcontainers)                                                |
 
 ## Vì sao đây là greenfield provisioning
 
@@ -43,7 +43,7 @@ không thể giữ `pg_advisory_lock` qua đường đi của Worker. Worker ch�
 `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-account' pnpm nx run @ecoma-io/account-db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-account' pnpm nx run account-db:db-migrate
 ```
 
 | Biến                  | Bắt buộc | Mặc định  | Ý nghĩa                                                |
@@ -86,7 +86,7 @@ Không có down-migration. Sai thì **forward-fix**
 
 ## Provisioning step 1 — những gì migration **không** làm được
 
-⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong `db/migrations/`.**
+⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `deploys/account-db/migrations/`.**
 Cả bốn đều bị chặn bởi đúng một nguyên nhân: `ecoma_account_migrator` chỉ sở hữu
 `db-account`, không sở hữu cluster, không có `CREATEROLE`, và không được có
 (`NOCREATEROLE` là điều kiện để nó không leo thang). Đây là những giới hạn thật của
@@ -248,21 +248,9 @@ rồi hỏng dưới tải đồng thời.
 ```
 apps/account/db/
 ├── README.md
-├── migrate.mts           # hằng số + helper dùng chung
-├── (runner migrate hợp đồng sống ở `deploys/account-db` — cutover #375)
-├── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
-└── migrations/
-    ├── 0001_identity_core.sql      # users, sessions, handoffs, audit, outbox
-    ├── 0002_roles_and_grants.sql   # hai role + grant + chặn chéo
-    ├── 0003_internal_nonces.sql    # kho nonce cho replay guard
-    ├── 0004_rename_authn_level_to_acr.sql
-    ├── 0005_email_addresses.sql
-    ├── 0006_otp_challenges.sql
-    ├── 0007_nonce_pruner_role.sql  # role pruner của cron Worker auth-nonce-prune-job
-    ├── 0008_data_domain_v1.sql     # bảng data domain v1
-    ├── 0009_verify_email_purpose.sql  # purpose verify_email của luồng email thường
-    ├── 0010_privacy_requests.sql   # privacy requests + tombstone
-    ├── 0011_bootstrap_write_guards.sql  # rút INSERT users khỏi runtime + trigger chặn provenance bootstrap từ runtime
-    ├── 0012_invitation_channel.sql  # bảng invitations (ADR-0030): lifecycle guard + partial UNIQUE một-lời-mời-mở
-    └── 0013_invitation_users_insert_guard.sql  # trả INSERT users cho runtime, ràng buộc bằng dữ liệu lời mời (birth-guard)
+├── migrate.mts           # hằng số + helper dùng chung (đọc SQL authority cho test)
+└── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
+
+Migration SQL + journal sống ở `deploys/account-db/migrations/` (authority, cutover #375 —
+02-delivery.md §3a.1): 0001_identity_core → 0013_invitation_users_insert_guard.
 ```

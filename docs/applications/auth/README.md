@@ -12,7 +12,7 @@ Ranh giới context tại system level → [`docs/architecture/01-architecture.m
 
 ## Hiện trạng
 
-Endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `apps/auth/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. `oidc-provider` 9.12.2 chạy qua bridge `cloudflare:node` (`nodejs_compat` chỉ khai cho bridge, code ứng dụng giữ `runtime:edge`). Private key là Worker Secret `AUTH_SIGNING_KEY` (PKCS#8 PEM), **không** lưu trong `db-auth`; `db-auth` chỉ giữ metadata của key. `/authorize/complete` mới là route trong thiết kế — chưa mount (404 được ghim bằng test tại `apps/auth/src/main.spec.ts`).
+Endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `deploys/auth-db/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. `oidc-provider` 9.12.2 chạy qua bridge `cloudflare:node` (`nodejs_compat` chỉ khai cho bridge, code ứng dụng giữ `runtime:edge`). Private key là Worker Secret `AUTH_SIGNING_KEY` (PKCS#8 PEM), **không** lưu trong `db-auth`; `db-auth` chỉ giữ metadata của key. `/authorize/complete` mới là route trong thiết kế — chưa mount (404 được ghim bằng test tại `apps/auth/src/main.spec.ts`).
 
 ## Documents
 

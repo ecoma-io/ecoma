@@ -30,7 +30,7 @@ import { MIGRATIONS_DIR, startAuthDatabase, type AuthDatabase } from './harness'
  * `0011`, hash là `bytea`, scope là `text[]`), đúng ràng buộc. Bảng do test tự
  * chế là schema thứ hai; test xanh trên schema thứ hai không nói gì về
  * production (đúng bài học của `authorization-code-cas.spec.ts`). Suite này áp
- * chính các file `apps/auth/migrations/*.sql`.
+ * chính các file `deploys/auth-db/migrations/*.sql`.
  *
  * ⚠️ Hai role như CAS spec: `ecoma_auth_migrator` dựng schema, runtime chỉ
  * chạy DML. Nếu adapter chạy được bằng superuser thì test không chứng minh gì

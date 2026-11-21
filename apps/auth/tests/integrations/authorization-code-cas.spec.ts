@@ -22,7 +22,7 @@ import { startAuthDatabase, type AuthDatabase } from './harness';
  * Docker là phụ thuộc cứng (fail-loud qua docker-probe của config integration
  * — không skip với exit 0).
  *
- * ⚠️ **Test này áp `apps/auth/migrations/*.sql` THẬT, không khai một bảng riêng.**
+ * ⚠️ **Test này áp `deploys/auth-db/migrations/*.sql` THẬT, không khai một bảng riêng.**
  * Lý do là đo được: bản test trước dựng bảng có cột `code_id`/`scope` và xanh
  * trong khi schema thật có `id uuid`/`code_hash`/`granted_scopes text[]`. Một
  * bảng do test tự chế là một schema thứ hai, và test xanh trên schema thứ hai

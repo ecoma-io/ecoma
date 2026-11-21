@@ -2,13 +2,19 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * Đường dẫn thư mục `apps/backoffice/db/migrations`.
+ * Đường dẫn thư mục authority `deploys/backoffice-db/migrations` (02-delivery.md §3a.1).
  *
  * Tính từ vị trí file này chứ không từ `process.cwd()` — cùng lý do với
  * `apps/account/db/migrate.mts`: Nx đặt `cwd: apps/backoffice` cho target của
  * project, còn vitest chạy với root khác.
+ *
+ * Helper này chỉ ĐỌC file SQL authority cho test integration — app consumer →
+ * `deploys/<name>-db` là chiều dependency được phép theo §3a.1.
  */
-export const MIGRATIONS_DIR = resolve(import.meta.dirname, 'migrations');
+export const MIGRATIONS_DIR = resolve(
+  import.meta.dirname,
+  '../../../deploys/backoffice-db/migrations',
+);
 
 /** Tên database của service này trong provisioning; không hard-code trong SQL. */
 export const BACKOFFICE_DATABASE = 'db-backoffice';

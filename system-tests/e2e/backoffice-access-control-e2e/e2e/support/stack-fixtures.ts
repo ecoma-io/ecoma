@@ -307,7 +307,7 @@ export async function seedStaffAccessStaff(
  * Seed grant authorization vào `db-staff-access` — nguồn quyết định permission
  * của BFF sau cutover (issue #241).
  *
- * Ba INSERT theo ràng buộc schema đã verify của `apps/staff-access/db/migrations`:
+ * Ba INSERT theo ràng buộc schema đã verify của `deploys/staff-access-db/migrations`:
  * - `roles (id uuid, name, kind='custom', status='active')` — UNIQUE `(kind, name)`;
  *   uuid cố định để rerun là cùng một hàng (`ON CONFLICT (id) DO NOTHING`);
  * - `role_permissions (role_id, permission_id)` — FK vào catalog `staff.read`

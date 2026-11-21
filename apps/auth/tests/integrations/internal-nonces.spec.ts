@@ -16,7 +16,7 @@
  * và vẫn dạy ta tin rằng `SELECT` rồi `INSERT` là atomic. Docker là phụ thuộc cứng
  * (fail-loud qua docker-probe của config integration — không skip với exit 0).
  *
- * ⚠️ Test này áp `apps/auth/migrations/*.sql` THẬT, không khai một bảng riêng: một
+ * ⚠️ Test này áp `deploys/auth-db/migrations/*.sql` THẬT, không khai một bảng riêng: một
  * bảng do test tự chế là schema thứ hai, và test xanh trên schema thứ hai không nói
  * được gì về production (bài học ở `authorization-code-cas.spec.ts`).
  *

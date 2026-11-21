@@ -61,8 +61,8 @@ const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 /** Mật khẩu chung cho hai role test — secret giả, database ném đi sau mỗi run. */
 const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
-/** Thư mục migration — trong chính app này, đường dẫn ngắn. */
-export const MIGRATIONS_DIR = join(import.meta.dirname, '../../migrations');
+/** Thư mục migration authority `deploys/auth-db/migrations` (02-delivery.md §3a.1). */
+export const MIGRATIONS_DIR = join(import.meta.dirname, '../../../../deploys/auth-db/migrations');
 
 type Sql = import('postgres').Sql;
 
@@ -330,8 +330,8 @@ async function applyMigrations(database: { host: string; port: number }): Promis
 }
 
 /**
- * Provisioning theo runbook operator (`migrations/README.md` §"Vai trò của
- * operator", auth 03-operations.md §3.2), làm bằng superuser — đúng vai trò
+ * Provisioning theo runbook operator (`deploys/auth-db/migrations/README.md`
+ * §"Vai trò của operator", auth 03-operations.md §3.2), làm bằng superuser — đúng vai trò
  * admin, không phải migration.
  *
  * ⚠️ Các việc này **không** nằm trong file migration `0001`–`0013`:

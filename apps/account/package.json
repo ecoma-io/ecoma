@@ -109,13 +109,6 @@
           "command": "npx vitest run -c vitest.integration.config.mts"
         }
       },
-      "typecheck-db": {
-        "executor": "nx:run-commands",
-        "options": {
-          "cwd": "apps/account",
-          "command": "npx tsc --noEmit -p tsconfig.db.json"
-        }
-      },
       "typecheck": {
         "executor": "nx:run-commands",
         "dependsOn": [
@@ -134,7 +127,7 @@
         ],
         "options": {
           "cwd": "apps/account",
-          "command": "npx nuxt typecheck"
+          "command": "npx nuxt typecheck && npx tsc --noEmit -p tsconfig.db.json"
         },
         "//": [
           "Ghi de target `typecheck` mac dinh cua plugin @nx/js (echo no-op),",

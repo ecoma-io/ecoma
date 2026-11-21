@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *  3. **`makeNonceGuard` trên PostgreSQL thật** — Docker là phụ thuộc cứng
  *     (fail-loud qua docker-probe của config integration — không skip với exit 0).
  *
- * ⚠️ Test này **áp chính các file `apps/auth/migrations/*.sql`**, không khai một bảng
+ * ⚠️ Test này **áp chính các file `deploys/auth-db/migrations/*.sql`**, không khai một bảng
  * riêng: một bảng do test tự chế là schema thứ hai, và test xanh trên schema thứ hai
  * không nói được gì về production.
  *

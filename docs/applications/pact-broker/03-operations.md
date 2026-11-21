@@ -25,7 +25,7 @@ Secrets không đặt trong PR/CI file — native Worker Secrets qua quy trình 
 Thứ tự bước, database đích, idempotency và kiểm tra sau bước theo hợp đồng canonical → [`architecture/02-delivery.md`](../../architecture/02-delivery.md) §3.2 ([ADR-0020](../../domains/staff-access/adr/0020-bootstrap-seed-contract.md)). Tên tenant nội bộ canonical là `ecoma`; `local` chỉ là nhãn environment, không phải tên tenant.
 
 1. Provision DB + role (bước 1 ở trên, tay/admin một lần).
-2. `db:migrate` từ CI runner.
+2. `db-migrate` từ CI runner.
 3. **Bootstrap tenant + membership owner** — `db:bootstrap` (`db/bootstrap-tenant.mts`, bước 5a §3.2): một transaction tạo tenant `ecoma` (`active`, `first_party`, không có plan) kèm membership owner (role `member`, `source = 'bootstrap'`) và đúng một audit `tenant.bootstrap`; idempotent theo natural key, fail-closed khi tenant `suspended`/`deleted`, owner/classification/plan lệch, hoặc membership xung đột role/provenance.
 4. **Provision machine token** — `db:provision-machine-token` (`db/provision-machine-token.mts`, bước 6 §3.2): resolve tenant `ecoma` fail-closed (không bao giờ tạo tenant), hash `SHA-256` tính trong script; trong một transaction, revoke token active cùng `(tenant, name)` khác hash rồi insert, verify cuối: đúng một token active cho natural key `(tenant ecoma, token name)` — lane local: `pact-broker-app-bff`.
 5. Pact CLI publish đầu tiên: `PACT_BROKER_BROKER_BASE_URL` + token → `pact-broker publish ...` (runbook tay; việc pin phiên bản CLI và bộ lệnh chuẩn thuộc #205/#208 — journey hệ thống kiểm chứng CLI thật thuộc #27).

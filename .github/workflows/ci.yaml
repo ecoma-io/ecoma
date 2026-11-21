@@ -67,17 +67,6 @@ jobs:
           targets: lint typecheck test
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
-      # `typecheck-db` đứng ở đây vì cùng ngữ nghĩa với `typecheck` trên dòng
-      # trên: một lượt typecheck, không phải một lane test (issue #265). `db/`
-      # nằm ngoài tsconfig của app — chính là lý do target này tồn tại — nên
-      # nó không thể gộp vào `typecheck`; khỏi CI thì code migration chỉ được
-      # kiểm kiểu khi ai đó nhớ chạy tay, tức đỏ muộn nhất ở lúc deploy.
-      - name: DB migration type check
-        if: github.event_name != 'merge_group'
-        uses: ./.github/actions/run-nx-target
-        with:
-          targets: typecheck-db
-          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
       - name: README contract check
         run: pnpm dx readme-check
 
@@ -88,7 +77,7 @@ jobs:
     # PostgreSQL thật cho các suite `test-integration` của `apps/account`,
     # `auth-infrastructure` và `apps/auth` đến từ **testcontainers**:
     # mỗi spec file tự dựng một container `postgres:17-alpine`, provision hai role
-    # đúng runbook `apps/auth/migrations/README.md` (migrator có DDL, runtime chỉ
+    # đúng runbook `deploys/auth-db/migrations/README.md` (migrator có DDL, runtime chỉ
     # DML) và apply migration bằng credential migrator thật. Không có service
     # container hay biến `AUTH_TEST_PG_*` nào ở đây — runner chỉ cần có Docker.
     # Password trong harness là của database nhúng ném đi sau mỗi run, không phải

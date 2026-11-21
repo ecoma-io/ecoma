@@ -138,7 +138,7 @@ implementation của service, và service không import deployment project. Depe
 
 ⚠️ **Danh tính xuyên service là Account ID (`sub`), không phải email.** `account` sở hữu danh tính account; `auth` sở hữu giao thức OAuth 2.0/OIDC; `staff-access` sở hữu staff, role và permission nghiệp vụ. `account` và `auth` **không** sở hữu staff membership, role hay permission của `staff-access`; `staff-access` **không** giữ credential, MFA/passkey hay passwordless state. Ranh giới đầy đủ → §2.2 và [`docs/domains/staff-access/`](../domains/staff-access/README.md).
 
-⚠️ **`db-account` và `db-auth` chưa được provision.** Schema và migration **đã có trong repo** (`apps/account/db/migrations/` 0001–0007, `apps/auth/migrations/` 0001–0014) và được integration test phủ, nhưng không database nào tồn tại — Hyperdrive binding chưa trỏ được tới origin thật. `db-account`/`db-auth` ở đây là **target đã chốt**, không phải tài nguyên đang tồn tại. Kế hoạch provisioning và validation → [`docs/applications/account/03-operations.md`](../applications/account/03-operations.md) §3.2.
+⚠️ **`db-account` và `db-auth` chưa được provision.** Schema và migration **đã có trong repo** (`deploys/account-db/migrations/` 0001–0007, `deploys/auth-db/migrations/` 0001–0014) và được integration test phủ, nhưng không database nào tồn tại — Hyperdrive binding chưa trỏ được tới origin thật. `db-account`/`db-auth` ở đây là **target đã chốt**, không phải tài nguyên đang tồn tại. Kế hoạch provisioning và validation → [`docs/applications/account/03-operations.md`](../applications/account/03-operations.md) §3.2.
 
 **Storage model** — quy tắc architectural, không phải platform limit (limit → `04`):
 

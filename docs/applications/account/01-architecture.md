@@ -179,7 +179,7 @@ Tham số OTP (TTL 600 giây, resend cooldown 60 giây, tối đa 5 lần thử,
 
 ### 3.8 Migration `db-account`
 
-Migration nằm ở `apps/account/db/migrations/`, idempotent (runner chạy lại toàn bộ mỗi lần apply), forward-only; integration test áp mọi file hai lần (`apps/account/tests/databases/migrations.spec.ts`).
+Migration nằm ở `deploys/account-db/migrations/`, idempotent (runner chạy lại toàn bộ mỗi lần apply), forward-only; integration test áp mọi file hai lần (`apps/account/tests/databases/migrations.spec.ts`).
 
 | Migration | Nội dung                                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------------------------- |
@@ -359,7 +359,7 @@ Hai Worker phải giữ **cùng** giá trị secret. Không có giá trị mặc
 
 ### 8.2 Kho nonce
 
-✅ **Đã đóng ở cả hai phía.** Mỗi service sở hữu bảng nonce của mình trong database của mình — `account.internal_nonces` (`apps/account/db/migrations/0003_internal_nonces.sql`) và `auth.internal_nonces` (`apps/auth/migrations/0010_internal_nonces.sql`). Phần serving dùng chúng qua `recordNonce` trong `server/utils/db.ts` + `makeNonceGuard` trong `server/middleware/internal-auth.ts` (phía `account`), và `makeNonceGuard` trong `apps/auth/src/account-client.ts` (phía `auth`).
+✅ **Đã đóng ở cả hai phía.** Mỗi service sở hữu bảng nonce của mình trong database của mình — `account.internal_nonces` (`deploys/account-db/migrations/0003_internal_nonces.sql`) và `auth.internal_nonces` (`deploys/auth-db/migrations/0010_internal_nonces.sql`). Phần serving dùng chúng qua `recordNonce` trong `server/utils/db.ts` + `makeNonceGuard` trong `server/middleware/internal-auth.ts` (phía `account`), và `makeNonceGuard` trong `apps/auth/src/account-client.ts` (phía `auth`).
 
 ⚠️ **Hai bảng, không phải một bảng dùng chung.** Nonce đã chiếm ở `db-account` **không** bảo vệ được request đến `auth`, và ngược lại: nonce là duy nhất theo **từng service nhận**. Gộp thành một kho là vi phạm `one service owns each database` — service này với sang database của service kia.
 
@@ -369,7 +369,7 @@ Hai Worker phải giữ **cùng** giá trị secret. Không có giá trị mặc
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `verifyRequest` bắt buộc `claimNonce` là callback của **caller**, không có giá trị mặc định | `makeNonceGuard` cấp callback dạng check-and-record; middleware từ chối 401 khi thiếu Hyperdrive vì không có kho nonce thì không xác minh được replay |
 | `migrations/0001` không tạo bảng nào cho nonce                                              | Được khắc phục bằng `migrations/0003_internal_nonces.sql` — bảng riêng, **không** trộn vào `security_events`                                          |
-| `auth` không có kho nonce nào                                                               | `apps/auth/migrations/0010_internal_nonces.sql` — cùng cấu trúc, cùng bộ grant, cùng lý do không dùng `security_events`                               |
+| `auth` không có kho nonce nào                                                               | `deploys/auth-db/migrations/0010_internal_nonces.sql` — cùng cấu trúc, cùng bộ grant, cùng lý do không dùng `security_events`                         |
 
 ⚠️ **Vì sao không dùng `security_events` làm ledger.** Nó là audit append-only với retention **riêng và còn mở** (nhóm (3), [`../../domains/account/domain-model.md`](../../domains/account/domain-model.md) §7.1) — retention đó theo nghĩa vụ pháp lý và chống gian lận, không phải theo tuổi của nonce. Trộn hai vòng đời khiến việc dọn nonce hết hạn phải đi theo retention audit, và index theo nonce sẽ không phục vụ truy vấn nào.
 

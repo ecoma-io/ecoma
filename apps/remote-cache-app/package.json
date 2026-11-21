@@ -69,7 +69,7 @@
         ],
         "options": {
           "cwd": "apps/remote-cache-app",
-          "command": "npx nuxt typecheck"
+          "command": "npx nuxt typecheck && npx tsc --project tsconfig.db.json"
         },
         "//": [
           "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
@@ -79,14 +79,6 @@
           "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
           "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
         ]
-      },
-      "typecheck-db": {
-        "executor": "nx:run-commands",
-        "cache": true,
-        "options": {
-          "cwd": "apps/remote-cache-app",
-          "command": "npx tsc --project tsconfig.db.json"
-        }
       },
       "test": {
         "executor": "nx:run-commands",

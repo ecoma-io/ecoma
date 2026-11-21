@@ -644,7 +644,9 @@ export function validateTestTargets(input: {
 
   // Target mồ côi trong CI: target bắt buộc được khai mà không CI target-set
   // nào gọi là target chỉ tồn tại trên giấy — code nó bảo vệ chỉ được kiểm
-  // kiểu khi ai đó nhớ chạy tay (đúng lỗ hổng của #265 với `typecheck-db`).
+  // kiểu khi ai đó nhớ chạy tay (đúng lỗ hổng của #265). `typecheck` gánh cả
+  // coverage của `typecheck-db` cũ (đã gộp vào lệnh `typecheck` của từng app,
+  // issue #578), nên chính nó là carrier của rủi ro này.
   // Không đọc được workflow CI là fail-closed, không phải "không có target nào
   // được gọi" cũng không phải "tất cả đều được gọi".
   const ciYamlPath = '.github/workflows/ci.yaml';
@@ -779,7 +781,7 @@ function readNxTargets(fs: TestTargetFs, path: string): Record<string, unknown> 
  * mà #265 mô tả, và cách duy nhất phát hiện được là liệt kê tường minh ai phải
  * được gọi. Mở rộng danh sách khi một target thứ hai chịu rủi ro tương tự.
  */
-export const REQUIRED_INVOKED_TARGETS: readonly string[] = ['typecheck-db'];
+export const REQUIRED_INVOKED_TARGETS: readonly string[] = ['typecheck'];
 
 /**
  * Thu thập tập target mà CI gọi qua action `run-nx-target`: regex trên TEXT
@@ -790,8 +792,8 @@ export const REQUIRED_INVOKED_TARGETS: readonly string[] = ['typecheck-db'];
  */
 export function collectCiTargets(ciYamlText: string): readonly string[] {
   const targets: string[] = [];
-  // Bỏ inline YAML comment: `targets: typecheck-db # comment` phải ra
-  // `typecheck-db`, không phải bốn token trong đó có `#`.
+  // Bỏ inline YAML comment: `targets: lint typecheck test # comment` phải ra
+  // ba target, không phải các token trong đó có `#`.
   for (const match of ciYamlText.matchAll(/^\s{10}targets:\s*([^#].*?)(?:\s+#.*)?$/gmu)) {
     for (const word of match[1].split(/[,\s]+/u)) {
       if (word !== '') targets.push(word);

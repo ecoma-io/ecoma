@@ -434,7 +434,7 @@ export async function findTransactionByHandleY(
  * CAS và ghi idempotency.
  *
  * ⚠️ WHERE chép nguyên văn khối canonical CAS 2 của
- * `apps/auth/migrations/0002_authorization_transactions.sql:305-331`, gồm
+ * `deploys/auth-db/migrations/0002_authorization_transactions.sql:305-331`, gồm
  * `account_session_ref = $2 AND sub = $3` — ràng buộc PHIÊN: handle Y nằm trong URL
  * redirect, có thể lọt sang người khác (referer leak, lịch sử trình duyệt), nên kết
  * quả consent chỉ được ghi bởi đúng phiên sở hữu transaction. Tham số lấy từ hàng

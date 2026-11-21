@@ -104,13 +104,6 @@
           "command": "npx tsx --tsconfig tsconfig.db.json db/provision-machine-token.mts"
         }
       },
-      "typecheck-db": {
-        "executor": "nx:run-commands",
-        "options": {
-          "cwd": "apps/pact-broker-api",
-          "command": "npx tsc --noEmit -p tsconfig.db.json"
-        }
-      },
       "test-integration": {
         "executor": "nx:run-commands",
         "dependsOn": [
@@ -186,6 +179,7 @@
         "inputs": [
           "{projectRoot}/package.json",
           "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.db.json",
           "{projectRoot}/tsconfig.json",
           "{projectRoot}/tsconfig.app.json",
           "{projectRoot}/tsconfig.spec.json",
@@ -238,7 +232,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/pact-broker-api",
-          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly && npx tsc --noEmit -p tsconfig.db.json"
         },
         "configurations": {},
         "parallelism": true

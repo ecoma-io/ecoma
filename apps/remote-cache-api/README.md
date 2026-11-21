@@ -37,7 +37,7 @@ Nx project `@ecoma-io/remote-cache-api`, tags `type:composition`, `scope:remote-
 pnpm nx run @ecoma-io/remote-cache-api:build          # esbuild → dist/main.js
 pnpm nx run @ecoma-io/remote-cache-api:lint
 pnpm nx run @ecoma-io/remote-cache-api:typecheck      # tsc --build (phần TS)
-pnpm nx run @ecoma-io/remote-cache-api:typecheck-db   # tsc --noEmit -p tsconfig.db.json
+pnpm nx run @ecoma-io/remote-cache-api:typecheck   # tsc --build + tsc --noEmit -p tsconfig.db.json
 ```
 
 - Dev server dùng port khai trong `dev` của `wrangler.jsonc` (4207); Hyperdrive binding khai id chuỗi rỗng, connection string local đi qua biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE`.

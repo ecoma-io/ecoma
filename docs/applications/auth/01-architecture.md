@@ -2,7 +2,7 @@
 
 > Phạm vi: thiết kế ứng dụng `auth` — deploy unit Cloudflare Worker (Hono, API-only) phục vụ authorization server OAuth 2.0/OIDC: runtime, schema `db-auth`, giao thức login/consent, bốn contract back-channel, envelope nội bộ, cơ chế token và revocation.
 > Mô hình miền — ranh giới, ngôn ngữ, quyết định chính sách OAuth/OIDC → [`docs/domains/auth/domain-model.md`](../../domains/auth/domain-model.md) · yêu cầu → [`02-requirements.md`](./02-requirements.md) · vận hành → [`03-operations.md`](./03-operations.md) · bằng chứng đăng nhập → [`../account/01-architecture.md`](../account/01-architecture.md) · system boundary → [`docs/architecture/01-architecture.md`](../../architecture/01-architecture.md) §2.1.
-> **Hiện trạng:** authorization server đã có trong code (`apps/auth` — provider `oidc-provider` 9.12.2, glue internal, 14 migration `apps/auth/migrations/`); các phần protocol của tài liệu này phản chiếu cấu hình provider hiện hành. **Chưa có**: `db-auth` chưa provision, Worker chưa khai environment staging/production.
+> **Hiện trạng:** authorization server đã có trong code (`apps/auth` — provider `oidc-provider` 9.12.2, glue internal, 14 migration `deploys/auth-db/migrations/`); các phần protocol của tài liệu này phản chiếu cấu hình provider hiện hành. **Chưa có**: `db-auth` chưa provision, Worker chưa khai environment staging/production.
 
 ---
 

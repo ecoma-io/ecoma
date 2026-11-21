@@ -149,13 +149,6 @@
           "Target luon khong cacheable vi no mutate DB that."
         ]
       },
-      "typecheck-db": {
-        "executor": "nx:run-commands",
-        "options": {
-          "cwd": "apps/llm-api",
-          "command": "npx tsc --noEmit -p tsconfig.db.json"
-        }
-      },
       "test": {
         "executor": "nx:run-commands",
         "options": {
@@ -227,6 +220,7 @@
         "inputs": [
           "{projectRoot}/package.json",
           "{workspaceRoot}/tsconfig.base.json",
+          "{projectRoot}/tsconfig.db.json",
           "{projectRoot}/tsconfig.json",
           "{projectRoot}/tsconfig.app.json",
           "{projectRoot}/tsconfig.spec.json",
@@ -258,7 +252,7 @@
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/llm-api",
-          "command": "tsc --build tsconfig.json --emitDeclarationOnly"
+          "command": "tsc --build tsconfig.json --emitDeclarationOnly && npx tsc --noEmit -p tsconfig.db.json"
         },
         "configurations": {},
         "parallelism": true,
