@@ -55,5 +55,14 @@
     // để mặc định "mọi @types trong node_modules".
     "types": ["node"]
   },
-  "files": ["index.ts", "local.ts", "local-generators.ts"]
+  "files": [
+    "index.ts",
+    "local.ts",
+    "local-program.ts",
+    "local-generators.ts",
+    "staging.ts",
+    "staging-run.ts",
+    "staging-program.ts",
+    "wrangler-jsonc.ts"
+  ]
 }

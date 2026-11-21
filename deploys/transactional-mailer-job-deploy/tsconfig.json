@@ -1,4 +1,27 @@
 {
+  // Deploy unit import helper dùng chung từ workspace package
+  // `@ecoma-io/deployment` (`libs/deployment`): một nguồn sự thật cho engine
+  // staging (adapter seam, stack selection, pulumiRun). Ranh giới là một chiều:
+  // deploy → lib, và lib KHÔNG được import ngược deploy hay `tools/dx`
+  // (contract test của lib chặn).
+  //
+  // Pulumi runtime `nodejs` chạy thẳng `index.ts` qua ts-node/esm hooks
+  // (automatic ESM mode: package khai `"type": "module"`) — không có bước build
+  // nào chạy trước để sinh package. Package import vẫn resolve được lúc chạy
+  // thật vì pnpm workspace tạo symlink `node_modules/@ecoma-io/deployment →
+  // libs/deployment` và `exports` của package trỏ thẳng vào TS nguồn
+  // (`./src/index.ts`), nên ts-node transpile luôn cả lib theo tsconfig của
+  // deploy unit. Specifier qua TÊN PACKAGE bắt buộc: đường dẫn tương đối
+  // `libs/...` là import xuyên project bị `@nx/enforce-module-boundaries`
+  // chặn, còn package import là đúng kênh workspace.
+  //
+  // Toàn bộ graph typecheck được khai tường minh qua `files`: project
+  // `composite` bắt buộc mọi file trong graph đều được liệt kê — guard
+  // `index.ts`, entry `staging.ts`, engine `staging-run.ts`, program
+  // `staging-program.ts` và helper `wrangler-jsonc.ts` của spec.
+  //
+  // Chương trình chạy qua automatic ESM mode của Pulumi (xem phần comment ở
+  // trên), nên dùng `import.meta.dirname` thay cho `__dirname`.
   "compilerOptions": {
     "strict": true,
     "outDir": "bin",
@@ -12,8 +35,16 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
     "forceConsistentCasingInFileNames": true,
+    // Không `extends` `tsconfig.base.json`, nên không kế thừa `skipLibCheck`
+    // của nó — bật tường minh: typecheck không phải rà `.d.ts` của `@pulumi/*`,
+    // lỗi type bên thứ ba không làm đỏ typecheck của repo.
+    "skipLibCheck": true,
     "composite": true,
-    "declaration": true
+    "declaration": true,
+    // Program chạy trên Node và engine đọc `node:fs`/`node:path`, nên khai
+    // ambient types của Node tường minh thay vì để mặc định "mọi @types trong
+    // node_modules".
+    "types": ["node"]
   },
-  "files": ["index.ts"]
+  "files": ["index.ts", "staging.ts", "staging-run.ts", "staging-program.ts", "wrangler-jsonc.ts"]
 }

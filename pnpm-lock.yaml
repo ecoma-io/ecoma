@@ -1070,7 +1070,11 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/transactional-mailer-job-deploy: {}
+  deploys/transactional-mailer-job-deploy:
+    dependencies:
+      '@ecoma-io/deployment':
+        specifier: workspace:*
+        version: link:../../libs/deployment
 
   deploys/web-push-notification-job-deploy: {}
 

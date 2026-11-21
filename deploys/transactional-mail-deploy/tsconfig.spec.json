@@ -5,6 +5,7 @@
     "outDir": "./out-tsc/vitest",
     "rootDir": "../..",
     "declaration": true,
+    "lib": ["es2023"],
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
@@ -16,7 +17,12 @@
     "vite.config.mts",
     "vitest.config.ts",
     "vitest.config.mts",
-    "local-env.spec.ts"
+    "local-env.spec.ts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
+    "staging-config.spec.ts",
+    "wrangler-jsonc.ts",
+    "wrangler-jsonc.spec.ts"
   ],
   "references": [
     {
