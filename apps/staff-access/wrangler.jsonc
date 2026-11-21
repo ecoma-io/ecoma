@@ -60,4 +60,33 @@
   "dev": {
     "port": 4206,
   },
+  // --- Staging — Issue #354 ---
+  //
+  // Worker identity staging `stg-ecoma-staff-access` (02-delivery.md §7.2).
+  //
+  // Hyperdrive binding `DB_STAFF_ACCESS` PHẢI khai lại ở từng env (Wrangler
+  // không inherit top-level `hyperdrive` vào named environment —
+  // `02-delivery.md` §4.1 điều 1). `id` là chuỗi rỗng fail-closed: config
+  // staging `db-staff-access-staging` do Pulumi của `deploys/staff-access-deploy`
+  // sở hữu (entry `staging.ts` surface output `hyperdriveConfigId` sau lần `up`
+  // xanh đầu tiên), operator fill giá trị đó vào đây — không tự bịa id, staging
+  // tuyệt đối không trỏ vào Hyperdrive production (§4.1 điều 5).
+  //
+  // Worker này là internal-only (`01-architecture.md` §6): consumer là BFF
+  // backoffice và account qua Service Binding, không có hostname public nào —
+  // `workers_dev` tắt tường minh để lần deploy staging không mở subdomain
+  // `*.workers.dev` ngoài ý muốn, và KHÔNG khai `devOrigin`/`smokeSurface`
+  // (không có origin HTTP công khai để probe; thiếu origin là đúng trạng thái).
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-staff-access",
+      "workers_dev": false,
+      "hyperdrive": [
+        {
+          "binding": "DB_STAFF_ACCESS",
+          "id": "",
+        },
+      ],
+    },
+  },
 }

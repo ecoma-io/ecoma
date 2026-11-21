@@ -205,7 +205,7 @@ describe('sqlQuote', () => {
 
 describe('shellQuote + sqlQuote together (the backoffice-deploy ALTER ROLE boundary)', () => {
   it('delivers the full SQL statement as one intact shell argument through a real shell', () => {
-    // Tái hiện ĐÚNG tổ hợp mà `deploys/backoffice-deploy/index.ts` dùng:
+    // Tái hiện ĐÚNG tổ hợp mà `deploys/backoffice-deploy/local-program.ts` dùng:
     //   -c ${shellQuote(`ALTER ROLE ... WITH PASSWORD ${sqlQuote(pw)};`)}
     // Bằng chứng cần thu được: shell nhận ĐÚNG MỘT argument, bên trong là câu
     // SQL với literal đã escape SQL-style — và `$(id)` trong password KHÔNG
@@ -231,7 +231,7 @@ describe('shellQuote + sqlQuote together (the backoffice-deploy ALTER ROLE bound
 });
 
 describe('wiring', () => {
-  const CALLER = join(REPO_ROOT, 'deploys/backoffice-deploy/index.ts');
+  const CALLER = join(REPO_ROOT, 'deploys/backoffice-deploy/local-program.ts');
 
   it('pins the backoffice provision wiring to the environment channel with STDIN password', () => {
     // Test tổ hợp phía trên chỉ chứng minh module `shell-quote` ĐÚNG — nó
