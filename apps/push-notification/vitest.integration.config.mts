@@ -36,6 +36,11 @@ export default defineConfig(() => ({
     // spawn wrangler CLI - mỗi file đã nặng một process.
     fileParallelism: false,
     reporters: ['default'],
+    // `hookTimeout` 300s: dựng platform proxy workerd qua `getPlatformProxy` không
+    // nằm trong giây thứ 5 mặc định. `testTimeout` 120s vì từng it() trả tiền
+    // spawn workerd riêng — dưới tải CI, 5s mặc định đỏ lửng không phải lỗi thật.
+    hookTimeout: 300_000,
+    testTimeout: 120_000,
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,

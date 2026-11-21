@@ -601,6 +601,7 @@ describe('database enforcement of domain invariants', () => {
 
   it('permissions: a retired entry is terminal and cannot be revived', async () => {
     const migrator = await db.asMigrator();
+    let restoreError: unknown;
     try {
       // ADR-0010 insert-then-retire: retire một entry trước (UPDATE active →
       // retired là đường hợp lệ duy nhất), rồi thử hồi sinh — retired quay lại
@@ -617,18 +618,21 @@ describe('database enforcement of domain invariants', () => {
     } finally {
       // Khôi phục trạng thái seed: entry này là dữ liệu catalog của các test
       // khác trong cùng container; phục hồi bằng UPDATE retired → active thì
-      // không được, nên dùng đường xóa-ghi (migrator sở hữu bảng).
-      await migrator
-        .query(`DELETE FROM staff_access.permissions WHERE id = 'permission.read'`)
-        .catch(() => undefined);
-      await migrator
-        .query(
+      // không được, nên dùng đường xóa-ghi (migrator sở hữu bảng). Lỗi khôi
+      // phục không được nuốt: catalog hỏng làm đỏ cả container, phải ném ra.
+      try {
+        await migrator.query(`DELETE FROM staff_access.permissions WHERE id = 'permission.read'`);
+        await migrator.query(
           `INSERT INTO staff_access.permissions (id, domain, action, status)
            VALUES ('permission.read', 'permission', 'read', 'active')`,
-        )
-        .catch(() => undefined);
+        );
+      } catch (error) {
+        restoreError = error;
+      }
       await migrator.end();
     }
+    // Ném sau finally để không che lỗi gốc của test (no-unsafe-finally).
+    if (restoreError !== undefined) throw restoreError;
   });
 
   it('entitlements: revision is monotonic — it bumps on UPDATE and refuses to go back', async () => {

@@ -230,11 +230,11 @@ async function readAuditLog(): Promise<readonly AuditRow[]> {
  * timing thanh mot diem hen xac dinh: chi commit sau khi request da nam trong
  * `INSERT`, nen nhanh 23505 chac chan duoc chay.
  *
- * Khong co backend dung lai sau ~5s thi nem: im lang bo qua se bien test
+ * Khong co backend dung lai sau ~10s thi nem: im lang bo qua se bien test
  * thanh mot lan assert 409 vo nghia (co the di qua nhanh pre-check).
  */
 async function waitForBlockedProjectInsert(client: import('pg').Client): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
     const { rows } = await client.query<{ blocked: string }>(
       `SELECT count(*)::text AS blocked
          FROM pg_stat_activity
@@ -397,12 +397,9 @@ describe('portal control plane (integration)', () => {
       // Giu promise duoc handled ke ca khi buoc cho khoa that bai, de mot loi
       // o day khong bi che thanh unhandled rejection.
       void pending.catch(() => undefined);
-      // Cho request di qua pre-check va cham vao INSERT. No KHONG THE commit
-      // duoc vi hang cua holder dang giu unique index, nen day khong phai
-      // "doan thoi gian cho xong" — chi de no kip bat dau.
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 500);
-      });
+      // Khong can sleep co dinh truoc buoc cho: waitForBlockedProjectInsert
+      // tu no da bounded-deadline va chi commit khi request that su bi khoa —
+      // sleep chi la chenh lenh khong can thiet duoi tai (review S5).
       // Commit chi sau khi request that su bi khoa: luc do no nhan 23505 tu
       // `projects_tenant_name_unique` thay vi mot loi 500 khong ten.
       await waitForBlockedProjectInsert(holder);
