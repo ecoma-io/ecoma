@@ -60,6 +60,7 @@
     "pulumi": "3.277.0",
     "reka-ui": "^2.11.0",
     "tailwindcss": "^4.3.3",
+    "ts-node": "^10.9.2",
     "tslib": "^2.3.0",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
