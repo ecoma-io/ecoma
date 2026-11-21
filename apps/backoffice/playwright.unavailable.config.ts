@@ -46,6 +46,12 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       NITRO_PUBLIC_BACKOFFICE_DATA_MODE: 'disabled',
+      // Lane unavailable chỉ cần server HTTP render trang fail-closed, không cần
+      // emulation Workers (getPlatformProxy → wrangler → workerd không có timeout
+      // và có thể treo vĩnh viễn trên CI runner ⇒ F2 flake). Ép nitro dùng preset
+      // `nitro-dev` thay vì `cloudflare-dev` (alias của cloudflare-module trong dev
+      // mode) để không nhét plugin.dev.mjs gọi getPlatformProxy.
+      NITRO_PRESET: 'nitro-dev',
     },
   },
 });
