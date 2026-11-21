@@ -33,7 +33,7 @@ Nx project `@ecoma-io/llm-api`, tags `type:composition`, `scope:llm-api`, `runti
 pnpm nx run @ecoma-io/llm-api:build          # esbuild bundle → build/index.js
 pnpm nx run @ecoma-io/llm-api:lint           # oxlint
 pnpm nx run @ecoma-io/llm-api:typecheck      # tsc --build cho solution (app src/ + spec)
-pnpm nx run @ecoma-io/llm-api:typecheck-db   # tsc --noEmit -p tsconfig.db.json
+pnpm nx run @ecoma-io/llm-api:typecheck   # tsc --build + tsc --noEmit -p tsconfig.db.json
 pnpm nx run llm-gateway-db:db-migrate        # cần DATABASE_URL của ecoma_llm_gateway_migrator (tương tự llm-tenant-db | llm-marketplace-db)
 ```
 

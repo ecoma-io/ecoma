@@ -48,7 +48,7 @@ export interface InternalNonceStore {
    * khi `nowMs < T` và chỉ bị xoá khi `nowMs >= T`. Không có đường nào xoá sớm hơn mốc mà
    * giao thức đã tính (invariant "expiry không xoá trước boundary").
    *
-   * ⚠️ `limit` là **bắt buộc**: prune là lô (`apps/auth/migrations/0010_internal_nonces.sql`
+   * ⚠️ `limit` là **bắt buộc**: prune là lô (`deploys/auth-db/migrations/0010_internal_nonces.sql`
    * — "dọn nonce hết hạn theo lô"), và một `DELETE` không biên trên Worker có thể chạy quá
    * lâu rồi bị kill giữa chừng. Một lô bị kill thì lô sau tiếp tục — tiến độ là số hàng đã
    * xoá, không phải một job "đã xong".

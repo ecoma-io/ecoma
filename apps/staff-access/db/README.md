@@ -4,12 +4,12 @@ Thư mục này là **nguồn sự thật duy nhất** cho schema của `db-staf
 không có `drizzle-kit`, không có generate step: `db-staff-access` là PostgreSQL thuần và
 migration là file SQL thuần.
 
-| Đường dẫn                                                                         | Vai trò                                                              |
-| --------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `migrations/*.sql`                                                                | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.mts`                                                                     | Hằng số và helper dùng chung cho runner và test harness              |
+| Đường dẫn                                                                         | Vai trò                                                                                               |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `deploys/staff-access-db/migrations/*.sql`                                        | Migration authority (02-delivery.md §3a.1), áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.mts`                                                                     | Hằng số và helper dùng chung cho runner và test harness                                               |
 | (`apply.mts` đã retire — cutover #375 chuyển runner về `deploys/staff-access-db`) |
-| `bootstrap.mts`                                                                   | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                 |
+| `bootstrap.mts`                                                                   | CLI bootstrap S1/S2/S3 (staff + assignment + verify)                                                  |
 
 ## `db-staff-access` là greenfield provisioning
 
@@ -49,7 +49,7 @@ không thể giữ `pg_advisory_lock` qua đường đi của Worker. Worker ch�
 `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-staff-access' pnpm nx run @ecoma-io/staff-access-db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-staff-access' pnpm nx run staff-access-db:db-migrate
 ```
 
 | Biến           | Bắt buộc | Mặc định | Ý nghĩa                                                     |
@@ -83,7 +83,7 @@ Không có down-migration. Sai thì **forward-fix**.
 
 ## Provisioning step 1 — những gì migration **không** làm được
 
-⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong `db/migrations/`.**
+⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `deploys/*-db/migrations/`.**
 Cả bốn đều bị chặn bởi đúng một nguyên nhân: `ecoma_staff_access_migrator` chỉ sở hữu
 `db-staff-access`, không sở hữu cluster, không có `CREATEROLE`, và không được có
 (`NOCREATEROLE` là điều kiện để nó không leo thang). Đây là những giới hạn thật của
@@ -223,16 +223,10 @@ echo '{"correlation_id":"…","sub":"sub_…"}' \
 ```
 apps/staff-access/db/
 ├── README.md
-├── migrate.mts           # hằng số + helper dùng chung
-├── (runner migrate hợp đồng sống ở `deploys/staff-access-db` — cutover #375)
-├── bootstrap.mts         # CLI bootstrap S1/S2/S3
-└── migrations/
-    ├── 0001_staff_access_domain.sql   # schema + tables + triggers
-    ├── 0002_roles_and_grants.sql      # ba role + grant + chặn chéo
-    ├── 0003_permission_catalog_seed.sql  # 3 permission read (staff.read, role.read, permission.read)
-    ├── 0004_staff_access_entitlement_outbox.sql
-    ├── 0005_internal_nonces.sql
-    ├── 0006_outbox_settle.sql
-    ├── 0007_permission_catalog_audit_read.sql  # audit.read (permission thứ tư)
-    └── 0008_role_identity_and_assignment_uniqueness.sql  # UNIQUE (kind,name), partial unique assignment (xác thực từ catalog), seed role canonical
+├── migrate.mts           # hằng số + helper dùng chung (đọc SQL authority cho test)
+└── bootstrap.mts         # CLI bootstrap S1/S2/S3
+
+Migration SQL + journal sống ở `deploys/staff-access-db/migrations/` (authority, cutover #375 —
+02-delivery.md §3a.1): 0001_staff_access_domain → 0011 (gồm 0003_permission_catalog_seed,
+0008_role_identity_and_assignment_uniqueness).
 ```

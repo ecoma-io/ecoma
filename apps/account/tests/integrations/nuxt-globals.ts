@@ -5,7 +5,7 @@
  * chạy bằng Vitest (không có Nitro), tên đó là `ReferenceError` đúng ở dòng đầu
  * tiên chạm tới nó. Helper này cung cấp:
  *
- * 1. **Khai báo global** để `tsc -p tsconfig.db.json` (target `typecheck-db`)
+ * 1. **Khai báo global** để `tsc -p tsconfig.db.json` (trong target `typecheck`)
  *    typecheck được các file `server/` mà spec import — không có khai báo này,
  *    `useRuntimeConfig` là `TS2304` và target đỏ trước khi test kịp chạy.
  * 2. **Stub runtime** trả cấu hình do test chỉ định — test đổi object giữa các

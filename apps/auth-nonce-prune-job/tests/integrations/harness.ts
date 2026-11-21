@@ -8,7 +8,7 @@
  * phải nợ kỹ thuật. Hai khác biệt so với bản gốc, cả hai đều bắt buộc bởi chủ thể của
  * suite này:
  *
- *  1. `MIGRATIONS_DIR` trỏ sang `apps/auth/migrations` — migrations của `db-auth` sống
+ *  1. `MIGRATIONS_DIR` trỏ sang `deploys/auth-db/migrations` (authority §3a.1) — migrations của `db-auth` sống
  *     ở app sở hữu database, KHÔNG ở job; đây là đường dẫn FILE (harness đọc và áp nội
  *     dung), không phải import code app→app, nên không tạo cạnh dependency trên project
  *     graph (cùng pattern mà harness PG của `apps/auth/tests/integrations/harness.ts`
@@ -21,7 +21,7 @@
  * với exit 0 (docs/architecture/06-testing.md §6). Mọi thứ Docker ở đây nằm sau dynamic
  * import, và {@link probeDocker} ném lỗi thay vì skip khi probe thất bại.
  *
- * Provisioning theo runbook operator (`apps/auth/migrations/README.md` §"Vai trò của
+ * Provisioning theo runbook operator (`deploys/auth-db/migrations/README.md` §"Vai trò của
  * operator", auth 03-operations.md §3.2), làm bằng superuser — đúng vai trò admin:
  * tạo role (migrator `NOCREATEROLE` không tự tạo được chính mình), grant `CONNECT,
  * CREATE, TEMPORARY` cho migrator, `CONNECT` cho runtime và pruner, rồi `REVOKE
@@ -65,10 +65,11 @@ const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
 /**
- * Thư mục migration thật của `db-auth` — sống ở app sở hữu database (`apps/auth`),
- * không ở job. Đường dẫn file để harness ĐỌC, không phải import (xem JSDoc đầu file).
+ * Thư mục migration thật của `db-auth` — authority tại `deploys/auth-db/migrations`
+ * (02-delivery.md §3a.1), không ở job. Đường dẫn file để harness ĐỌC, không phải
+ * import (xem JSDoc đầu file).
  */
-export const MIGRATIONS_DIR = join(import.meta.dirname, '../../../../apps/auth/migrations');
+export const MIGRATIONS_DIR = join(import.meta.dirname, '../../../../deploys/auth-db/migrations');
 
 /**
  * Thông tin kết nối cho một database `db-auth` đã provision và đã migrate.
@@ -224,7 +225,7 @@ async function applyMigrations(migrator: Client): Promise<void> {
 }
 
 /**
- * Provisioning theo runbook operator (`apps/auth/migrations/README.md` §"Vai trò của
+ * Provisioning theo runbook operator (`deploys/auth-db/migrations/README.md` §"Vai trò của
  * operator"), làm bằng superuser — đúng vai trò admin, không phải migration.
  *
  * ⚠️ Các việc này **không** nằm trong file migration `0001`–`0014`:
@@ -270,7 +271,7 @@ async function provision(superuser: Client): Promise<void> {
 
 /**
  * Dựng container PostgreSQL, provision ba role theo runbook, apply 14 migration thật
- * của `apps/auth/migrations` bằng credential migrator thật, rồi trả về handle.
+ * của `deploys/auth-db/migrations` bằng credential migrator thật, rồi trả về handle.
  *
  * ⚠️ `reuse` **không** bật. Mỗi spec file cần một container sạch: các test assert trên
  * trạng thái database (grant, số hàng) chứ không chỉ trên dữ liệu mình tạo, và

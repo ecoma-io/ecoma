@@ -48,8 +48,9 @@ import { PROTOTYPE_DATA } from '../backoffice-data/prototype-fixture';
 import { backofficeMessages } from './catalogs';
 import { BACKOFFICE_LOCALE_DEFINITIONS } from './locale-registry';
 
-/** Thư mục migration — nơi duy nhất một permission được coi là có thật. */
-const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../db/migrations');
+/** Thư mục migration authority `deploys/backoffice-db/migrations` — nơi duy nhất
+ * một permission được coi là có thật. */
+const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../../deploys/backoffice-db/migrations');
 
 /** Một permission đọc được từ câu `INSERT` của migration seed. */
 type SeededPermission = {

@@ -6,12 +6,12 @@ thuần và migration là file SQL thuần. Cấu trúc và quy ước mirror
 [`apps/account/db/`](../../account/db/README.md) — pattern tham chiếu, không sao
 chép mù.
 
-| Đường dẫn                | Vai trò                                                              |
-| ------------------------ | -------------------------------------------------------------------- |
-| `migrations/*.sql`       | Migration, áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.mts`            | Hằng số và helper dùng chung cho runner và test harness              |
-| (`apply.mts` đã retire)  | Cutover #375 chuyển runner về `deploys/backoffice-db`                |
-| `../tests/integrations/` | Test integration trên PostgreSQL thật (testcontainers)               |
+| Đường dẫn                                | Vai trò                                                                                               |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `deploys/backoffice-db/migrations/*.sql` | Migration authority (02-delivery.md §3a.1), áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.mts`                            | Hằng số và helper dùng chung cho runner và test harness                                               |
+| (`apply.mts` đã retire)                  | Cutover #375 chuyển runner về `deploys/backoffice-db`                                                 |
+| `../tests/integrations/`                 | Test integration trên PostgreSQL thật (testcontainers)                                                |
 
 ## Thứ tự migration hiện tại
 
@@ -100,7 +100,7 @@ HD6), nên không thể giữ `pg_advisory_lock` qua đường đi của Worker.
 dùng `_runtime_` role, và `_runtime_` role không có quyền DDL.
 
 ```sh
-DATABASE_URL='postgresql://…:…@host:5432/db-backoffice' pnpm nx run @ecoma-io/backoffice-db:migrate
+DATABASE_URL='postgresql://…:…@host:5432/db-backoffice' pnpm nx run backoffice-db:db-migrate
 ```
 
 | Biến           | Bắt buộc | Ý nghĩa                                                   |
@@ -135,7 +135,7 @@ Không có down-migration. Sai thì **forward-fix**.
 
 ## Provisioning step 1 — những gì migration **không** làm được
 
-⚠️ Các việc dưới đây phải do admin/owner chạy, không nằm trong `db/migrations/`:
+⚠️ Các việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `deploys/*-db/migrations/`:
 `ecoma_backoffice_migrator` chỉ sở hữu `db-backoffice`, không có `CREATEROLE`
 và không được có.
 
@@ -214,12 +214,8 @@ mềm: enforce thật của SR-014 nằm ở scrubbing tầng app + test (workst
 ```
 apps/backoffice/db/
 ├── README.md
-├── migrate.mts           # hằng số + helper dùng chung
-├── (runner migrate hợp đồng sống ở `deploys/backoffice-db` — cutover #375)
-└── migrations/
-    ├── 0001_backoffice_domain.sql        # staff, permissions, roles, assignments, audit
-    ├── 0002_roles_and_grants.sql         # hai role + grant từng bảng + guard CONNECT
-    ├── 0003_permission_catalog_seed.sql  # seed permission catalog read (drift-proof)
-    ├── 0004_self_elevation_guard.sql     # guard tầng DB chống tự nâng quyền của runtime
-    └── 0005_permission_catalog_integrity.sql  # CHECK id = domain.action (drift-proof naming)
+└── migrate.mts           # hằng số + helper dùng chung (đọc SQL authority cho test)
+
+Migration SQL + journal sống ở `deploys/backoffice-db/migrations/` (authority, cutover #375 —
+02-delivery.md §3a.1): 0001_backoffice_domain → 0006_bff_sessions.
 ```

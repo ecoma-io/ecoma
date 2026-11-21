@@ -18,7 +18,7 @@ Ranh giới context tại system level → [`docs/architecture/01-architecture.m
 
 ## Hiện trạng
 
-Endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `apps/auth/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. `auth` **không** lưu private key trong `db-auth` — private key là Worker Secret `AUTH_SIGNING_KEY`; database chỉ giữ metadata của key.
+Endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `deploys/auth-db/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. `auth` **không** lưu private key trong `db-auth` — private key là Worker Secret `AUTH_SIGNING_KEY`; database chỉ giữ metadata của key.
 
 ## Documents
 

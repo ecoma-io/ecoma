@@ -61,7 +61,7 @@ export function isStaffAccessStaffStatus(value: unknown): value is StaffAccessSt
  *
  * `suspended` con duong quay lai `active`; `terminated` khong co transition
  * nao di ra o tang domain. CHECK/trigger cua migration
- * (`apps/staff-access/db/migrations/0001_staff_access_domain.sql`) va tang
+ * (`deploys/staff-access-db/migrations/0001_staff_access_domain.sql`) va tang
  * application deu neo vao cung tap nay.
  */
 export function isTerminalStaffAccessStatus(status: StaffAccessStaffStatus): boolean {

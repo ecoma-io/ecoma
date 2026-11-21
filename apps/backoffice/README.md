@@ -16,7 +16,7 @@ Nx project `@ecoma-io/backoffice`, tags `type:composition`, `scope:backoffice`, 
 - **Auth flow** (`server/api/auth/`): `GET /api/auth/login` khởi Authorization Code Flow + PKCE, `GET /api/auth/callback` đổi code lấy token, `POST /api/auth/logout` thu hồi phiên (idempotent 204).
 - **BFF read** (`server/api/`): `GET /api/me` và `/api/onboarding-status` qua `requirePrincipal`; `/api/staff`, `/api/roles`, `/api/permissions`, `/api/entitlements`, `/api/audit` qua `withReadEnforcement` (`server/read-route.ts` — principal + permission catalog + audit trước khi trả dữ liệu); catch-all `/api/[...path]` và entry `/api` trả 404 để path lạ không rơi vào SPA fallback.
 - **Middleware authn** (`server/middleware/authn.ts`): ranh giới chặn là `/api/**` — đọc cookie `__Host-backoffice-session`, load phiên từ `db-backoffice` theo `id_hash = SHA-256(id)` (bảng `bff_sessions`), verify access token offline ES256; thiếu phiên → 401, dependency hỏng → 503, fail-closed.
-- **Persistence `db-backoffice`** (`db/`): 6 migration SQL thuần dưới `db/migrations/` — `0001` bảng domain (`staff`, `permissions`, `roles`, `role_permissions`, `role_assignments`, `authorization_audit`), `0002` grant theo bảng, `0003` seed permission catalog, `0004` guard tự nâng quyền, `0005` guard integrity catalog, `0006` `bff_sessions`/`bff_login_flows`; runtime role `ecoma_backoffice_runtime` chỉ DML hạn chế.
+- **Persistence `db-backoffice`** (`db/`): 6 migration SQL thuần dưới `deploys/backoffice-db/migrations/` (authority) — `0001` bảng domain (`staff`, `permissions`, `roles`, `role_permissions`, `role_assignments`, `authorization_audit`), `0002` grant theo bảng, `0003` seed permission catalog, `0004` guard tự nâng quyền, `0005` guard integrity catalog, `0006` `bff_sessions`/`bff_login_flows`; runtime role `ecoma_backoffice_runtime` chỉ DML hạn chế.
 - **Integration** qua Service Binding khai trong `wrangler.jsonc` (`services`): `ACCOUNT_SERVICE` → `ecoma-account-bridge` (displayName qua contract `GET /internal/account/profiles`, envelope HMAC) và `STAFF_ACCESS_SERVICE` → `ecoma-staff-access`; trên lane local Node, `STAFF_ACCESS_SERVICE` được mount bởi Nitro plugin `server/plugins/staff-access-service-shim.ts` từ `NUXT_BACKOFFICE_STAFF_ACCESS_SERVICE_URL` do `deploys/backoffice-deploy` cấp.
 - **Gating dữ liệu UI** (`app/backoffice-data/`): `NITRO_PUBLIC_BACKOFFICE_DATA_MODE` nhận `prototype` (fixture client-side) hoặc `realtime`; giá trị khác → trạng thái `unavailable` (fail-closed). Staging khai `realtime`, production khai `disabled`.
 - **Health/readiness**: `GET /health` và `GET /ready` (`server/routes/`).
@@ -34,9 +34,9 @@ Nx project `@ecoma-io/backoffice`, tags `type:composition`, `scope:backoffice`, 
 pnpm nx run @ecoma-io/backoffice:serve          # nuxt dev — devServer port 4201
 pnpm nx run @ecoma-io/backoffice:lint
 pnpm nx run @ecoma-io/backoffice:typecheck      # nuxt typecheck (vue-tsc)
-pnpm nx run @ecoma-io/backoffice:typecheck-db   # tsc cho db/
+pnpm nx run @ecoma-io/backoffice:typecheck   # nuxt typecheck + tsc cho db/
 pnpm nx run @ecoma-io/backoffice:build          # nuxt build — preset cloudflare-module
-pnpm nx run @ecoma-io/backoffice-db:migrate     # áp migration (runner.mts adopt && migrate) — cần DATABASE_URL migrator
+pnpm nx run backoffice-db:db-migrate     # áp migration (runner.mts adopt && migrate) — cần DATABASE_URL migrator
 ```
 
 - Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4201); Nitro config riêng ở `nitro.config.ts` (preset `cloudflare-module`, alias `pg-native`).

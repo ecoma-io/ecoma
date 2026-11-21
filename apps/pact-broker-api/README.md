@@ -33,7 +33,7 @@ Nx project `@ecoma-io/pact-broker-api`, tags `type:composition`, `scope:pact`, `
 pnpm nx run @ecoma-io/pact-broker-api:build                        # esbuild → dist/main.js
 pnpm nx run @ecoma-io/pact-broker-api:lint
 pnpm nx run @ecoma-io/pact-broker-api:typecheck                    # tsc --build (phần TS)
-pnpm nx run @ecoma-io/pact-broker-api:typecheck-db                 # tsc --noEmit -p tsconfig.db.json
+pnpm nx run @ecoma-io/pact-broker-api:typecheck   # tsc --build + tsc --noEmit -p tsconfig.db.json
 pnpm nx run pact-broker-db:db-migrate                              # deploys/pact-broker-db/runner.mts — cần DATABASE_URL migrator (cutover #378)
 pnpm nx run @ecoma-io/pact-broker-api:db:bootstrap                 # db/bootstrap-tenant.mts — tenant canonical `ecoma`
 pnpm nx run @ecoma-io/pact-broker-api:db:provision-machine-token   # db/provision-machine-token.mts
