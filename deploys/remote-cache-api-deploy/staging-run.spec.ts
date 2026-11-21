@@ -1,30 +1,40 @@
 /**
  * Unit tests của engine staging (`staging-run.ts`) — pure functions + exec
  * inject, KHÔNG chạy Pulumi thật và KHÔNG đụng backend nào. Port của
- * `platform-deploy/staging-run.spec.ts` (#453) với refs của project này.
+ * `platform-deploy/staging-run.spec.ts` (#453) với refs của project này, cộng
+ * specs cho phần Hyperdrive (pattern pilot #539): origin fail-closed (#349),
+ * id thật vs placeholder, tên config per-database.
  */
 
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
 import {
+  HYPERDRIVE_PLACEHOLDER_ID,
   STAGING_REMOTE_CACHE_BUCKET_NAME,
+  STAGING_REMOTE_CACHE_DATABASE,
+  STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME,
+  STAGING_REMOTE_CACHE_RUNTIME_ROLE,
   appendStagingRecord,
   backendBucket,
   classifyRemoteCacheApiStack,
   ensureStagingStack,
+  isProvisionedHyperdriveConfigId,
   parseResourceChanges,
   parseStagingPhaseArg,
   r2AccountIdFromStateUrl,
+  readHyperdriveConfigId,
   readStagingRevision,
+  resolveStagingHyperdriveOrigin,
   resolveStagingRunEnv,
   type StagingExecDeps,
   type StagingProvisioningRecord,
+  stagingHyperdriveWiringExit,
 } from './staging-run.js';
 
 const cleanup: string[] = [];
@@ -150,6 +160,37 @@ describe('resolveStagingRunEnv', () => {
     // config provider, token thì không).
     expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
     expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+  });
+
+  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
+    const { env } = resolveStagingRunEnv({
+      ...fullSourceEnv(),
+      PATH: '/usr/bin:/bin',
+      HOME: '/home/operator',
+      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
+      GITHUB_TOKEN: 'decoy-github-token',
+    });
+    expect(env.PATH).toBe('/usr/bin:/bin');
+    expect(env.HOME).toBe('/home/operator');
+    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
+    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
+    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
+    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(env.GITHUB_TOKEN).toBeUndefined();
+    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
+    expect(Object.keys(env).toSorted()).toEqual([
+      'AWS_ACCESS_KEY_ID',
+      'AWS_SECRET_ACCESS_KEY',
+      'CLOUDFLARE_API_TOKEN',
+      'ECOMA_PULUMI_STATE_URL_STAGING',
+      'HOME',
+      'PATH',
+      'PULUMI_BACKEND_URL',
+      'PULUMI_CONFIG_PASSPHRASE',
+      'PULUMI_SKIP_UPDATE_CHECK',
+    ]);
   });
 
   it('fails closed listing every missing key at once', () => {
@@ -380,5 +421,191 @@ describe('STAGING_REMOTE_CACHE_BUCKET_NAME', () => {
     expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toMatch(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/u);
     expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toContain('staging');
     expect(STAGING_REMOTE_CACHE_BUCKET_NAME).toContain('remote-cache');
+  });
+});
+
+describe('resolveStagingHyperdriveOrigin', () => {
+  it('fails closed naming every missing origin key and issue #349 when the tunnel is not provisioned', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: undefined,
+        originPort: undefined,
+        originPassword: undefined,
+      }),
+    ).toThrow(/namespace:originHost.*namespace:originPassword[\s\S]*#349/su);
+  });
+
+  it('an empty host counts as missing, not as a value', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: '  ',
+        originPort: undefined,
+        originPassword: 'pw',
+      }),
+    ).toThrow(/namespace:originHost/su);
+  });
+
+  it('an empty or whitespace-only password counts as missing, mirroring the host check', () => {
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: undefined,
+        originPassword: '   ',
+      }),
+    ).toThrow(/namespace:originPassword/su);
+  });
+
+  it('defaults a missing port to 5432 and keeps the per-database identity constants', () => {
+    const origin = resolveStagingHyperdriveOrigin({
+      originHost: 'db-remote-cache-staging.ecoma.internal',
+      originPort: undefined,
+      originPassword: 'origin-password-sentinel',
+    });
+    expect(origin.host).toBe('db-remote-cache-staging.ecoma.internal');
+    expect(origin.port).toBe(5432);
+    expect(origin.database).toBe(STAGING_REMOTE_CACHE_DATABASE);
+    expect(origin.user).toBe(STAGING_REMOTE_CACHE_RUNTIME_ROLE);
+    expect(origin.scheme).toBe('postgres');
+    expect(origin.password).toBe('origin-password-sentinel');
+  });
+
+  it('accepts an explicit port and refuses a non-numeric or out-of-range one', () => {
+    expect(
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: ' 6543 ',
+        originPassword: 'pw',
+      }).port,
+    ).toBe(6543);
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: 'postgres',
+        originPassword: 'pw',
+      }),
+    ).toThrow(/origin port/su);
+    expect(() =>
+      resolveStagingHyperdriveOrigin({
+        originHost: 'h',
+        originPort: '70000',
+        originPassword: 'pw',
+      }),
+    ).toThrow(/origin port/su);
+  });
+});
+
+describe('isProvisionedHyperdriveConfigId', () => {
+  it('accepts a non-placeholder UUID id', () => {
+    expect(isProvisionedHyperdriveConfigId('0af52597-051b-4cba-90c9-e0f6ff6cd5d5')).toBe(true);
+  });
+
+  it('refuses the all-zeros placeholder and every malformed shape', () => {
+    expect(isProvisionedHyperdriveConfigId(HYPERDRIVE_PLACEHOLDER_ID)).toBe(false);
+    expect(isProvisionedHyperdriveConfigId('')).toBe(false);
+    expect(isProvisionedHyperdriveConfigId('not-a-uuid')).toBe(false);
+    expect(isProvisionedHyperdriveConfigId('0AF52597-051B-4CBA-90C9-E0F6FF6CD5D5')).toBe(false);
+    expect(isProvisionedHyperdriveConfigId(`${'0'.repeat(31)}1`)).toBe(false);
+  });
+});
+
+describe('readHyperdriveConfigId', () => {
+  const selection = {
+    environment: 'staging' as const,
+    stackName: 'staging',
+    fullStackRef: 'organization/remote-cache-api-deploy/staging',
+    backendUrl: R2_BACKEND_URL,
+  };
+
+  it('reads stack output hyperdriveConfigId by full stack ref and returns a real id', () => {
+    const { deps, calls } = recordingExec([
+      execResult({ stdout: '0af52597-051b-4cba-90c9-e0f6ff6cd5d5\n' }),
+    ]);
+    expect(readHyperdriveConfigId('/tmp/pd', selection, {}, deps)).toBe(
+      '0af52597-051b-4cba-90c9-e0f6ff6cd5d5',
+    );
+    expect(calls[0]?.args).toEqual([
+      'stack',
+      'output',
+      'hyperdriveConfigId',
+      '--stack',
+      'organization/remote-cache-api-deploy/staging',
+    ]);
+  });
+
+  it('a failing read yields undefined instead of failing a succeeded provision', () => {
+    expect(
+      readHyperdriveConfigId(
+        '/tmp/pd',
+        selection,
+        {},
+        recordingExec([execResult({ status: 1 })]).deps,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('a placeholder-shaped output (all zeros) is refused as undefined, never surfaced as an id', () => {
+    const { deps } = recordingExec([execResult({ stdout: `${HYPERDRIVE_PLACEHOLDER_ID}\n` })]);
+    expect(readHyperdriveConfigId('/tmp/pd', selection, {}, deps)).toBeUndefined();
+  });
+
+  it('a malformed output yields undefined instead of a fabricated id', () => {
+    const { deps } = recordingExec([execResult({ stdout: 'junk' })]);
+    expect(readHyperdriveConfigId('/tmp/pd', selection, {}, deps)).toBeUndefined();
+  });
+});
+
+describe('stagingHyperdriveWiringExit', () => {
+  const selection = {
+    environment: 'staging' as const,
+    stackName: 'staging',
+    fullStackRef: 'organization/remote-cache-api-deploy/staging',
+    backendUrl: R2_BACKEND_URL,
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns 0 and prints the wiring guidance when the stack output carries a real id', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { deps } = recordingExec([
+      execResult({ stdout: '0af52597-051b-4cba-90c9-e0f6ff6cd5d5\n' }),
+    ]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(0);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('hyperdrive config id'));
+  });
+
+  it('fails loud with a non-zero exit naming the missing target id and the blocked wiring step', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { deps } = recordingExec([execResult({ stdout: `${HYPERDRIVE_PLACEHOLDER_ID}\n` })]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('hyperdriveConfigId'));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('env.staging.hyperdrive[0].id'));
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('also fails loud when the stack output read fails outright', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { deps } = recordingExec([execResult({ status: 1 })]);
+    expect(stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, {}, deps)).toBe(1);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('hyperdriveConfigId'));
+  });
+});
+
+describe('STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME', () => {
+  it('names the per-database staging surface within Hyperdrive naming rules', () => {
+    expect(STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME).toMatch(
+      /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/u,
+    );
+    expect(STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME).toContain('staging');
+    expect(STAGING_REMOTE_CACHE_HYPERDRIVE_CONFIG_NAME).toContain('db-remote-cache');
   });
 });

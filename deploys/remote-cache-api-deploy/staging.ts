@@ -13,11 +13,22 @@
  * Mỗi lần chạy ghi MỘT bản ghi evidence JSON mới vào `.staging-evidence/`
  * của project (ngoài Git, `.gitignore`) — hợp đồng provenance §7.3: stack,
  * revision, resource changes, outcome, timestamp. Stack khai R2 bucket object
- * storage thật từ slice #350 (`staging-program.ts`; tên bucket là đề xuất
- * chờ duyệt trong PR) — một lần chạy hiện vẫn dừng TRƯỚC Pulumi khi thiếu
- * prerequisite vận hành (bootstrap backend state + credential, inventory
- * fail-closed của `staging-run.ts`); khi đã đủ điều kiện, evidence ghi kèm
- * resource changes của bucket.
+ * storage (`staging-program.ts`, #514) và HyperdriveConfig của `db-remote-cache`
+ * (scope #350, pattern pilot #539; origin đọc từ stack config và fail-closed
+ * khi chưa có — đường tới origin private là Tunnel/VPC Service của #349) —
+ * một lần chạy hiện vẫn dừng TRƯỚC Pulumi khi thiếu prerequisite vận hành
+ * (bootstrap backend state + credential, inventory fail-closed của
+ * `staging-run.ts`); khi đã đủ điều kiện, evidence ghi kèm resource changes.
+ *
+ * Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` — nguồn
+ * định danh để wiring `env.staging.hyperdrive` của
+ * `apps/remote-cache-api/wrangler.jsonc` (§9.1: id do Pulumi cung cấp,
+ * Wrangler không tạo config; guard `resource-bindings` chặn placeholder). Id
+ * đọc được là surface KẾT QUẢ cho operator fill vào wrangler.jsonc — entry
+ * không tự sửa file đó: wrangler config là tài sản review-able trong Git,
+ * không phải ghi-deploy-time. Id không đọc được (lỗi/placeholder) → FAIL LOUD
+ * (exit != 0, lỗi nêu target id thiếu + wiring step bị chặn): một `up` thành
+ * công PHẢI sinh id thật — exit 0 im lặng sẽ giấu wiring debt (#350).
  *
  * Credential fail-closed (xem `resolveStagingRunEnv`): thiếu bất kỳ khóa
  * environment bắt buộc nào là từ chối TRƯỚC KHI đụng Pulumi — đặc biệt
@@ -28,7 +39,11 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { runStagingPhase, parseStagingPhaseArg } from './staging-run.js';
+import {
+  parseStagingPhaseArg,
+  runStagingPhase,
+  stagingHyperdriveWiringExit,
+} from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
   `[remote-cache-api-deploy] staging refused: "${verb}" is not a staging lifecycle phase — ` +
@@ -50,12 +65,21 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'remote-cache-api-deploy');
+    const { record, recordPath, selection, env } = runStagingPhase(
+      parsed.phase,
+      'remote-cache-api-deploy',
+    );
     console.log(
       `[remote-cache-api-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[remote-cache-api-deploy] evidence record: ${recordPath}`);
+    if (parsed.phase === 'up') {
+      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
+      // `resolveStagingRunEnv` đã chạy ĐÚNG MỘT lần trong `runStagingPhase`,
+      // entry không gọi lại (env không đổi giữa các lần gọi).
+      return stagingHyperdriveWiringExit('remote-cache-api-deploy', selection, env);
+    }
     return 0;
   } catch (error) {
     console.error(
