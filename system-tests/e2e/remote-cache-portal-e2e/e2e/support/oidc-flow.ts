@@ -232,6 +232,10 @@ export async function performBrowserLogin(
     requestFailed,
     describeStuckState: () => describeStuckState(page),
     readOtp: params.readOtp,
+    // Mã vừa nộp ở trên — mốc so sánh của vòng resend trong recovery
+    // `login-code-invalid` (resend bị cooldown 60s chặn trả lại mã cũ —
+    // run 44784071601).
+    submittedOtp: otp,
     recoverFromDeadPage: relogin.run,
   });
   await continueTarget.click();
