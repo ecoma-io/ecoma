@@ -601,6 +601,7 @@ describe('database enforcement of domain invariants', () => {
 
   it('permissions: a retired entry is terminal and cannot be revived', async () => {
     const migrator = await db.asMigrator();
+    let restoreError: unknown;
     try {
       // ADR-0010 insert-then-retire: retire một entry trước (UPDATE active →
       // retired là đường hợp lệ duy nhất), rồi thử hồi sinh — retired quay lại
@@ -617,18 +618,55 @@ describe('database enforcement of domain invariants', () => {
     } finally {
       // Khôi phục trạng thái seed: entry này là dữ liệu catalog của các test
       // khác trong cùng container; phục hồi bằng UPDATE retired → active thì
-      // không được, nên dùng đường xóa-ghi (migrator sở hữu bảng).
-      await migrator
-        .query(`DELETE FROM staff_access.permissions WHERE id = 'permission.read'`)
-        .catch(() => undefined);
-      await migrator
-        .query(
-          `INSERT INTO staff_access.permissions (id, domain, action, status)
-           VALUES ('permission.read', 'permission', 'read', 'active')`,
-        )
-        .catch(() => undefined);
-      await migrator.end();
+      // không được (trigger), mà DELETE trần cũng chết ở FK — migration 0008
+      // seed `permission.read` vào role canonical, nên phải gỡ đúng row
+      // `role_permissions` tham chiếu trước (pattern bootstrap-superadmin).
+      // Lỗi khôi phục không được nuốt: catalog hỏng làm đỏ cả container, phải
+      // ném ra.
+      try {
+        const superuser = await db.connect();
+        try {
+          const { rows } = await superuser.query<{ id: string }>(
+            `SELECT id FROM staff_access.roles WHERE kind = 'system' AND name = 'system-administrator'`,
+          );
+          const roleId = rows[0]?.id;
+          // no-unsafe-finally: khong throw trong try co finally — gan loi vao
+          // bien va return, catch ben ngoai se gan vao restoreError.
+          if (roleId === undefined) {
+            restoreError = new Error(
+              'system-administrator role not found; cannot restore permission.read catalog state',
+            );
+          } else {
+            await superuser.query(
+              `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'permission.read'`,
+              [roleId],
+            );
+            await superuser.query(
+              `DELETE FROM staff_access.permissions WHERE id = 'permission.read'`,
+            );
+            await superuser.query(
+              `INSERT INTO staff_access.permissions (id, domain, action, status)
+               VALUES ('permission.read', 'permission', 'read', 'active')`,
+            );
+            await superuser.query(
+              `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+               VALUES ($1, 'permission.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+              [roleId],
+            );
+          }
+        } finally {
+          await superuser.end();
+        }
+      } catch (error) {
+        restoreError = error;
+      }
+      // end() cua migrator khong duoc de phep che loi restoreError goc.
+      await migrator.end().catch((endError: unknown) => {
+        if (restoreError === undefined) restoreError = endError;
+      });
     }
+    // Ném sau finally để không che lỗi gốc của test (no-unsafe-finally).
+    if (restoreError !== undefined) throw restoreError;
   });
 
   it('entitlements: revision is monotonic — it bumps on UPDATE and refuses to go back', async () => {
