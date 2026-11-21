@@ -178,8 +178,9 @@ describe('auditResourceBindings', () => {
 
 describe('the committed apps/account/wrangler.jsonc contract (real file)', () => {
   // Hợp đồng §9.1 chốt bằng file thật: DB_ACCOUNT khai hyperdrive top level
-  // với id placeholder toàn số 0, không env nào khai lại — bị chặn ở cả hai
-  // lane cho tới khi provisioning điền id theo từng env.
+  // với id placeholder toàn số 0; env.staging khai lại binding với id rỗng
+  // fail-closed chờ provisioning điền. Cả hai lane vẫn bị chặn cho tới khi id
+  // thật được điền theo từng env (staging: id rỗng vẫn đếm là placeholder).
   //
   // ⚠️ Strip hai pha ở spec (comment rồi trailing comma) thay vì
   // `stripJsoncComments`: bộ đọc dùng chung của repo quét MỘT lượt nên lookahead
@@ -197,17 +198,31 @@ describe('the committed apps/account/wrangler.jsonc contract (real file)', () =>
   const withoutTrailingCommas = withoutComments.replace(/,(\s*[}\]])/gu, '$1');
   const config = parseWranglerConfig(withoutTrailingCommas) as unknown as ResourceBindingConfig;
 
-  it.each(['staging', 'production'] as const)(
-    'blocks the %s lane on the unre-declared and placeholder DB_ACCOUNT hyperdrive binding',
-    (lane) => {
-      const problems = auditResourceBindings(config, lane);
-      const kinds = problems.map((problem) => problem.kind);
-      expect(kinds).toContain('top-level-not-redeclared');
-      expect(kinds).toContain('identifier-placeholder');
-      const redeclaration = problems.find((problem) => problem.kind === 'top-level-not-redeclared');
-      expect(redeclaration).toMatchObject({ resource: 'hyperdrive', binding: 'DB_ACCOUNT' });
-    },
-  );
+  it('blocks the staging lane on the re-declared DB_ACCOUNT hyperdrive binding with an empty placeholder id', () => {
+    const problems = auditResourceBindings(config, 'staging');
+    // Staging khai lại binding nên 'top-level-not-redeclared' hết fire; lane
+    // vẫn bị chặn vì id rỗng fail-closed vẫn đếm là placeholder.
+    expect(problems).toHaveLength(2);
+    const kinds = problems.map((problem) => problem.kind);
+    expect(new Set(kinds)).toEqual(new Set(['identifier-placeholder']));
+    const laneEntry = problems.find((problem) =>
+      problem.message.includes('env.staging.hyperdrive'),
+    );
+    expect(laneEntry).toMatchObject({
+      kind: 'identifier-placeholder',
+      resource: 'hyperdrive',
+      binding: 'DB_ACCOUNT',
+    });
+  });
+
+  it('blocks the production lane on the unre-declared and placeholder DB_ACCOUNT hyperdrive binding', () => {
+    const problems = auditResourceBindings(config, 'production');
+    const kinds = problems.map((problem) => problem.kind);
+    expect(kinds).toContain('top-level-not-redeclared');
+    expect(kinds).toContain('identifier-placeholder');
+    const redeclaration = problems.find((problem) => problem.kind === 'top-level-not-redeclared');
+    expect(redeclaration).toMatchObject({ resource: 'hyperdrive', binding: 'DB_ACCOUNT' });
+  });
 });
 
 describe('auditResourceBindings — null lane env block (fail closed, no crash)', () => {

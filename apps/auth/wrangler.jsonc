@@ -80,4 +80,46 @@
     // key `dev` này (chỉ wrangler dev đọc).
     "upstream_protocol": "https",
   },
+  // --- Staging — Issue #354 ---
+  //
+  // Worker identity staging `stg-ecoma-auth` (02-delivery.md §7.2: identity
+  // `{target}-{slug}`). KHÔNG khai `routes`: hostname staging `auth.ecoma.io.vn`
+  // thuộc route table của Router non-production (A13/MOD1, `02-delivery.md`
+  // §4.2) — mỗi Worker tự gắn Custom Domain là phương án đã loại ở §4.2.
+  //
+  // Hyperdrive binding `HYPERDRIVE` PHẢI khai lại ở từng env (Wrangler không
+  // inherit top-level `hyperdrive` vào named environment — đo trên wrangler
+  // 4.151.0, `02-delivery.md` §4.1 điều 1). `id` là chuỗi rỗng fail-closed cho
+  // tới khi provisioning hạ tầng cung cấp id thật: config staging
+  // `db-auth-staging` do Pulumi của `deploys/auth-deploy` sở hữu (`staging.ts`
+  // của stack đó surface output `hyperdriveConfigId` sau lần `up` xanh đầu
+  // tiên), operator fill giá trị đó vào đây — KHÔNG bao giờ tự bịa id (staging
+  // tuyệt đối không trỏ vào Hyperdrive production, §4.1 điều 5).
+  //
+  // Service binding `ACCOUNT_SERVICE` cũng PHẢI khai lại (Wrangler không
+  // inherit `services` giữa các env): ở staging đích là identity staging của
+  // account — `stg-ecoma-account`, không phải shim local `ecoma-account-bridge`
+  // và không phải Worker production.
+  //
+  // `devOrigin` là origin tất định cho smoke check của pipeline (§7.2), giá trị
+  // theo scheme MOD1 — mirror production `auth.ecoma.io` trên zone
+  // non-production `ecoma.io.vn`.
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-auth",
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "",
+        },
+      ],
+      "services": [
+        {
+          "binding": "ACCOUNT_SERVICE",
+          "service": "stg-ecoma-account",
+        },
+      ],
+      "devOrigin": "https://auth.ecoma.io.vn",
+    },
+  },
 }

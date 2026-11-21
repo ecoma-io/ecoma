@@ -54,11 +54,13 @@
   // `auth → account` qua contract status là **đường xác thực**, không phải đường đọc
   // (`03-operations.md` §4). Wrangler **không** inherit binding vào `env.<lane>` (đo
   // trên `wrangler` 4.151.0: top-level `hyperdrive` không xuất hiện trong
-  // `env.staging`/`env.production`), nên hai làn dưới đây **không** có binding
-  // `DB_ACCOUNT` cho tới khi mỗi `env` tự khai `hyperdrive` của nó (→ `02-delivery.md`
-  // §4.1 · §9.1). `id` đang là placeholder toàn số 0 nên deploy hiện tại fail closed.
-  // Sau khi provisioning, mỗi `env` PHẢI khai Hyperdrive config riêng của nó (staging
-  // tuyệt đối không trỏ vào Hyperdrive production). Thiếu binding ⇒ Worker
+  // `env.staging`/`env.production`), nên mỗi `env` PHẢI tự khai `hyperdrive` của nó
+  // (→ `02-delivery.md` §4.1 · §9.1): `env.staging` đã khai với `id` rỗng
+  // fail-closed — wiring id thật đọc từ stack output của `deploys/account-deploy`
+  // sau lần `up` xanh đầu tiên (xem khối `env` phía dưới); `env.production` sẽ khai
+  // khi lane production được wiring (scope M3). Top-level `id` vẫn là placeholder
+  // toàn số 0 (fail closed cho lane không khai env riêng). Staging tuyệt đối
+  // không trỏ vào Hyperdrive production. Thiếu binding ⇒ Worker
   // môi trường đó fail closed ở `server/routes/ready.get.ts`, chứ không rơi về
   // đường không xác thực.
   //
@@ -126,19 +128,52 @@
   "env": {
     "staging": {
       "name": "stg-ecoma-account",
+      // Hyperdrive binding `DB_ACCOUNT` PHẢI khai lại ở từng env — Wrangler
+      // KHÔNG inherit top-level `hyperdrive` vào named environment (đo trên
+      // wrangler 4.151.0; `02-delivery.md` §4.1 điều 1: đây là gate item đã
+      // ghi trong `deploy-eligibility.jsonc` của project này). `id` là chuỗi
+      // rỗng fail-closed: config staging `db-account-staging` do Pulumi của
+      // `deploys/account-deploy` sở hữu (entry `staging.ts` surface output
+      // `hyperdriveConfigId` sau lần `up` xanh đầu tiên), operator fill giá
+      // trị đó vào đây — KHÔNG bao giờ tự bịa id, staging tuyệt đối không trỏ
+      // vào Hyperdrive production (§4.1 điều 5).
+      "hyperdrive": [
+        {
+          "binding": "DB_ACCOUNT",
+          "id": "",
+        },
+      ],
+      // Service binding `STAFF_ACCESS_SERVICE` cũng PHẢI khai lại (Wrangler
+      // không inherit `services` giữa các env): ở staging đích là identity
+      // staging của staff-access — `stg-ecoma-staff-access`, không phải Worker
+      // production. Binding KHÔNG phải authenticator — mọi request qua nó vẫn
+      // ký envelope HMAC với secret path này (`staffAccessInternalAuthSecret`,
+      // ADR-0033 Quyết định 3).
+      "services": [
+        {
+          "binding": "STAFF_ACCESS_SERVICE",
+          "service": "stg-ecoma-staff-access",
+        },
+      ],
+      // `NITRO_PUBLIC_NO_INDEX` bật cờ noindex staging (điều 1 §4: bề mặt
+      // staging không được index — smoke `root-noindex` của flat app theo
+      // `02-delivery.md` assert header này) — middleware
+      // `server/middleware/no-index.ts` đặt header `X-Robots-Tag: noindex`
+      // khi và chỉ khi giá trị là boolean `true` (`"true"` chuỗi được
+      // `applyEnv` parse qua `destr()` thành `true`); production không khai
+      // biến này nên giữ `false` mặc định. Cơ chế như `apps/backoffice`
+      // (commit #354) và `apps/home`.
+      "vars": {
+        "NITRO_PUBLIC_NO_INDEX": "true",
+      },
       // Origin dùng cho smoke check. KHÔNG phải thuộc tính Wrangler — Wrangler
-      // bo qua nó; nó tồn tại để pipeline delivery tương lai (§7.2) có một
-      // origin tất định cho deploy unit mà không phải suy đoán từ `account_id`
-      // (subdomain `workers.dev` là cấu hình riêng của Cloudflare account,
-      // không suy ra được từ `account_id`).
-      //
-      // **Phải sửa tay sau khi xác minh subdomain thật của account Cloudflare**
-      // (Cloudflare dashboard → Workers & Pages → subdomain, hoặc
-      // `wrangler whoami`). Giá trị dưới đây là *placeholder* và pipeline sẽ
-      // fail closed cho tới khi nó được thay bằng URL thật — đó là chủ ý: một
-      // URL bịa ra sẽ làm smoke fail bằng lý do "DNS không resolve" trong khi
-      // nguyên nhân thật là URL sai từ đầu.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // bo qua nó; nó tồn tại để pipeline delivery (§7.2) có một origin tất
+      // định cho deploy unit. Giá trị theo scheme hostname MOD1
+      // (`02-delivery.md` §4.2, A13): mirror production `account.ecoma.io`
+      // trên zone non-production `ecoma.io.vn`. KHÔNG khai `routes` ở đây:
+      // hostname staging thuộc route table của Router non-production, không
+      // phải Custom Domain per-unit (phương án đã loại ở §4.2).
+      "devOrigin": "https://account.ecoma.io.vn",
       // Bề mặt public của `account` — xem ghi chú cùng khoá ở `apps/home`.
       // App này **phẳng**: không có chiều locale (không `app/pages/[locale]`),
       // không có content collection, chưa có public domain. Khai tường minh
@@ -153,10 +188,11 @@
     },
     "production": {
       "name": "ecoma-account",
-      // Xem ghi chú `devOrigin` ở env staging: cùng lý do, cùng chỗ cần sửa
-      // tay. Production của hai app này chưa có custom domain, nên origin
-      // smoke check của lane production cũng phải đến từ `devOrigin`.
-      "devOrigin": "https://REPLACE-WITH-REAL-SUBDOMAIN.workers.dev",
+      // Origin smoke check theo scheme production của `01-architecture.md` §7.
+      // Lane production là scope M3 (`deploy-eligibility.jsonc` — production
+      // excluded toàn bộ); origin được ghi sẵn để cổng readiness không chặn
+      // placeholder khi M3 wiring.
+      "devOrigin": "https://account.ecoma.io",
       // Cùng bề mặt với staging: khác biệt giữa hai làn là
       // canonical/noindex, không phải tập route. Xem ghi chú `smokeSurface`
       // ở env staging.

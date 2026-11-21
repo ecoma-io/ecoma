@@ -77,6 +77,20 @@ function readEntry(project: string): string {
 }
 
 /**
+ * Thân chương trình Pulumi của lane project — kể từ lane guard #354 (pattern
+ * #453/#539), thân khai resource nằm ở `local-program.ts` và entry `index.ts`
+ * chỉ là guard nạp theo lane; project chưa tách giữ nguyên thân ở `index.ts`.
+ * Pin theo nguồn đọc theo nguồn để ghim không suy yếu khi project tách lane.
+ */
+function readProgramSource(project: string): string {
+  const splitBody = join(ROOT_DIR, 'deploys', project, 'local-program.ts');
+  return readFileSync(
+    existsSync(splitBody) ? splitBody : join(ROOT_DIR, 'deploys', project, 'index.ts'),
+    'utf8',
+  );
+}
+
+/**
  * Bảy deploy unit đóng gói app Nuxt bằng artifact dựng trước (#386, mở rộng
  * cho hai app LLM còn lại qua #427): image COPY `apps/<app>/.output-node/`
  * thay vì build trong image. Các unit khác (WIC, job) không tham gia contract
@@ -361,14 +375,16 @@ describe('shared entry infrastructure', () => {
     // Readiness thuộc resource Pulumi, không thuộc DX: provider chờ healthcheck
     // Docker chuyển `healthy` trước khi Container báo thành công, nên `pulumi up`
     // xanh là bằng chứng serving. Ghim theo nguồn: MỌI `new docker.Container`
-    // long-running trong `deploys/*/index.ts` phải khai `wait: true` kèm
-    // `waitTimeout` — container init/one-shot (`rm: true`, `mustRun: false`)
-    // được miễn vì chúng không có healthcheck và Pulumi chỉ chờ chúng thoát.
-    // Tái xuất hiện health polling trong DX (`docker inspect`health, budget/poll
-    // loop) là đỏ — entry không còn biết Docker health tồn tại.
+    // long-running trong thân chương trình mỗi lane project (`local-program.ts`
+    // sau khi tách lane guard, `index.ts` cho project chưa tách) phải khai
+    // `wait: true` kèm `waitTimeout` — container init/one-shot (`rm: true`,
+    // `mustRun: false`) được miễn vì chúng không có healthcheck và Pulumi chỉ
+    // chờ chúng thoát. Tái xuất hiện health polling trong DX
+    // (`docker inspect`health, budget/poll loop) là đỏ — entry không còn biết
+    // Docker health tồn tại.
     const offenders: string[] = [];
     for (const project of LANE_PROJECTS) {
-      const source = readFileSync(join(ROOT_DIR, 'deploys', project, 'index.ts'), 'utf8');
+      const source = readProgramSource(project);
       for (const block of source.split('new docker.Container(').slice(1)) {
         const isOneShot = /rm:\s*true/u.test(block);
         const hasWait = /wait:\s*true/u.test(block);
@@ -396,10 +412,7 @@ describe('shared entry infrastructure', () => {
     // lời bằng credential runtime", không phải "worker còn sống". Ghim theo
     // nguồn: đổi probe về `/health`, hoặc nới predicate thành `< 500` (một
     // 401/404 từ route probe sẽ được coi là healthy), là đỏ.
-    const source = readFileSync(
-      join(ROOT_DIR, 'deploys', 'staff-access-deploy', 'index.ts'),
-      'utf8',
-    );
+    const source = readProgramSource('staff-access-deploy');
     expect(source).toMatch(
       /fetch\('http:\/\/127\.0\.0\.1:\$\{STAFF_ACCESS_INTERNAL_PORT\}\/ready'\)/u,
     );
@@ -423,7 +436,7 @@ describe('shared entry infrastructure', () => {
     expect(consumer).toMatch(/\['namespace:internalHmacSecret', internalHmacSecret\]/u);
 
     for (const project of ['staff-access-deploy', 'backoffice-deploy'] as const) {
-      const source = readFileSync(join(ROOT_DIR, 'deploys', project, 'index.ts'), 'utf8');
+      const source = readProgramSource(project);
       expect(source, `${project} must inject AUTH_INTERNAL_SECRET`).toMatch(
         /AUTH_INTERNAL_SECRET=\$\{pulumi\.secret\(internalHmacSecret\)\}/u,
       );
@@ -448,10 +461,7 @@ describe('shared entry infrastructure', () => {
     // vẫn chạy bundle cũ — `local-up` xanh nhưng serving code cũ. Ghim theo
     // nguồn: hash cây dist phải đi vào label `io.ecoma.bundle-hash` của
     // container (cùng cơ chế auth-deploy).
-    const source = readFileSync(
-      join(ROOT_DIR, 'deploys', 'staff-access-deploy', 'index.ts'),
-      'utf8',
-    );
+    const source = readProgramSource('staff-access-deploy');
     expect(source).toMatch(/sha256DistTree\(worktreeRoot, 'apps\/staff-access\/dist'\)/u);
     expect(source).toMatch(/label: `\$\{LABEL_PREFIX\}\.bundle-hash`, value: wicBundleHash/u);
   });

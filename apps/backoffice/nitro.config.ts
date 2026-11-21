@@ -47,4 +47,30 @@ export default {
     // `apps/account/server/lib/pg-native.cjs`.
     'pg-native': new URL('./server/lib/pg-native.cjs', import.meta.url).pathname,
   },
+  // Cờ noindex cho môi trường staging (#354) — cùng cơ chế với `apps/home`
+  // (`nitro.config.ts` của home). Chuỗi giá trị đi qua chuỗi env của Workers:
+  // wrangler.jsonc `env.staging.vars.NITRO_PUBLIC_NO_INDEX` → `env` của worker
+  // → `globalThis.__env__` (nitropack cloudflare module handler) → proxy
+  // `process.env` (unenv) → `applyEnv` của Nitro (prefix `NITRO_`, snakeCase)
+  // → `useRuntimeConfig().public.noIndex`. `applyEnv` parse giá trị qua
+  // `destr()` — chuỗi `"true"` thành boolean `true` thật, nên middleware
+  // `server/middleware/no-index.ts` so khớp `=== true` được như thường.
+  // Mặc định `false` (production): middleware chỉ bật header khi giá trị là
+  // `true` tuyệt đối — fail-safe về mặt SEO.
+  //
+  // Khai ở đây (không phải `nuxt.config.ts`) vì khoá này ĐỌC thuần phía
+  // server (middleware Nitro), khác `backofficeDataMode` được client hydrate
+  // — cùng quy ước với home.
+  //
+  // PHẠM VI: cờ chỉ có hiệu lực trên bề mặt Worker-served — shell HTML (route
+  // `/**` của Nitro, kể cả `/`) và mọi route API đều qua middleware. Request
+  // khớp static asset (`_nuxt`, `_fonts`) được asset layer phục vụ thẳng,
+  // KHÔNG invoke Worker nên middleware không chạy; noindex cho bề mặt đó đến
+  // từ file `_headers` mà job deploy staging inject vào artifact (mechanism
+  // thuộc `tools/delivery` — giới hạn đã biết, cùng hình với home).
+  runtimeConfig: {
+    public: {
+      noIndex: false,
+    },
+  },
 };

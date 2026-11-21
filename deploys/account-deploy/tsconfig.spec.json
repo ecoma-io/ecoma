@@ -11,6 +11,9 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
+    // `toSorted` cần `es2023`; base đặt `es2022`. Spec nằm ngoài đường bundle
+    // edge nên được phép cần lib mới hơn (pattern `libs/llm-usage-domain`).
+    "lib": ["es2023"],
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "tsBuildInfoFile": "out-tsc/tsconfig.spec.tsbuildinfo"
@@ -23,6 +26,9 @@
     "vitest.integration.config.mts",
     "scripts.ts",
     "scripts.spec.ts",
+    "peer-ports.spec.ts",
+    "staging-run.ts",
+    "staging-run.spec.ts",
     "tests/**/*.ts"
   ]
 }
