@@ -215,16 +215,21 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
-  // Timeout spawn (kill signal) dat `error` va de `status` null — nem loi
-  // RootlessKit-retryable de vong retry o `startPostgresContainer` thu lai.
-  if (run.error !== undefined || run.status !== 0 || run.stdout.trim() === '') {
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — ném lỗi
+  // RootlessKit-retryable để vòng retry ở `startPostgresContainer` thử lại.
+  if (run.error !== undefined || run.status !== 0 || (run.stdout ?? '').trim() === '') {
     const reason = run.error !== undefined ? run.error.message : `exit ${String(run.status)}`;
     throw new Error(
-      `docker run for the PostgreSQL container failed (${reason}):\n${run.stderr.slice(-1000)}`,
+      `docker run for the PostgreSQL container failed (${reason}):\n${(run.stderr ?? '').slice(-1000)}`,
     );
   }
   const stop = (): void => {
-    spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8', timeout: 60_000 });
+    const rm = spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8', timeout: 60_000 });
+    if (rm.error !== undefined || rm.status !== 0) {
+      console.warn(
+        `Failed to remove container ${name}: ${rm.error?.message ?? `exit ${String(rm.status)}`}`,
+      );
+    }
   };
   try {
     const portOutput = spawnSync('docker', ['port', name, '5432'], {
@@ -235,9 +240,9 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
       throw new Error(`docker port failed for ${name}: ${portOutput.error.message.slice(-500)}`);
     }
     if (portOutput.status !== 0) {
-      throw new Error(`docker port failed for ${name}:\n${portOutput.stderr.slice(-500)}`);
+      throw new Error(`docker port failed for ${name}:\n${(portOutput.stderr ?? '').slice(-500)}`);
     }
-    const lastLine = portOutput.stdout.trim().split('\n').at(-1) ?? '';
+    const lastLine = (portOutput.stdout ?? '').trim().split('\n').at(-1) ?? '';
     const match = /:(\d+)\s*$/u.exec(lastLine);
     if (match === null) {
       throw new Error(`Cannot parse the mapped host port for ${name}: ${lastLine}`);
@@ -260,7 +265,7 @@ async function startPostgresContainerOnce(): Promise<PostgresContainer> {
         timeout: 30_000,
       });
       if (logs.error !== undefined) {
-        return '';
+        throw new Error(`docker logs failed for ${name}: ${logs.error.message.slice(-500)}`);
       }
       // PostgreSQL ghi log ra STDERR — `docker logs` tách stream, đọc cả hai.
       return `${logs.stdout ?? ''}${logs.stderr ?? ''}`;
@@ -298,14 +303,14 @@ function psqlSync(containerName: string, sql: string, targetDatabase: string = A
     ],
     { encoding: 'utf8', timeout: 60_000 },
   );
-  // Timeout spawn (kill signal) dat `error` va de `status` null — bao ly do that.
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — báo lý do thật.
   if (result.error !== undefined) {
     throw new Error(`psql in ${containerName} failed to run: ${result.error.message.slice(-500)}`);
   }
   if (result.status !== 0) {
     throw new Error(
       `psql failed (exit ${String(result.status)}):\n` +
-        redact(result.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+        redact((result.stderr ?? '').slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
     );
   }
 }
@@ -358,10 +363,10 @@ function provisionDatabases(containerName: string): void {
     if (existing.status !== 0) {
       throw new Error(
         `psql failed (exit ${String(existing.status)}):\n` +
-          redact(existing.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+          redact((existing.stderr ?? '').slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
       );
     }
-    if (existing.stdout.trim() !== '1') {
+    if ((existing.stdout ?? '').trim() !== '1') {
       psqlSync(containerName, `CREATE DATABASE "${database}"`);
     }
   }
