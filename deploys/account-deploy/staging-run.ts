@@ -359,8 +359,17 @@ export function ensureStagingStack(
 ): void {
   const init = deps.execFn('pulumi', ['stack', 'init', selection.stackName], projectDir, env);
   if (init.status !== 0) {
-    if (!/already exists/iu.test(init.stderr)) {
-      throw new Error(`pulumi stack init ${selection.stackName} failed:\n${init.stderr}`);
+    // OCR round 4: stderr tuân thủ kiểu luôn là string (ExecResult), nhưng
+    // guard tường minh chặn ép kiểu "undefined" vào regex — lỗi ném ra mang
+    // nguyên giá trị thô thay vì chuỗi "undefined" gây nhiễu chẩn đoán.
+    const initAlreadyExists =
+      typeof init.stderr === 'string' && /already exists/iu.test(init.stderr);
+    if (!initAlreadyExists) {
+      throw new Error(
+        `pulumi stack init ${selection.stackName} failed:\n${
+          typeof init.stderr === 'string' ? init.stderr : String(init.stderr)
+        }`,
+      );
     }
     const select = deps.execFn(
       'pulumi',

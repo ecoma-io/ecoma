@@ -405,6 +405,16 @@ describe('ensureStagingStack', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('an init failure with a non-string stderr throws with the raw value instead of coercing it', () => {
+    // OCR round 4: `RegExp.test(undefined)` ép kiểu thành "undefined" — guard
+    // typeof phải giữ nguyên giá trị thô trong message lỗi.
+    const { deps, calls } = recordingExec([
+      { status: 1, stdout: '', stderr: undefined } as unknown as ExecResult,
+    ]);
+    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(/undefined/u);
+    expect(calls).toHaveLength(1);
+  });
+
   it('both init and select failing throws with both stderr bodies', () => {
     const { deps, calls } = recordingExec([
       execResult({ status: 1, stderr: 'already exists but select also fails' }),
