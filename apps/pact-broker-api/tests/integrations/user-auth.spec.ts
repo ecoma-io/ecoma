@@ -461,41 +461,52 @@ describe(`${PACT_BROKER_DATABASE} user identity path (ADR-0031)`, () => {
   });
 
   it('answers 503 for user tokens when the identity config is absent — machine path unaffected', async () => {
-    resetCachedConfig();
-    const unconfiguredEnv = { HYPERDRIVE: workerEnv['HYPERDRIVE'] };
-    const userToken = await mintToken(privateKey, jwks.issuer, 'user-viewer-sub');
-    const asUser = await reqJson('/pacticipants', { headers: bearer(userToken) }, unconfiguredEnv);
-    expect(asUser.status).toBe(503);
-    expect(asUser.body).toEqual({
-      error: 'Service Unavailable',
-      message: 'User authentication is not configured',
-    });
+    // Reset cuối trong finally: test fail giữa chừng không được để lại cache
+    // unconfigured-identity làm sập các test sau.
+    try {
+      resetCachedConfig();
+      const unconfiguredEnv = { HYPERDRIVE: workerEnv['HYPERDRIVE'] };
+      const userToken = await mintToken(privateKey, jwks.issuer, 'user-viewer-sub');
+      const asUser = await reqJson(
+        '/pacticipants',
+        { headers: bearer(userToken) },
+        unconfiguredEnv,
+      );
+      expect(asUser.status).toBe(503);
+      expect(asUser.body).toEqual({
+        error: 'Service Unavailable',
+        message: 'User authentication is not configured',
+      });
 
-    // Machine path KHÔNG đọc cấu hình user — vẫn phục vụ bình thường.
-    const asMachine = await reqJson(
-      '/pacticipants',
-      { headers: bearer(tenantAToken) },
-      unconfiguredEnv,
-    );
-    expect(asMachine.status).toBe(200);
-
-    resetCachedConfig(); // trả lại cache cho các test sau (env cấu hình đủ).
+      // Machine path KHÔNG đọc cấu hình user — vẫn phục vụ bình thường.
+      const asMachine = await reqJson(
+        '/pacticipants',
+        { headers: bearer(tenantAToken) },
+        unconfiguredEnv,
+      );
+      expect(asMachine.status).toBe(200);
+    } finally {
+      resetCachedConfig(); // trả lại cache cho các test sau (env cấu hình đủ).
+    }
   });
 
   it('answers 503 when the JWKS endpoint is unreachable', async () => {
     const deadIssuer = 'http://127.0.0.1:9'; // port discard không có listener
     const token = await mintToken(privateKey, deadIssuer, 'user-viewer-sub');
     const env = { ...workerEnv, PACT_BROKER_AUTH_ISSUER: deadIssuer };
-    const res = await reqJson('/pacticipants', { headers: bearer(token) }, env);
-    expect(res.status).toBe(503);
-    expect(res.body).toEqual({
-      error: 'Service Unavailable',
-      message: 'Identity provider is unavailable',
-    });
-    // Config được cache theo isolate — dead issuer của test này KHÔNG được
-    // rò sang các test sau (issue #207: tests user-path đầu tiên chạy sau
-    // test này nhận 503 thay vì verify thật nếu cache không được reset).
-    resetCachedConfig();
+    try {
+      const res = await reqJson('/pacticipants', { headers: bearer(token) }, env);
+      expect(res.status).toBe(503);
+      expect(res.body).toEqual({
+        error: 'Service Unavailable',
+        message: 'Identity provider is unavailable',
+      });
+    } finally {
+      // Config được cache theo isolate — dead issuer của test này KHÔNG được
+      // rò sang các test sau (issue #207: tests user-path đầu tiên chạy sau
+      // test này nhận 503 thay vì verify thật nếu cache không được reset).
+      resetCachedConfig();
+    }
   });
 
   it('audits environment.delete on the machine path', async () => {
