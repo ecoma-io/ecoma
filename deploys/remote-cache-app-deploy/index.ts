@@ -49,9 +49,13 @@ if (remoteCacheAppDeployStackLane === 'unknown') {
 }
 // Nạp thân theo lane — specifier `.js` resolvable qua ts-node/esm hooks như
 // mọi import nội bộ của package (`type: "module"`).
-const stagingProgramResult =
+const laneModule =
   remoteCacheAppDeployStackLane === 'staging'
     ? await import('./staging-program.js')
     : await import('./local-program.js');
 
-export default stagingProgramResult;
+// Language host lấy default export của entry làm stack outputs: forward đúng
+// surface phẳng — default của thân staging (`{ hyperdriveConfigId }`), hoặc
+// nguyên namespace khi thân không có default (lane local, các `export const`
+// phẳng). Forward nguyên namespace staging là lồng outputs dưới khoá `default`.
+export default 'default' in laneModule ? laneModule.default : laneModule;
