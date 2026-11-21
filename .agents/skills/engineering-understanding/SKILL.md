@@ -133,8 +133,7 @@ disagree, the document wins.
    Experiment → Modelling → Delivery → Discovery. State which rule matched
    and why each earlier value did not. Classify by the nature of the change,
    never by size or by who performs it; the classification is recorded as the
-   Issue Type per `work-management.md` §2.3, not in a label or a Project
-   field.
+   Issue Type per `work-management.md` §2.3, not in a label.
 8. **Record the unknowns.** For each: what is unknown, why it blocks a
    decision, and what evidence would settle it. Separate _unknown_ from
    _inferred_ and from _verified_. Unknowns that need existing evidence, or a
@@ -164,7 +163,7 @@ disagree, the document wins.
   verified fact or an accepted decision.
 - Choosing an Issue Type because it is convenient, or because a later value
   in the priority order sounds more impressive. §4.1 order is the only rule.
-- Inventing a constraint, a label, a milestone, an assignee, a project field
+- Inventing a constraint, a label, a milestone, an assignee
   or a substitute classification — including GitHub's default Task/Bug/Feature
   types as stand-ins for the five canonical values. Before org configuration
   the `## Loại công việc` body channel is the authorized recording channel;

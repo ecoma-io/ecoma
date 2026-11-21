@@ -23,7 +23,7 @@
      không nêu thêm giá trị Issue Type thứ hai do PR tự duy trì.
      PR không có Issue: xoá số Issue và ghi đúng MỘT giá trị trong năm giá trị canonical
      (Discovery, Modelling, Experiment, Delivery, Remediation) vào dòng dưới — đây là kênh ghi duy nhất
-     của PR trong trường hợp này; không tạo label hay Project field để phân loại.
+     của PR trong trường hợp này; không tạo label để phân loại.
      Định nghĩa và thứ tự ưu tiên: docs/engineering/evolution-process.md §4.1; cách ghi:
      docs/engineering/work-management.md §2.3. -->
 

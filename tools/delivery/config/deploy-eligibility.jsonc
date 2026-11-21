@@ -169,10 +169,6 @@
       "staging": "excluded",
       "reason": "internal developer tooling; runs on workstations and CI, not a deployable runtime",
     },
-    "@ecoma-io/project-management": {
-      "staging": "excluded",
-      "reason": "internal tooling; not a deployable runtime",
-    },
     "@ecoma-io/deployment": {
       "staging": "excluded",
       "reason": "shared deployment library (localServiceHostname and friends); ships inside consuming artifacts",
