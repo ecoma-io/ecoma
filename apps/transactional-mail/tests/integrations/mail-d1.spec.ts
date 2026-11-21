@@ -2825,9 +2825,13 @@ describe('crash window: queue send succeeded, publish state not yet persisted', 
       );
       // Controlled barrier: chờ tới khi send đã được GỌI (command đã vào Queue fake) mà
       // không sleep — quay event loop để publisher chạy tới điểm send thực sự. Helper
-      // module-level giúp đạt consistent-function-scoping.
-      while (queue.sent.length === 0) {
+      // module-level giúp đạt consistent-function-scoping. Có chặn số vòng: nếu publisher
+      // lỗi trước khi kịp gọi send thì vòng lặp treo đến testTimeout — fail nhanh thay vì chờ.
+      for (let i = 0; i < 1000 && queue.sent.length === 0; i += 1) {
         await nextMacrotask();
+      }
+      if (queue.sent.length === 0) {
+        throw new Error('publisher never called queue send within the barrier window');
       }
       // "Kill" publisher: giữ batch promise của lần 1 pending vĩnh viễn — không release,
       // không await, mô phỏng isolate chết ngay sau `QUEUE.send()` trước `markPublished`.
