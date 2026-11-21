@@ -6,7 +6,7 @@
   "devDependencies": {
     "@ecoma-io/deployment": "workspace:*",
     "@ecoma-io/system-tests-support": "workspace:*",
-    "@pact-foundation/pact-cli": "18.10.9",
+    "@pact-foundation/pact-cli": "18.10.10",
     "@playwright/test": "^1.37.0"
   },
   "nx": {
