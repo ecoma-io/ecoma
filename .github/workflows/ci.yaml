@@ -122,10 +122,12 @@ jobs:
       # module: .../nuxt/dist/app/entry.js`; client Nuxt không bao giờ mount
       # (`ssr: false` nên shell rỗng phía server là đúng hành vi). Cùng HEAD trên
       # affected set hẹp thì xanh, nên lỗi gắn với quy mô job chứ không với mã
-      # nguồn. Đã chứng minh: đó là sự kiện thay đổi network topology của runner,
-      # trùng với các project dùng Docker/testcontainers chạy song song trong job.
-      # Task nào tạo ra thay đổi đó thì CHƯA được đo — không có kết luận nhân quả
-      # nào ở đây.
+      # nguồn. Sự kiện thay đổi network topology của runner trùng với các
+      # project dùng Docker/testcontainers chạy song song trong job. Lưu ý cơ
+      # chế CHƯA được kết luận nhân quả: cả hai project browser lane (backoffice,
+      # pact-broker-app) serve production build qua workerd, nhưng dev server
+      # Vite/Nuxt chỉ có ở backoffice — tương quan task-changed là Docker
+      # parallelism, tác nhân cụ thể chưa được đo.
       #
       # Vì vậy hai bước dưới đây chạy tuần tự trong cùng job: bước đầu chạy phần
       # không dùng browser; bước sau chạy riêng hai project dùng Playwright với

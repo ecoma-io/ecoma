@@ -1,13 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CI_WARM_UP_CAP_MS,
   WARM_UP_CAP_MS,
   WARM_UP_MIN_WAIT_MS,
   gotoWithReloadRetry,
+  isNavigationAborted,
+  isNavigationCanceledByAnother,
   remainingWarmUpMs,
   warmUpCapMs,
 } from './browser/support/warm-up';
+import { waitForRouteReady } from './browser/support/prototype';
 
 /**
  * Unit test cho `gotoWithReloadRetry` — logic retry navigation của warm-up
@@ -45,6 +48,67 @@ function abortedError(): Error {
 /** Lỗi thật (không phải abort do reload): network sập giữa navigation. */
 function netError(): Error {
   return new Error('page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:4311/staff');
+}
+
+/** Abort ở dạng "frame bị tháo" — race warm-up chưa được đo, run 44900808358. */
+function detachedError(): Error {
+  return new Error('page.goto: net::ERR_ABORTED; maybe frame was detached?');
+}
+
+/** Cùng dạng frame-detached nhưng tại `page.reload`. */
+function detachedReloadError(): Error {
+  return new Error('page.reload: net::ERR_ABORTED; maybe frame was detached?');
+}
+
+/** Abort ở dạng "huỷ bởi navigation khác" — race đã đo, deadline-bounded. */
+function canceledReloadError(): Error {
+  return new Error(
+    'page.reload: net::ERR_ABORTED: navigation to "http://x/" was canceled by another one',
+  );
+}
+
+/**
+ * Fake `Page` đủ mặt cho `waitForRouteReady`: locator `getByTestId` với kịch bản
+ * từng lượt chờ ("visible" resolve ngay, "timeout" ném TimeoutError sau một lát),
+ * và `reload` với kịch bản từng lượt tương tự.
+ */
+function fakePage(options: {
+  readonly reloads: Array<() => Promise<unknown>>;
+  readonly waitForOutcomes: Array<'visible' | 'timeout'>;
+}): { page: never; reloadCalls: () => number } {
+  let reloadIndex = 0;
+  let waitForIndex = 0;
+
+  const page = {
+    getByTestId: () => ({
+      waitFor: (waitForOptions?: { readonly timeout?: number }) => {
+        const outcome =
+          options.waitForOutcomes[Math.min(waitForIndex, options.waitForOutcomes.length - 1)];
+        waitForIndex += 1;
+
+        if (outcome === 'visible') {
+          return Promise.resolve();
+        }
+
+        return new Promise((_resolve, reject) => {
+          // Tôn trọng `timeout` được truyền (sliceTimeoutMs của waitForRouteReady)
+          // thay vì một giá trị cố định — đúng hợp đồng của Locator.waitFor.
+          setTimeout(() => {
+            const error = new Error('Timeout 3000ms exceeded');
+            error.name = 'TimeoutError';
+            reject(error);
+          }, waitForOptions?.timeout ?? 1_000);
+        });
+      },
+    }),
+    reload: () => {
+      const step = options.reloads[Math.min(reloadIndex, options.reloads.length - 1)];
+      reloadIndex += 1;
+      return step();
+    },
+  };
+
+  return { page: page as never, reloadCalls: () => reloadIndex };
 }
 
 /** Đồng hồ tay: bắt đầu ở 0, `advance` để giả thời gian trôi. */
@@ -148,6 +212,53 @@ describe('gotoWithReloadRetry', () => {
     );
     expect(calls.calls()).toBe(1);
   });
+
+  it('retries goto when the abort reads "maybe frame was detached"', async () => {
+    const calls = fakeGoto([
+      async () => {
+        throw detachedError();
+      },
+      async () => 'response-detached',
+    ]);
+    const page = { goto: calls.goto } as never;
+    const clock = fakeClock();
+
+    const response = await gotoWithReloadRetry(page, '/staff', { now: clock.now });
+
+    expect(response).toBe('response-detached');
+    expect(calls.calls()).toBe(2);
+  });
+
+  it('recognizes a wrapped "Execution context was destroyed" through the cause chain', () => {
+    const wrapped = new Error(
+      'page.evaluate: Execution context was destroyed, most likely because of a navigation',
+    );
+    const top = new Error('Failed to warm up route', { cause: wrapped });
+
+    expect(isNavigationAborted(top)).toBe(true);
+    expect(isNavigationAborted(wrapped)).toBe(true);
+    expect(isNavigationAborted(new Error('something else entirely'))).toBe(false);
+  });
+
+  it('recognizes "Failed to fetch dynamically imported module" as a warm-up race', () => {
+    const loaderError = new Error(
+      'Failed to fetch dynamically imported module: http://127.0.0.1:4311/_nuxt/node_modules/nuxt/dist/app/entry.js',
+    );
+
+    expect(isNavigationAborted(loaderError)).toBe(true);
+  });
+
+  it('keeps the original canceled-by-another-one form as the measured, deadline-bounded race', () => {
+    const error = abortedError();
+
+    expect(isNavigationAborted(error)).toBe(true);
+    expect(isNavigationCanceledByAnother(error)).toBe(true);
+    expect(
+      isNavigationCanceledByAnother(
+        new Error('page.goto: net::ERR_ABORTED; maybe frame was detached?'),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('remainingWarmUpMs', () => {
@@ -199,5 +310,80 @@ describe('warmUpCapMs', () => {
 
   it('selects the CI cap in CI', () => {
     expect(warmUpCapMs(true)).toBe(CI_WARM_UP_CAP_MS);
+  });
+});
+
+describe('waitForRouteReady bounded race retry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('reloads once and recovers when the reload race reads "frame was detached"', async () => {
+    vi.useFakeTimers();
+    const { page, reloadCalls } = fakePage({
+      reloads: [
+        async () => {
+          throw detachedReloadError();
+        },
+        async () => undefined,
+      ],
+      waitForOutcomes: ['timeout', 'visible'],
+    });
+    const promise = waitForRouteReady(page, '/', 30_000);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBeUndefined();
+    // Sau retry, lượt waitFor kế tiếp resolve thành công nên chỉ đúng một reload.
+    expect(reloadCalls()).toBe(1);
+  });
+
+  it('throws after the single bounded retry when the unrecognized race repeats', async () => {
+    vi.useFakeTimers();
+    const { page, reloadCalls } = fakePage({
+      reloads: [
+        async () => {
+          throw detachedReloadError();
+        },
+      ],
+      waitForOutcomes: ['timeout'],
+    });
+    const promise = waitForRouteReady(page, '/', 30_000);
+    // Gắn handler trước khi chạy timers: rejection xảy ra trong lúc timers chạy,
+    // nếu không có handler trước đó sẽ thành unhandled rejection.
+    const outcome = promise.then(
+      () => 'resolved',
+      (error: Error) => error,
+    );
+    await vi.runAllTimersAsync();
+
+    // Một lần reload thử lại + đúng một retry, lần thứ hai ném.
+    expect(reloadCalls()).toBe(2);
+    const error = (await outcome) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toMatch(/hết lượt retry/u);
+  });
+
+  it('keeps the deadline-bounded retry for the measured canceled-by-another race', async () => {
+    vi.useFakeTimers();
+    const { page, reloadCalls } = fakePage({
+      reloads: [
+        async () => {
+          throw canceledReloadError();
+        },
+        async () => {
+          throw canceledReloadError();
+        },
+        async () => undefined,
+      ],
+      waitForOutcomes: ['timeout', 'timeout', 'visible'],
+    });
+    const promise = waitForRouteReady(page, '/', 30_000);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toBeUndefined();
+    // Dạng gốc không tốn lượt retry có giới hạn: hai lần race đều được
+    // deadline-bounded tiếp nhận rồi lượt waitFor kế tiếp resolve — hai reload.
+    expect(reloadCalls()).toBe(2);
   });
 });

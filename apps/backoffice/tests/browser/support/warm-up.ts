@@ -118,7 +118,12 @@ export function remainingWarmUpMs(options: {
  * thành một lần timeout mơ hồ ở test kế tiếp.
  *
  * Lỗi **không phải** abort (mất mạng thật, server sập giữa navigation, ...) được
- * **đẩy lên ngay**: chúng là lỗi thật của app/hạ tầng, giữ hành vi fail-loud.
+ * đẩy lên ngay: chúng là lỗi thật của app/hạ tầng, giữ hành vi fail-loud.
+ *
+ * ⚠️ Các dạng race mở rộng của `isNavigationAborted` (frame detached, context
+ * destroyed, fetch module hỏng) hiện chỉ được `waitForRouteReady` retry **một
+ * lần** theo ý định riêng của nó; `gotoWithReloadRetry` vẫn retry deadline-bounded
+ * mọi dạng vì deadline là giới hạn đủ an toàn chung.
  *
  * Nhận vào `goto` và đồng hồ dưới dạng tham số để unit-test được logic retry mà
  * không cần chạy Playwright (xem `tests/warm-up.spec.ts`).
@@ -157,15 +162,66 @@ export async function gotoWithReloadRetry(
 }
 
 /**
- * `page.goto` ném khi navigation bị huỷ — nhưng **không phải mọi** abort đều do
- * `full-reload` (đóng tab, giả lập offline trong test cũng ném cùng loại lỗi). Playwright
- * không có mã lỗi ổn định để phân biệt, nên phân loại theo đúng nghĩa của lỗi: navigation
- * bị huỷ là khi browser **tự động điều hướng sang URL khác** trong lúc đang bay — đúng
- * điều mà `full-reload` làm, và đúng chữ "navigation to <url> was canceled by another one"
- * của Playwright.
+ * `page.goto`/`page.reload` ném khi navigation bị huỷ — nhưng **không phải mọi**
+ * abort đều do `full-reload` (đóng tab, giả lập offline trong test cũng ném cùng loại lỗi). Playwright
+ * không có mã lỗi ổn định để phân biệt, nên phân loại theo đúng nghĩa của lỗi.
+ *
+ * Ba dạng đã đo được trên CI (run 44900808358, PR #547) đều là **cùng một race
+ * warm-up** — dev server thay trang giữa chừng — dù Playwright diễn đạt khác nhau:
+ *
+ * - `net::ERR_ABORTED` + "was canceled by another one": full-reload huỷ navigation
+ *   đang bay (dạng gốc, issue #224).
+ * - `net::ERR_ABORTED` + "maybe frame was detached": cùng full-reload, nhưng frame
+ *   bị tháo giữa navigation thay vì bị navigation khác vượt.
+ * - "Execution context was destroyed" / "Failed to fetch dynamically imported
+ *   module": `page.evaluate`/loader bị chết giữa chừng vì chính document vừa bị
+ *   full-reload thay thế.
+ *
+ * Khớp trên **chuỗi cause** chứ không chỉ lỗi bọc ngoài: Playwright bọc lỗi gốc
+ * trong nhiều tầng (`page.reload` bọc lỗi của navigation bên trong).
  */
 export function isNavigationAborted(cause: unknown): boolean {
-  const message = cause instanceof Error ? cause.message : String(cause);
+  return errorChainMessages(cause).some(
+    (message) =>
+      (message.includes('net::ERR_ABORTED') &&
+        (message.includes('was canceled by another one') ||
+          message.includes('maybe frame was detached'))) ||
+      message.includes('Execution context was destroyed') ||
+      message.includes('Failed to fetch dynamically imported module'),
+  );
+}
 
-  return message.includes('net::ERR_ABORTED') && message.includes('was canceled by another one');
+/**
+ * Dạng abort "gốc" — full-reload huỷ navigation đang bay bằng một navigation khác.
+ *
+ * `waitForRouteReady` dùng nó để **phân biệt** với các dạng race mới: dạng gốc đã
+ * được đo là lặp theo vòng pre-bundle của Vite nên retry được tới hết deadline,
+ * còn các dạng mới chưa có số đo đó nên chỉ được một lần reload thử lại (xem
+ * `waitForRouteReady`) — retry vô hạn sẽ che lỗi thật.
+ */
+export function isNavigationCanceledByAnother(cause: unknown): boolean {
+  return errorChainMessages(cause).some(
+    (message) =>
+      message.includes('net::ERR_ABORTED') && message.includes('was canceled by another one'),
+  );
+}
+
+/** Gom message của lỗi cùng toàn bộ chuỗi `cause` (giới hạn độ sâu để tránh vòng lặp). */
+function errorChainMessages(cause: unknown): string[] {
+  const messages: string[] = [];
+  let current: unknown = cause;
+
+  while (messages.length < 8) {
+    if (current instanceof Error) {
+      messages.push(current.message);
+      current = current.cause;
+    } else {
+      if (typeof current === 'string' && current !== '') {
+        messages.push(current);
+      }
+      break;
+    }
+  }
+
+  return messages;
 }

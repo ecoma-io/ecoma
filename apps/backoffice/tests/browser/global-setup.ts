@@ -168,7 +168,7 @@ async function warmUpBrowserClient(baseURL: string): Promise<void> {
         // Nói thêm phần trần còn lại: một lượt chờ hết trần phải đọc ra là "hết
         // ngân sách warm-up", không phải "route hỏng" — hai nguyên nhân khác nhau.
         throw new Error(
-          `${route.path} không sẵn sàng sau khi warm-up (đã dùng ${String(Date.now() - phaseStart)} ms / trần ${String(capMs)} ms). Bộ test này chỉ kiểm bề mặt prototype, còn dev server phải chạy với NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype (đặt trong playwright.config.ts). Nếu chế độ đó tắt, app render trạng thái unavailable: không fixture và không banner backoffice-sample-notice — đây là cấu hình, không phải app.`,
+          `${route.path} không sẵn sàng sau khi warm-up (đã dùng ${String(Date.now() - phaseStart)} ms / trần ${String(capMs)} ms). Bộ test này chỉ kiểm bề mặt prototype, còn dev server phải chạy với NITRO_PUBLIC_BACKOFFICE_DATA_MODE=prototype (đặt trong playwright.config.ts). Nếu chế độ đó tắt, app render trạng thái unavailable: không fixture và không banner backoffice-sample-notice — đây là cấu hình, không phải app. Riêng race navigation của Vite (net::ERR_ABORTED / "Execution context was destroyed" / "Failed to fetch dynamically imported module") là nguyên nhân đã biết và có thể hồi phục — waitForRouteReady đã retry có giới hạn; nếu lỗi vẫn nổi lên đây nghĩa là retry đã cạn.`,
           { cause },
         );
       }
