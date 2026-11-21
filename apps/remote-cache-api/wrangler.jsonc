@@ -31,21 +31,66 @@
     },
   ],
   //
-  // KHÔNG có deploy target/staging/production env ở đây: provisioning của
-  // deploy unit thuộc milestone sau, và Wrangler env `staging`/`production`
-  // được thêm khi provision (cùng ghi chú với `apps/pact-broker-api`).
+  // Production env KHÔNG có ở đây: production eligibility là scope M3
+  // (`deploy-eligibility.jsonc` — `production` excluded toàn workspace).
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-remote-cache-api",
   "main": "dist/main.js",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],
-  // KHÔNG có `routes`/`hostname`: hostname chưa được chốt ở docs đích (deploy
-  // unit mới được dựng ở P4.1). Custom domain khai báo cùng staging/production
-  // khi provision.
+  // KHÔNG có `routes`/`hostname` ở top level: hostname là thuộc tính theo môi
+  // trường — staging theo scheme MOD1 qua Router non-production (xem
+  // `env.staging`), production thuộc scope M3.
   "observability": {
     "enabled": true,
   },
   "dev": {
     "port": 4207,
+  },
+  // --- Staging — Worker `stg-ecoma-remote-cache-api`, hostname MOD1
+  // `remote-cache-api.ecoma.io.vn` ---
+  //
+  // Hostname theo scheme MOD1 (`02-delivery.md`): staging public hostname là
+  // subdomain của zone non-production `ecoma.io.vn`, record do `platform-deploy`
+  // suy từ inventory eligibility staging (cùng nguồn với GitHub Environments)
+  // và Router non-production sở hữu route qua Service Binding — unit KHÔNG tự
+  // khai `routes`/custom domain (per-unit Custom Domain đã bị loại ở A13).
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-remote-cache-api",
+      // Binding khai lại theo env (Wrangler không inherit binding giữa các
+      // `env.<lane>`). `id` là chuỗi rỗng CỐ Ý — cùng pattern "chỗ dành" của
+      // top-level: id thật do Pulumi cung cấp sau lần `staging-up` xanh đầu
+      // tiên của `remote-cache-api-deploy` (stack output `hyperdriveConfigId`),
+      // operator điền vào đây; không bao giờ bịa id trong Git (guard
+      // `resource-bindings` chặn id placeholder trước khi deploy).
+      //
+      // ⚠️ **QUERY CACHE OFF — bắt buộc** ở config Hyperdrive được provision
+      // (`db-remote-cache-staging` khai `caching.disabled = true` ở
+      // `deploys/remote-cache-api-deploy/staging-program.ts`), không phải ở
+      // file này — lý do xem ghi chú top-level: cache không invalidate khi
+      // ghi, một API key đã revoke trả về từ cache là lần cấp quyền thứ hai.
+      "hyperdrive": [
+        {
+          "binding": "DB_REMOTE_CACHE",
+          "id": "",
+        },
+      ],
+      // Origin tất định cho smoke check (thuộc tính repo, Wrangler bỏ qua).
+      "devOrigin": "https://remote-cache-api.ecoma.io.vn",
+      // Object storage staging: bucket do chương trình staging của
+      // `remote-cache-api-deploy` provision (`ecoma-remote-cache-staging`).
+      // Worker đọc bộ `S3_*` qua env (cùng tên biến local — `src/config.ts`),
+      // KHÔNG qua binding `r2_buckets` native. Ba giá trị còn lại gắn account
+      // và credential nên KHÔNG nằm trong Git:
+      // - `S3_ENDPOINT` — endpoint path-style R2 `https://<account_id>.r2.cloudflarestorage.com` (`04` R22);
+      // - `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` — token R2 scope đúng một bucket (`04` R23).
+      // Cả ba đặt qua `wrangler secret put` trên Worker `stg-ecoma-remote-cache-api`
+      // (`tools/delivery` worker-secrets — secret không kế thừa giữa các env);
+      // thiếu bất kỳ biến `S3_*` nào → storage `null`, data plane 503 fail-closed.
+      "vars": {
+        "S3_BUCKET": "ecoma-remote-cache-staging",
+      },
+    },
   },
 }
