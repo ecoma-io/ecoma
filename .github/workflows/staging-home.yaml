@@ -122,6 +122,7 @@ jobs:
       origin: https://ecoma.io.vn
       ref: ${{ needs.context.outputs.deploy_sha }}
       smoke-args: '--redirect /=/en --health /health --noindex /en'
+      entry-point: .output/server/index.mjs
     secrets:
       # Làn staging đọc ĐÚNG cặp org secret staging (#548, §6.12) — lane production
       # dùng cặp ECOMA_CLOUDFLARE_PRODUCTION_* tương ứng, không bao giờ tréo cặp.
