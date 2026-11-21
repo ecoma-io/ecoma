@@ -169,7 +169,10 @@ describe('401 before the lookup — Admin API and Application API', () => {
     db.probe.reset();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // ⚠️ Huỷ instance workerd của database test — mỗi `createTestDatabase` là một tiến trình;
+    // không huỷ là rò tiến trình suốt lần chạy (06-testing.md §6: suite tự dọn).
+    await db.dispose();
     resetConfigCacheForTest();
   });
 
