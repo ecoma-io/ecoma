@@ -158,7 +158,43 @@ interface PostgresContainer {
   stop(): void;
 }
 
+/**
+ * Số lần thử `docker run` và khoảng nghỉ tăng dần giữa hai lần.
+ *
+ * Thất bại start **thường là tạm thời**, không phải Docker hỏng: dưới rootless
+ * Docker, nhiều container start song song thi nhau chiếm port host qua
+ * RootlessKit, và người thua nhận
+ * `RootlessKit PortManager.AddPort(): bind: address already in use` — lỗi biến
+ * mất ở lần thử sau. Đã đo được ở các harness testcontainers: run song song ba
+ * project đỏ 3/5 lần vì lỗi này, trong khi từng project riêng lẻ xanh 100%
+ * (pattern `CONTAINER_START_ATTEMPTS` — import chéo deploy unit bị cấm nên
+ * copy nguyên tắc, không copy code).
+ */
+const DOCKER_RUN_ATTEMPTS = 3;
+const DOCKER_RUN_BACKOFF_MS = 1_000;
+
 async function startPostgresContainer(): Promise<PostgresContainer> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= DOCKER_RUN_ATTEMPTS; attempt++) {
+    try {
+      return await startPostgresContainerOnce();
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      // Chỉ retry lỗi tạm thời của daemon (RootlessKit port-bind); lỗi cấu hình
+      // hay lỗi parse port không tự khỏi ở lần sau.
+      if (!message.includes('address already in use')) {
+        throw error;
+      }
+    }
+    await new Promise<void>((done) => {
+      setTimeout(done, DOCKER_RUN_BACKOFF_MS * attempt);
+    });
+  }
+  throw lastError;
+}
+
+async function startPostgresContainerOnce(): Promise<PostgresContainer> {
   const name = `remote-cache-app-it-${String(process.pid)}-${String(Date.now())}`;
   const run = spawnSync(
     'docker',
@@ -177,45 +213,70 @@ async function startPostgresContainer(): Promise<PostgresContainer> {
       '--publish-all',
       POSTGRES_IMAGE,
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', timeout: 60_000 },
   );
-  if (run.status !== 0 || run.stdout.trim() === '') {
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — ném lỗi
+  // RootlessKit-retryable để vòng retry ở `startPostgresContainer` thử lại.
+  if (run.error !== undefined || run.status !== 0 || (run.stdout ?? '').trim() === '') {
+    const reason = run.error !== undefined ? run.error.message : `exit ${String(run.status)}`;
     throw new Error(
-      `docker run for the PostgreSQL container failed (exit ${String(run.status)}):\n${run.stderr.slice(-1000)}`,
+      `docker run for the PostgreSQL container failed (${reason}):\n${(run.stderr ?? '').slice(-1000)}`,
     );
   }
   const stop = (): void => {
-    spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8' });
+    const rm = spawnSync('docker', ['rm', '--force', name], { encoding: 'utf8', timeout: 60_000 });
+    if (rm.error !== undefined || rm.status !== 0) {
+      console.warn(
+        `Failed to remove container ${name}: ${rm.error?.message ?? `exit ${String(rm.status)}`}`,
+      );
+    }
   };
   try {
-    const portOutput = spawnSync('docker', ['port', name, '5432'], { encoding: 'utf8' });
-    if (portOutput.status !== 0) {
-      throw new Error(`docker port failed for ${name}:\n${portOutput.stderr.slice(-500)}`);
+    const portOutput = spawnSync('docker', ['port', name, '5432'], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    if (portOutput.error !== undefined) {
+      throw new Error(`docker port failed for ${name}: ${portOutput.error.message.slice(-500)}`);
     }
-    const lastLine = portOutput.stdout.trim().split('\n').at(-1) ?? '';
+    if (portOutput.status !== 0) {
+      throw new Error(`docker port failed for ${name}:\n${(portOutput.stderr ?? '').slice(-500)}`);
+    }
+    const lastLine = (portOutput.stdout ?? '').trim().split('\n').at(-1) ?? '';
     const match = /:(\d+)\s*$/u.exec(lastLine);
     if (match === null) {
       throw new Error(`Cannot parse the mapped host port for ${name}: ${lastLine}`);
     }
     const port = Number(match[1]);
 
-    // Đợi readiness THẬT: hai probe cách quãng 1.5s — cửa sổ server tạm của
-    // initdb cũng trả pg_isready 0 (cùng lý do với harness pact).
-    const pgIsReady = (database: string): boolean =>
-      spawnSync('docker', ['exec', name, 'pg_isready', '-U', SUPERUSER, '-d', database], {
+    // Đợi readiness THẬT bằng tín hiệu deterministic của chính PostgreSQL: log
+    // "database system is ready to accept connections" xuất hiện LẦN THỨ HAI —
+    // lần thứ nhất là temp server của initdb tắt đi. Double-probe pg_isready
+    // cách quãng 1.5s (bản cũ) là heuristic: dưới tải, cửa sổ temp server có
+    // thể dài hơn 1.5s và cả hai probe đều pass vào server tạm → provision
+    // chết "the database system is shutting down". PostgreSQL ghi log ra
+    // STDERR — `docker logs` tách stream, đọc cả hai.
+    const readLogs = (): string => {
+      // --tail 200: chỉ cần dòng ready gần cuối; đọc toàn bộ log mỗi vòng poll
+      // là overhead tăng tuyến tính với tuổi container. Timeout kích hoạt
+      // `error` (status null) — coi như chưa sẵn sàng để vòng poll thử lại.
+      const logs = spawnSync('docker', ['logs', '--tail', '200', name], {
         encoding: 'utf8',
-      }).status === 0;
+        timeout: 30_000,
+      });
+      if (logs.error !== undefined) {
+        throw new Error(`docker logs failed for ${name}: ${logs.error.message.slice(-500)}`);
+      }
+      // PostgreSQL ghi log ra STDERR — `docker logs` tách stream, đọc cả hai.
+      return `${logs.stdout ?? ''}${logs.stderr ?? ''}`;
+    };
     await waitFor(
-      async () => {
-        if (!pgIsReady(API_DATABASE)) {
-          return false;
-        }
-        await new Promise<void>((done) => {
-          setTimeout(done, 1_500);
-        });
-        return pgIsReady(API_DATABASE);
+      () => {
+        const readyLines =
+          readLogs().split('database system is ready to accept connections').length - 1;
+        return Promise.resolve(readyLines >= 2);
       },
-      { timeoutMs: 120_000, label: 'PostgreSQL readiness (pg_isready x2 across init shutdown)' },
+      { timeoutMs: 120_000, label: 'PostgreSQL readiness (second ready line in docker logs)' },
     );
     return { name, port, stop };
   } catch (error) {
@@ -240,12 +301,16 @@ function psqlSync(containerName: string, sql: string, targetDatabase: string = A
       '-c',
       sql,
     ],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', timeout: 60_000 },
   );
+  // Timeout spawn (kill signal) đặt `error` và để `status` null — báo lý do thật.
+  if (result.error !== undefined) {
+    throw new Error(`psql in ${containerName} failed to run: ${result.error.message.slice(-500)}`);
+  }
   if (result.status !== 0) {
     throw new Error(
       `psql failed (exit ${String(result.status)}):\n` +
-        redact(result.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+        redact((result.stderr ?? '').slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
     );
   }
 }
@@ -288,15 +353,20 @@ function provisionDatabases(containerName: string): void {
         '-c',
         `SELECT 1 FROM pg_catalog.pg_database WHERE datname = '${database}'`,
       ],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', timeout: 60_000 },
     );
+    if (existing.error !== undefined) {
+      throw new Error(
+        `psql in ${containerName} failed to run: ${existing.error.message.slice(-500)}`,
+      );
+    }
     if (existing.status !== 0) {
       throw new Error(
         `psql failed (exit ${String(existing.status)}):\n` +
-          redact(existing.stderr.slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
+          redact((existing.stderr ?? '').slice(-1000), [SUPERUSER_PASSWORD, ROLE_PASSWORD]),
       );
     }
-    if (existing.stdout.trim() !== '1') {
+    if ((existing.stdout ?? '').trim() !== '1') {
       psqlSync(containerName, `CREATE DATABASE "${database}"`);
     }
   }
@@ -440,6 +510,7 @@ function runCliScript(
     cwd: opts.cwd ?? REPO_ROOT,
     env: { ...process.env, ...env },
     encoding: 'utf8',
+    timeout: 300_000,
   });
   if (result.error !== undefined || result.status !== 0) {
     const detail =
