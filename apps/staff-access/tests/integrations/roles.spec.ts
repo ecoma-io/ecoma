@@ -618,14 +618,41 @@ describe('database enforcement of domain invariants', () => {
     } finally {
       // Khôi phục trạng thái seed: entry này là dữ liệu catalog của các test
       // khác trong cùng container; phục hồi bằng UPDATE retired → active thì
-      // không được, nên dùng đường xóa-ghi (migrator sở hữu bảng). Lỗi khôi
-      // phục không được nuốt: catalog hỏng làm đỏ cả container, phải ném ra.
+      // không được (trigger), mà DELETE trần cũng chết ở FK — migration 0008
+      // seed `permission.read` vào role canonical, nên phải gỡ đúng row
+      // `role_permissions` tham chiếu trước (pattern bootstrap-superadmin).
+      // Lỗi khôi phục không được nuốt: catalog hỏng làm đỏ cả container, phải
+      // ném ra.
       try {
-        await migrator.query(`DELETE FROM staff_access.permissions WHERE id = 'permission.read'`);
-        await migrator.query(
-          `INSERT INTO staff_access.permissions (id, domain, action, status)
-           VALUES ('permission.read', 'permission', 'read', 'active')`,
-        );
+        const superuser = await db.connect();
+        try {
+          const { rows } = await superuser.query<{ id: string }>(
+            `SELECT id FROM staff_access.roles WHERE kind = 'system' AND name = 'system-administrator'`,
+          );
+          const roleId = rows[0]?.id;
+          if (roleId !== undefined) {
+            await superuser.query(
+              `DELETE FROM staff_access.role_permissions WHERE role_id = $1 AND permission_id = 'permission.read'`,
+              [roleId],
+            );
+          }
+          await superuser.query(
+            `DELETE FROM staff_access.permissions WHERE id = 'permission.read'`,
+          );
+          await superuser.query(
+            `INSERT INTO staff_access.permissions (id, domain, action, status)
+             VALUES ('permission.read', 'permission', 'read', 'active')`,
+          );
+          if (roleId !== undefined) {
+            await superuser.query(
+              `INSERT INTO staff_access.role_permissions (role_id, permission_id)
+               VALUES ($1, 'permission.read') ON CONFLICT (role_id, permission_id) DO NOTHING`,
+              [roleId],
+            );
+          }
+        } finally {
+          await superuser.end();
+        }
       } catch (error) {
         restoreError = error;
       }

@@ -16,7 +16,7 @@
  * ⚠️ Docker la phu thuoc cung: `globalSetup` probe Docker, vang Docker la do,
  * khong skip (06-testing.md §6).
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { signRequest, type InternalAuthHeaders } from '@ecoma-io/internal-auth-contracts';
 
@@ -225,38 +225,17 @@ async function readAuditLog(): Promise<readonly AuditRow[]> {
 }
 
 /**
- * Cho toi khi backend cua app THAT SU dung lai tren unique index cua
- * `remote_cache.projects` (`wait_event_type = 'Lock'`) — bien mot cuoc dua
- * timing thanh mot diem hen xac dinh: chi commit sau khi request da nam trong
- * `INSERT`, nen nhanh 23505 chac chan duoc chay.
- *
- * Khong co backend dung lai sau ~10s thi nem: im lang bo qua se bien test
- * thanh mot lan assert 409 vo nghia (co the di qua nhanh pre-check).
+ * Cho toi khi request portal THAT SU cham `insertProject` — xem JSDoc cua
+ * `insertProjectGateHit` phia tren. Diem hen dong bo: cham insertProject = da
+ * qua pre-check = da trong `db.begin`; COMMIT cua holder sau diem nay lam
+ * request nhan 23505 tu unique index chac chan.
  */
-async function waitForBlockedProjectInsert(client: import('pg').Client): Promise<void> {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const { rows } = await client.query<{ blocked: string }>(
-      `SELECT count(*)::text AS blocked
-         FROM pg_stat_activity
-        WHERE wait_event_type = 'Lock'
-          AND query LIKE '%INSERT INTO remote_cache.projects%'`,
-    );
-    if (Number(rows[0]?.blocked ?? '0') > 0) return;
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 50);
-    });
+async function waitForBlockedProjectInsert(): Promise<void> {
+  const rendezvous = insertProjectRendezvous;
+  if (rendezvous === null) {
+    throw new Error('the insertProject rendezvous was never armed');
   }
-  // Doi tuong cua buoc cho la "request khong the xong", khong phai mot con so
-  // thoi gian: khong thay backend nao bi khoa thi dung la co gi do sai — nem
-  // kem anh chup de doc duoc, thay vi im lang cho tiep.
-  const snapshot = await client.query<{ pid: number; state: string | null; q: string | null }>(
-    `SELECT pid, state, left(query, 70) AS q FROM pg_stat_activity ORDER BY pid`,
-  );
-  throw new Error(
-    `the portal project insert never blocked on the projects unique index: ${JSON.stringify(
-      snapshot.rows,
-    )}`,
-  );
+  await rendezvous;
 }
 
 async function putCache(
@@ -301,6 +280,42 @@ async function machinePostProject(
   } as unknown as Request);
 }
 
+/**
+ * Co hen dong bo cho test UNIQUE race — xem JSDoc chi tiet tai khai bao
+ * `insertProjectRendezvous` phia duoi.
+ */
+/**
+ * Diem hen dong bo: `armInsertProjectRendezvous()` tao mot deferred; mo phan
+ * mock cua `insertProject` resolve no. Test `await` deferred do TRUOC khi
+ * COMMIT holder — cham insertProject = da qua pre-check (khong thay hang chua
+ * commit cua holder) = da trong `db.begin`, nen COMMIT tu luc do chac chan cho
+ * request nhan 23505 tu `projects_tenant_name_unique`. Await mot deferred thay
+ * vi poll `pg_stat_activity`: sampling khong dam bao bat duoc mot event ngan
+ * khi event loop bi nhiễu (nguyen nhan flake CI cua phien ban poll).
+ */
+let insertProjectRendezvous: Promise<void> | null = null;
+let resolveInsertProjectRendezvous: (() => void) | null = null;
+
+function armInsertProjectRendezvous(): void {
+  insertProjectRendezvous = new Promise<void>((resolve) => {
+    resolveInsertProjectRendezvous = resolve;
+  });
+}
+
+vi.mock('@ecoma-io/remote-cache-infrastructure', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ecoma-io/remote-cache-infrastructure')>();
+  return {
+    ...actual,
+    insertProject: async (
+      tx: Parameters<typeof actual.insertProject>[0],
+      input: Parameters<typeof actual.insertProject>[1],
+    ) => {
+      resolveInsertProjectRendezvous?.();
+      return actual.insertProject(tx, input);
+    },
+  };
+});
+
 describe('portal control plane (integration)', () => {
   let app: Hono<AppEnv>;
   let appWithoutSecret: Hono<AppEnv>;
@@ -316,6 +331,7 @@ describe('portal control plane (integration)', () => {
   });
 
   beforeEach(async () => {
+    armInsertProjectRendezvous();
     await db.truncateData();
   });
 
@@ -397,12 +413,12 @@ describe('portal control plane (integration)', () => {
       // Giu promise duoc handled ke ca khi buoc cho khoa that bai, de mot loi
       // o day khong bi che thanh unhandled rejection.
       void pending.catch(() => undefined);
-      // Khong can sleep co dinh truoc buoc cho: waitForBlockedProjectInsert
-      // tu no da bounded-deadline va chi commit khi request that su bi khoa —
-      // sleep chi la chenh lenh khong can thiet duoi tai (review S5).
-      // Commit chi sau khi request that su bi khoa: luc do no nhan 23505 tu
-      // `projects_tenant_name_unique` thay vi mot loi 500 khong ten.
-      await waitForBlockedProjectInsert(holder);
+      // Diem hen dong bo (thay poll pg_stat_activity — sampling khong bat duoc
+      // event ngan): insertProjectGateHit resolve khi route da qua pre-check va
+      // da trong `db.begin`. Sau diem nay, COMMIT cua holder chac chan lam
+      // request nhan 23505 tu `projects_tenant_name_unique` thay vi mot loi 500
+      // khong ten.
+      await waitForBlockedProjectInsert();
       await holder.query('COMMIT');
     } catch (error) {
       await holder.query('ROLLBACK').catch(() => undefined);
