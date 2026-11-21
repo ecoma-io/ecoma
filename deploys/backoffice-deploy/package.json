@@ -103,6 +103,16 @@
             "dependencies": true
           },
           {
+            "//": "peer-ports.spec.ts đọc trực tiếp nguồn port của peer (app WIC qua wrangler.jsonc; account qua local-program.ts của deploy unit đó) — đổi file peer phải chạy lại test (cache). Edge giữa hai deploy unit là cấm theo bất biến graph (05-code-architecture.md), nên file account chỉ khai inputs cache, không khai implicitDependencies.",
+            "fileset": "{workspaceRoot}/apps/auth/wrangler.jsonc"
+          },
+          {
+            "fileset": "{workspaceRoot}/apps/staff-access/wrangler.jsonc"
+          },
+          {
+            "fileset": "{workspaceRoot}/deploys/account-deploy/local-program.ts"
+          },
+          {
             "json": "{workspaceRoot}/tsconfig.json",
             "fields": [
               "compilerOptions"

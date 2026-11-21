@@ -329,9 +329,12 @@ export function resolveStagingRunEnv(source: NodeJS.ProcessEnv = process.env): S
   // file-passphrase variant (`PULUMI_CONFIG_PASSPHRASE_FILE`) cũng không bao giờ
   // lọt vào env này — env là nguồn passphrase duy nhất của lane staging
   // (per-stack secret), để biến còn sót là CLI đổi thứ tự ưu tiên im lặng.
+  // OCR round 5: `source` là tham số — caller truyền env thiếu PATH/HOME là
+  // spawn chết ENOENT khó chẩn đoán; fallback về process.env giữ path của
+  // chính lane (không rò khóa nào khác) và đúng triết lý fail-closed.
   const env: NodeJS.ProcessEnv = {
-    PATH: source.PATH,
-    HOME: source.HOME,
+    PATH: source.PATH ?? process.env.PATH,
+    HOME: source.HOME ?? process.env.HOME,
     [STAGING_STATE_URL_ENV_KEY]: source[STAGING_STATE_URL_ENV_KEY],
     AWS_ACCESS_KEY_ID: source.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: source.AWS_SECRET_ACCESS_KEY,
@@ -399,14 +402,21 @@ export type StagingResourceChanges = Record<string, number>;
  * fail, và cũng không được bịa số 0.
  */
 export function parseResourceChanges(stdout: string): StagingResourceChanges | undefined {
-  const start = stdout.indexOf('{');
-  if (start < 0) return undefined;
+  // OCR round 5: dòng progress/log trước JSON có thể chứa `{` — thử từng vị
+  // trí `{` và lấy vị trí ĐẦU TIÊN parse được thành JSON, thay vì parse từ vị
+  // trí đầu tiên và mất resourceChanges khi chuỗi đó chưa phải JSON thật.
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(stdout.slice(start));
-  } catch {
-    return undefined;
+  let parseFailed = true;
+  let start = stdout.indexOf('{');
+  while (start >= 0 && parseFailed) {
+    try {
+      parsed = JSON.parse(stdout.slice(start));
+      parseFailed = false;
+    } catch {
+      start = stdout.indexOf('{', start + 1);
+    }
   }
+  if (parseFailed) return undefined;
   const summary = (parsed as { summary?: { resourceChanges?: unknown } }).summary;
   const changes = summary?.resourceChanges;
   if (typeof changes !== 'object' || changes === null) return undefined;
@@ -477,9 +487,11 @@ export function readGitHeadSha(
   // tiếp: unit test với sourceEnv mock phải bất định, và không passthrough toàn
   // bộ env — passphrase/token chỉ được đi đúng đường env của process Pulumi,
   // không rò sang subprocess metadata).
+  // OCR round 5: fallback process.env — sourceEnv là tham số, thiếu PATH/HOME
+  // thì git chết khó chẩn đoán thay vì degrade về `gitSha: null` rõ ràng.
   const result = deps.execFn('git', ['rev-parse', 'HEAD'], cwd, {
-    PATH: sourceEnv.PATH,
-    HOME: sourceEnv.HOME,
+    PATH: sourceEnv.PATH ?? process.env.PATH,
+    HOME: sourceEnv.HOME ?? process.env.HOME,
   });
   if (result.status !== 0) return undefined;
   const sha = result.stdout.trim();
@@ -507,12 +519,18 @@ export interface StagingProvisioningRecord {
  * upload record vào provenance store thay vị trí này). Filename mang
  * timestamp + phase nên chạy lại KHÔNG BAO GIỜ ghi đè record cũ.
  */
+/** Counter phân biệt filename trong cùng process — hợp đồng append-only. */
+let appendCounter = 0;
+
 export function appendStagingRecord(projectDir: string, record: StagingProvisioningRecord): string {
   const dir = join(projectDir, '.staging-evidence');
   mkdirSync(dir, { recursive: true });
+  // OCR round 5: hậu tố counter—hai lần chạy cùng mili-giây + cùng phase/
+  // outcome không bao giờ ghi đè nhau (hợp đồng append-only, không ngoại lệ).
+  appendCounter = (appendCounter + 1) % 10_000;
   const file = join(
     dir,
-    `${record.startedAt.replace(/[:.]/gu, '-')}-${record.phase}-${record.outcome}.json`,
+    `${record.startedAt.replace(/[:.]/gu, '-')}-${record.phase}-${record.outcome}-${String(appendCounter).padStart(4, '0')}.json`,
   );
   writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`, 'utf8');
   return file;

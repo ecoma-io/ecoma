@@ -27,9 +27,10 @@ import { defineEventHandler, setResponseHeader } from 'h3';
  * `"true"`, test chốt hành vi.
  */
 export default defineEventHandler((event) => {
-  // `?.` giữ fail-safe của mệnh đề trên: `public` thiếu (shape config đổi) là
+  // Cả hai `?.` giữ fail-safe của mệnh đề trên: useRuntimeConfig trả thiếu
+  // (đường bất thường — OCR round 5) lẫn `public` thiếu (shape config đổi) là
   // bỏ qua header, không phải TypeError làm hỏng mọi route Worker-served.
-  const noIndex = useRuntimeConfig(event).public?.noIndex;
+  const noIndex = useRuntimeConfig(event)?.public?.noIndex;
   if (noIndex === true) {
     setResponseHeader(event, 'X-Robots-Tag', 'noindex');
   }

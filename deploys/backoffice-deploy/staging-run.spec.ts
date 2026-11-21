@@ -195,6 +195,17 @@ describe('resolveStagingRunEnv', () => {
     ]);
   });
 
+  it('falls back PATH/HOME to process.env when the source env lacks them instead of spawning with undefined', () => {
+    // OCR round 5: env thiếu PATH/HOME không được biến thành spawn ENOENT khó
+    // chẩn đoán — fallback về process.env cho đúng hai khóa đó.
+    const source = fullSourceEnv();
+    delete source.PATH;
+    delete source.HOME;
+    const { env } = resolveStagingRunEnv(source);
+    expect(env.PATH).toBe(process.env.PATH);
+    expect(env.HOME).toBe(process.env.HOME);
+  });
+
   it('fails closed listing every missing key at once', () => {
     const source = fullSourceEnv();
     delete source.PULUMI_CONFIG_PASSPHRASE;
@@ -440,6 +451,13 @@ describe('parseResourceChanges', () => {
     expect(parseResourceChanges(stdout)).toEqual({ update: 1 });
   });
 
+  it('parses the JSON object even when progress noise itself contains a brace', () => {
+    // OCR round 5: parse thử từng vị trí `{` — dòng noise chứa `{` không được
+    // làm mất resourceChanges.
+    const stdout = `progress {"partial":\n${JSON.stringify({ summary: { resourceChanges: { same: 4 } } })}`;
+    expect(parseResourceChanges(stdout)).toEqual({ same: 4 });
+  });
+
   it('returns undefined for malformed output instead of inventing counts', () => {
     expect(parseResourceChanges('not json at all')).toBeUndefined();
     expect(parseResourceChanges('{"summary":{}}')).toBeUndefined();
@@ -511,6 +529,17 @@ describe('appendStagingRecord', () => {
     const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
     expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed', revision: 7 });
   });
+
+  it('two records sharing the same millisecond, phase and outcome never overwrite each other', () => {
+    // OCR round 5: hậu tố counter phân biệt filename — cùng mili-giây vẫn là
+    // hai file, hợp đồng append-only không có ngoại lệ.
+    const projectDir = tempProjectDir();
+    const startedAt = '2026-11-20T01:02:03.000Z';
+    const first = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
+    const second = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
+    expect(first).not.toBe(second);
+    expect(readdirSync(join(projectDir, '.staging-evidence'))).toHaveLength(2);
+  });
 });
 
 describe('readGitHeadSha', () => {
@@ -525,6 +554,21 @@ describe('readGitHeadSha', () => {
     const sha = readGitHeadSha('/tmp/pd', { PATH: '/injected/bin', HOME: '/injected/home' }, deps);
     expect(sha).toBe('a'.repeat(40));
     expect(capturedEnv).toEqual({ PATH: '/injected/bin', HOME: '/injected/home' });
+  });
+
+  it('falls back PATH/HOME to process.env when the injected source env lacks them', () => {
+    // OCR round 5: cùng fallback với env Pulumi — git phải chạy được, không
+    // chết spawn với PATH undefined.
+    let capturedEnv: NodeJS.ProcessEnv | undefined;
+    const deps: StagingExecDeps = {
+      execFn: (_command, _args, _cwd, env) => {
+        capturedEnv = env;
+        return execResult({ stdout: `${'a'.repeat(40)}\n` });
+      },
+    };
+    readGitHeadSha('/tmp/pd', {}, deps);
+    expect(capturedEnv?.PATH).toBe(process.env.PATH);
+    expect(capturedEnv?.HOME).toBe(process.env.HOME);
   });
 
   it('a failing or non-SHA output yields undefined instead of a fabricated sha', () => {
@@ -560,8 +604,9 @@ describe('runStagingPhase evidence-write failure', () => {
       ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
       deployProjectDir: () => {
         // Evidence write phải THẤT BẠI: `.staging-evidence` bị thay bằng một
-        // FILE thường — `mkdirSync(recursive)` thoát nhanh, `writeFileSync` ném
-        // ENOTDIR, đúng đường `catch (recordError)` cần khớp.
+        // FILE thường — `mkdirSync(recursive)` ném EEXIST (không tạo được thư
+        // mục trên đường dẫn đã là file), bị catch vào `catch (recordError)`
+        // và giữ nguyên lỗi Pulumi qua `cause`.
         const dir = tempProjectDir();
         writeFileSync(join(dir, '.staging-evidence'), 'not a directory', 'utf8');
         return dir;
@@ -585,11 +630,39 @@ describe('runStagingPhase evidence-write failure', () => {
         return error as Error & { cause?: unknown };
       }
     })();
-    expect(thrown?.message).toMatch(/pulumi up boom[\s\S]*evidence write failed/u);
-    expect(thrown?.cause).toBeInstanceOf(Error);
-    expect((thrown?.cause as Error | undefined)?.message).toBe('pulumi up boom');
-    vi.doUnmock('@ecoma-io/deployment');
-    vi.resetModules();
+    // OCR round 5: mock phải gỡ kể cả khi một assert nào đó ném — mock rò rỉ
+    // sang test sau là cross-test pollution.
+    try {
+      expect(thrown?.message).toMatch(/pulumi up boom[\s\S]*evidence write failed/u);
+      expect(thrown?.cause).toBeInstanceOf(Error);
+      expect((thrown?.cause as Error | undefined)?.message).toBe('pulumi up boom');
+    } finally {
+      vi.doUnmock('@ecoma-io/deployment');
+      vi.resetModules();
+    }
+  });
+});
+
+describe('lane guard entry contract (index.ts)', () => {
+  it('the lane program bodies never gain a default export (host unwraps it and the local outputs disappear)', () => {
+    // OCR round 5: entry forwards `(mod as { default?: unknown }).default ?? mod`
+    // — một `export default` của lane local sẽ bị language host lấy làm program
+    // result thay vì namespace outputs (các named outputs biến mất). Contract:
+    // local-program chỉ named exports; staging-program có default export là
+    // outputs (cùng ghim với bản `account-deploy`).
+    for (const file of ['local-program.ts', 'staging-program.ts']) {
+      const source = readFileSync(join(import.meta.dirname, file), 'utf8');
+      const stripped = source
+        .replace(
+          /^\/\*[\s\S]*?\*\/\s*/gmu, // block comments
+          '',
+        )
+        .replace(/^\s*\/\/.*$/gmu, ''); // line comments
+      expect(
+        /export\s+default/u.test(stripped),
+        `${file} must not declare a default export (entry-forwarding contract)`,
+      ).toBe(file === 'staging-program.ts');
+    }
   });
 });
 
