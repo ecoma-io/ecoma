@@ -165,6 +165,26 @@ jobs:
           bail: ${{ github.event_name == 'merge_group' }}
           threads: '1'
           exclude: '*,!@ecoma-io/backoffice,!@ecoma-io/pact-broker-app'
+      # F2 diagnostics: the backoffice Playwright lanes tee webServer output to
+      # .playwright-*.log so a hung webServer (e.g. NUXT_B5004 then silence)
+      # still leaves timestamped stdout/stderr as evidence when the runner dies.
+      # CI tee files were missing at upload time on run 44957470610 even though
+      # lane 1 passed — diagnose where they land before re-uploading.
+      - name: Diagnose backoffice Playwright log location
+        if: failure()
+        run: |
+          ls -la apps/backoffice/ | grep playwright || true
+          find . -maxdepth 3 -name '.playwright-*.log' 2>/dev/null || true
+      - name: Upload backoffice Playwright webServer logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: backoffice-playwright-webserver-logs
+          path: |
+            apps/backoffice/.playwright-*.log
+            .playwright-*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Bộ system test (Playwright + Chromium thật) chạy trên local platform stack
   # thật: invocation `nx affected -t system-test -c local` là ĐƯỜNG DUY NHẤT dẫn
