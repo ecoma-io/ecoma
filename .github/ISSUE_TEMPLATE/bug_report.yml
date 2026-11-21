@@ -110,11 +110,3 @@ body:
         - remote-cache
     validations:
       required: false
-
-  - type: markdown
-    attributes:
-      value: |
-        Root issue (Issue không có parent): mọi root issue thuộc Project — membership do reconciliation
-        pipeline duy trì tự động theo §3.2–§3.3 của `docs/engineering/work-management.md`, không cần gắn
-        label hay thao tác nào khi tạo (label `project:track` đã retire). Sub-issue không thuộc Project.
-        Form không biết parentage lúc tạo nên không hỏi ở đây.

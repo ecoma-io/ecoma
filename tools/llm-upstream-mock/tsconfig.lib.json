@@ -10,7 +10,6 @@
     "emitDeclarationOnly": true,
     // Base khai lib es2022; spec/dùng chung quy tắc `unicorn/no-array-sort` của
     // oxlint buộc `Array#toSorted` (ES2023), nên nâng lib riêng tại đây
-    // (tiền lệ `tools/project-management/tsconfig.lib.json`).
     "lib": ["es2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",

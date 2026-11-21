@@ -2,7 +2,7 @@
 
 > **Phạm vi:** Change Specification — đặc tả future target cho một thay đổi introduce/evolve/retire, hai promotion (horizon promotion, canonical promotion), material change, impact classes và quy tắc revalidation khi baseline dịch chuyển.
 >
-> **Không thuộc tài liệu này:** canonical baseline → bốn view tri thức ([`../README.md`](../README.md)) và ADR đã accept · công việc, Milestone, portfolio → [`../engineering/work-management.md`](../engineering/work-management.md) §3–§4 (Project, Milestone) · trạng thái năng lực → [`../engineering/evolution-process.md`](../engineering/evolution-process.md) §5 (trạng thái năng lực) · so sánh target với thực tế → [`../engineering/evolution-process.md`](../engineering/evolution-process.md) §8.1 (reconciliation).
+> **Không thuộc tài liệu này:** canonical baseline → bốn view tri thức ([`../README.md`](../README.md)) và ADR đã accept · công việc, Milestone, portfolio → [`../engineering/work-management.md`](../engineering/work-management.md) §2 và §4 (Issue, Milestone) · trạng thái năng lực → [`../engineering/evolution-process.md`](../engineering/evolution-process.md) §5 (trạng thái năng lực) · so sánh target với thực tế → [`../engineering/evolution-process.md`](../engineering/evolution-process.md) §8.1 (reconciliation).
 
 ## 1. Mục đích
 

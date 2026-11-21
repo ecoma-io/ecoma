@@ -1555,12 +1555,6 @@ importers:
 
   tools/llm-upstream-mock: {}
 
-  tools/project-management:
-    dependencies:
-      citty:
-        specifier: ^0.2.2
-        version: 0.2.2
-
   tools/release-validation: {}
 
   tools/staging-bootstrap: {}

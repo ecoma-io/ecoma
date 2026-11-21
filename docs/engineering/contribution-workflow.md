@@ -2,7 +2,7 @@
 
 > **Phạm vi:** cách developer và coding agent đi từ một yêu cầu tới Issue, thay đổi, PR, merge và reconciliation. Tài liệu này là **cầu nối thực hành** giữa vòng đời bảy bước của [`evolution-process.md`](./evolution-process.md) và các ràng buộc repository trong [`AGENTS.md`](../../AGENTS.md).
 >
-> **Không thuộc tài liệu này:** ý nghĩa của từng bước trong vòng đời → [`evolution-process.md`](./evolution-process.md) §6 · quy tắc Issue/Project/Milestone/PR → [`work-management.md`](./work-management.md) · quy tắc commit, ký commit, PR title, merge queue → [`AGENTS.md`](../../AGENTS.md) · entry point cho người mới → [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+> **Không thuộc tài liệu này:** ý nghĩa của từng bước trong vòng đời → [`evolution-process.md`](./evolution-process.md) §6 · quy tắc Issue/Milestone/PR → [`work-management.md`](./work-management.md) · quy tắc commit, ký commit, PR title, merge queue → [`AGENTS.md`](../../AGENTS.md) · entry point cho người mới → [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 
 Tài liệu này mô tả **hành động và handoff**, không định nghĩa lại process và không mô tả cấu hình GitHub.
 
@@ -150,7 +150,7 @@ Khi `Closes #N` đã đóng Issue tự động, comment reconciliation vẫn b�
 | -------------------------------------------------------------------------------- | -------------------------------------------------- |
 | Ý nghĩa năm Issue Type, vertical slice, capability state, reconciliation         | [`evolution-process.md`](./evolution-process.md)   |
 | Khi nào tạo/tái dùng Issue, điều kiện đóng, PR liên kết Issue                    | [`work-management.md`](./work-management.md)       |
-| Root issue/sub-issue, membership Project (reconciliation pipeline)               | [`work-management.md`](./work-management.md) §3    |
+| Root issue/sub-issue                                                             | [`work-management.md`](./work-management.md) §2.1  |
 | Change Specification: promotion, impact assessment khi material change, template | [`changes/README.md`](../changes/README.md)        |
 | Thứ tự hành động, handoff, chọn validation theo scope                            | Tài liệu này                                       |
 | Ràng buộc kỹ thuật, security, Nx, Cloudflare, database ownership                 | [`AGENTS.md`](../../AGENTS.md)                     |
@@ -167,7 +167,7 @@ Agent thực hiện cùng mười hành động trên, với bốn khác biệt:
 
 1. **Đọc trước khi sửa.** Canonical document và repository instructions có precedence cao hơn skill. Skill chỉ cung cấp cách thực thi cho một Issue Type.
 2. **Dừng và báo** khi thiếu decision cần thiết, khi canonical artifact mâu thuẫn, khi scope thực tế vượt Issue/PR, khi không thu được bằng chứng, hoặc khi có nguy cơ phá invariant hay backward compatibility.
-3. **Không tự mở rộng quyền.** Agent không tự tạo Project/Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
+3. **Không tự mở rộng quyền.** Agent không tự tạo Milestone, không đóng Issue của người khác, không đổi cấu hình GitHub ngoài phạm vi Issue.
 4. **Báo cáo trung thực.** Validation chưa chạy được thì nói rõ; không tuyên bố pass, không tuyên bố `Released` khi chưa có deployment evidence.
 
 Quy tắc chọn skill và escalation đầy đủ → [`AGENTS.md`](../../AGENTS.md) `Workflow`.

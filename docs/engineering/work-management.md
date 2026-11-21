@@ -1,21 +1,21 @@
 # GitHub Work Management
 
-> **Phạm vi:** cách repository dùng GitHub Issue, Project, Milestone và Pull Request để tổ chức công việc kỹ thuật — khi nào tạo một work item, nội dung tối thiểu của nó, và điều kiện đóng.
+> **Phạm vi:** cách repository dùng GitHub Issue, Milestone và Pull Request để tổ chức công việc kỹ thuật — khi nào tạo một work item, nội dung tối thiểu của nó, và điều kiện đóng.
 >
 > **Không thuộc tài liệu này:** vòng đời kỹ thuật, năm loại công việc (Issue Type) và trạng thái năng lực → [`evolution-process.md`](./evolution-process.md) · cách thực hiện một đơn vị công việc → [`contribution-workflow.md`](./contribution-workflow.md) · quy tắc commit, PR title và merge → [`AGENTS.md`](../../AGENTS.md) `Pull requests` · hướng dẫn contributor → [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
 >
 > Tài liệu này quy định **policy**, không phải ảnh chụp cấu hình GitHub. Cấu hình hiện tại phải đọc từ GitHub trước khi dùng (`gh label list`, `gh api repos/<owner>/<repo>/milestones`); một giá trị không đọc được thì không được đoán.
 >
-> **Transition:** §2.3 còn khối _transition_ cho Issue Type (chốt 2026-11-11); đọc khối đó trước khi áp dụng các mục liên quan. Membership Project (§3) đã chuyển đổi xong: không còn ràng buộc chuyển tiếp nào.
+> **Transition:** §2.3 còn khối _transition_ cho Issue Type (chốt 2026-11-11); đọc khối đó trước khi áp dụng các mục liên quan.
 
 ## 1. Nguyên tắc
 
 1. **GitHub là Work Management layer.** Kế hoạch, ưu tiên và thứ tự thực hiện thuộc GitHub; tài liệu canonical giữ specification và quyết định ([`evolution-process.md`](./evolution-process.md) §2, [`docs/AGENTS.md`](../AGENTS.md) §3).
 2. **Một work item, một outcome.** Đơn vị công việc là thứ có thể land bằng một PR và được review độc lập — không phải một bước kỹ thuật bên trong nó.
 3. **Công cụ chỉ chứng minh phần việc của nó.** Issue đóng, PR merge, CI xanh và deploy thành công là bốn sự kiện khác nhau ([`evolution-process.md`](./evolution-process.md) §5.2).
-4. **Không tạo công cụ thứ hai cho cùng một câu hỏi.** Không có file backlog, roadmap hay bảng trạng thái trong `docs/` thay cho Issue, Project và Milestone.
-5. **Không có giá trị mặc định được suy diễn.** Label, Milestone, assignee, Project field chỉ được set sau khi đọc thấy chúng tồn tại.
-6. **Không phải công việc nào cũng cần đủ bốn công cụ.** Issue là bắt buộc cho work item; membership Project theo quy tắc root issue (§3.2); Milestone là tuỳ chọn theo biên delivery (§4).
+4. **Không tạo công cụ thứ hai cho cùng một câu hỏi.** Không có file backlog, roadmap hay bảng trạng thái trong `docs/` thay cho Issue và Milestone.
+5. **Không có giá trị mặc định được suy diễn.** Label, Milestone, assignee chỉ được set sau khi đọc thấy chúng tồn tại.
+6. **Không phải công việc nào cũng cần đủ ba công cụ.** Issue là bắt buộc cho work item; Milestone là tuỳ chọn theo biên delivery (§4).
 
 ## 2. GitHub Issue
 
@@ -44,8 +44,6 @@ Không thoả (1) hoặc (3) nghĩa là chưa đủ định nghĩa: làm rõ tr�
 - **Root issue** (Issue không có parent) quản lý **outcome**: nó cần outcome phát biểu được và điều kiện đóng kiểm được. Khi outcome cần phân rã, các unit là sub-issue của nó.
 - **Sub-issue** (Issue có parent) quản lý **một unit công việc**: nó cần scope chạy được trong một unit — thoả định nghĩa independently trackable ở trên. Root issue không phân rã tự đóng vai trò unit của chính nó.
 
-Root issue thuộc Project; sub-issue không thuộc — quy tắc membership ở §3.2.
-
 ### 2.2 Work item và các loại record khác
 
 Trách nhiệm của công cụ do [`evolution-process.md`](./evolution-process.md) §4.2 quy định. Mục này **không** thêm một trục phân loại mới; nó chỉ giúp nhận ra năm dạng Issue đang tồn tại khi quyết định lấy cái nào làm việc của mình. Các dạng này cùng sống trong GitHub nhưng **không** thay thế nhau. Cột Issue Type cho biết record đó ghi type nào theo §2.3:
@@ -71,7 +69,7 @@ Quy tắc:
 
 Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Remediation** — được định nghĩa tại [`evolution-process.md`](./evolution-process.md) §4.1. Tài liệu này quy định cách ghi chúng; không định nghĩa lại taxonomy hay điều kiện phân loại.
 
-**Issue Type là nguồn classification duy nhất.** Bản chất của thay đổi được ghi bằng **Issue Type** — native metadata của GitHub, đặt được ngay khi tạo Issue (UI hoặc `gh issue create --type`). Sau transition, không tồn tại kênh song song nào: không custom Project field, không field trong Issue body, không label. Label không dùng vì hai hệ classification chồng nhau trên cùng một Issue, và vì type có thể đổi khi hiểu biết thay đổi — label đổi liên tục làm mất lịch sử.
+**Issue Type là nguồn classification duy nhất.** Bản chất của thay đổi được ghi bằng **Issue Type** — native metadata của GitHub, đặt được ngay khi tạo Issue (UI hoặc `gh issue create --type`). Sau transition, không tồn tại kênh song song nào: không field trong Issue body, không label. Label không dùng vì hai hệ classification chồng nhau trên cùng một Issue, và vì type có thể đổi khi hiểu biết thay đổi — label đổi liên tục làm mất lịch sử.
 
 **Issue Type khác issue category.** Category trả lời "đây là loại artifact nào" (label `bug`, `enhancement`, `documentation`); Issue Type trả lời "bản chất thay đổi là gì". Hai trục này không map cho nhau: một `bug` thường là Remediation, nhưng một `bug` chưa từng có behaviour cũng có thể là Delivery; một `documentation` issue có thể là Modelling hoặc Delivery. Không suy Issue Type từ category. GitHub hiện còn cấu hình type mặc định (Task/Bug/Feature) — đó là cấu hình mặc định của GitHub, không phải classification của org, và không được dùng thay cho năm giá trị Issue Type; cấu hình type cấp org là thay đổi cấu hình GitHub (Bước 2 của transition này), không phải policy. Label và issue category không là input của classification: không suy Issue Type từ chúng, và không tạo label hay field có tập giá trị trùng hoặc ánh xạ tới năm giá trị Issue Type.
 
@@ -79,13 +77,13 @@ Năm giá trị canonical — **Discovery, Modelling, Experiment, Delivery, Reme
 
 > **Transition — policy đích so với thực thi hiện tại (chốt 2026-11-11).**
 >
-> 1. **Bước 1 (thay đổi này):** policy only. Org chưa cấu hình năm Issue Type — type của org hiện là cấu hình mặc định của GitHub (Task/Bug/Feature), không phải classification theo policy này; Project và automation chưa thay đổi.
+> 1. **Bước 1 (thay đổi này):** policy only. Org chưa cấu hình năm Issue Type — type của org hiện là cấu hình mặc định của GitHub (Task/Bug/Feature), không phải classification theo policy này.
 > 2. **Bước 2 (work item riêng A):** org cấu hình năm Issue Type Discovery/Modelling/Experiment/Delivery/Remediation. Issue Forms YAML không đặt được native type khi tạo, nên Issue tạo qua form vẫn ghi type bằng kênh tạm thời bên dưới cho tới khi bước 3 hoàn tất.
-> 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, gỡ single-select `Work kind` khỏi Project, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk), audit Project membership cho sub-issue entries. (Automation root-aware đã ship 2026-11-11 — pipeline `project-management`, xem §3.2.)
+> 3. **Bước 3 (work item riêng B — dọn dẹp):** gỡ field work-kind tạm thời khỏi Issue form, retire convention kênh body, migrate các Issue hiện có một cách opportunistically (không bulk).
 >
 > **Thẩm quyền khi lệch nguồn (divergence authority):** theo giai đoạn — (i) **trước Bước 2** (org chưa cấu hình năm Issue Type): dòng `## Loại công việc` trong Issue body là kênh **tạm thời và có thẩm quyền**; các nơi khác ghi lệch thì sửa theo nó. (ii) **Sau Bước 2, trước khi Bước 3 hoàn tất:** native Issue Type là kênh có thẩm quyền; Issue tạo qua form không đặt được native type nên vẫn ghi bằng dòng body — đó là kênh ghi hợp lệ của giai đoạn này cho tới khi được migrate opportunistically (Bước 3); khi một Issue có cả hai kênh mà lệch nhau, native thắng và dòng body được sửa theo nó. (iii) **Sau Bước 3:** native Issue Type là nguồn classification duy nhất; kênh body và dropdown bị retire. Kênh body là mục `Loại công việc` trong Issue body bất kể cấp heading hay hậu tố `(kênh tạm thời)` của form — đối chiếu theo tên mục, không theo literal string. Dropdown `Loại công việc` của Issue form là mặt form của kênh body (nó ghi chính dòng body đó): khi dropdown được dùng, giá trị `## Loại công việc` phải trùng dropdown — hai mặt của một kênh không được ghi lệch nhau. Sau Bước 2, không tạo classification trùng lặp: Issue đã có native type không ghi thêm dòng body, và Issue đã migrate thì dòng body được xoá ở lần cập nhật kế tiếp.
 >
-> **Đóng băng:** single-select `Work kind` của Project (§3.4) hiện tồn tại nhưng bị **đóng băng** — không set giá trị mới — chờ bước 3; còn dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
+> **Đóng băng:** dropdown `Loại công việc` trong Issue form là mặt form của kênh tạm thời `## Loại công việc` (nó ghi dòng body đó), giữ nguyên cho tới khi bước 3 gỡ bỏ.
 >
 > **Missing-type rule (cho work item):** blocker chỉ áp dụng khi work item cần một classification hoặc native GitHub capability không có kênh ghi nào được quy định — giá trị ngoài năm giá trị canonical, hoặc capability không có interim path; trong khi kênh tạm thời còn tồn tại (chưa tới bước 2), dùng kênh đó thay vì block; không tự chế classification thay thế; cũng không thay năm giá trị bằng type mặc định Task/Bug/Feature của GitHub.
 
@@ -151,67 +149,9 @@ Quy tắc:
 - **Không đóng Issue của người khác** khi chưa được uỷ quyền; thêm comment thay vì sửa.
 - **Ledger và precondition tracker** đóng theo điều kiện riêng của chúng, không theo điều kiện của một work item bên trong.
 
-## 3. GitHub Project
-
-### 3.1 Trách nhiệm
-
-Project sở hữu **portfolio visibility**: nhìn nhiều root issue cùng lúc, sắp thứ tự, thấy cái gì đang chờ. Project **không** sở hữu specification, không phải nguồn sự thật về trạng thái capability, và không thay thế Issue, Milestone hay tài liệu canonical ([`evolution-process.md`](./evolution-process.md) §4.2).
-
-Project status **không phải** capability state. `In progress` trên Project không có nghĩa capability đang `Implemented`; `Done` không có nghĩa `Verified` hay `Released`.
-
-### 3.2 Thành viên: root issue, không phải sub-issue
-
-**Policy đích:**
-
-- **Mọi root issue thuộc Project — không chọn lọc, không cần lý do.** Tư cách root issue (Issue không có parent) tự động kéo theo membership; sở hữu outcome (§2.1) là vai trò của root issue, không phải điều kiện phải đáp ứng để được theo dõi.
-- **Sub-issue không thuộc Project.** Sub-issue sở hữu một unit công việc; nó được thấy qua root issue của mình nhờ sub-issues progress native, không cần item riêng.
-- **Parent/child là nguồn sự thật của hierarchy.** Tư cách root/sub suy từ parent/child native — không từ label, không từ field, không từ Milestone.
-- **Issue Type lấy từ native metadata**, không lưu lại bằng custom Project field (§2.3).
-- **Milestone chỉ là delivery commitment** (§4); thuộc Milestone nào không đổi tư cách thành viên Project.
-
-**Thực thi (đã chuyển đổi 2026-11-11):** membership được duy trì bởi reconciliation workflow của repository — pipeline `project-management` (Nx `@ecoma-io/project-management`) chạy audit theo lịch hằng ngày, theo sự kiện vòng đời issue (native `issues` trigger), và apply qua workflow dispatch. Pipeline suy desired membership từ parent/child native cộng các exclusion tường minh khai báo trong policy config colocated với pipeline, so với thực tế Project, rồi thêm/xoá item theo plan đã audit (§3.3). Label `project:track` đã retire: không gắn cho issue mới và đã bỏ khỏi issue đang mở; label object giữ lại vì issue đóng vẫn mang nó trong lịch sử. Filter của native `Auto-add to project` và trạng thái workflow là cấu hình GitHub — đọc từ GitHub, không chép vào tài liệu này (§1). Tìm thấy sub-issue nằm trong Project là **lệch**: pipeline báo trong report; không xoá tay.
-
-### 3.3 Vòng đời membership
-
-Membership được duy trì tự động bởi reconciliation workflow (§3.2): root issue mới vào Project ở kỳ reconcile kế tiếp (sự kiện vòng đời issue, lịch hằng ngày, hoặc dispatch apply); issue hết tư cách root rời Project theo plan của pipeline sau khi audit. Mỗi thay đổi parent/child có thể đổi tư cách root/sub, và membership đổi theo — bởi pipeline, không phải bằng tay.
-
-Agent **không tự quản item**: không tự archive, không tự xoá, không tự thêm item, không gắn/bỏ label `project:track` (retired). **Mọi lệch** (sub-issue nằm trong Project, item trùng, item của issue không còn desired, item lạ không định danh được) xuất hiện trong report của pipeline; kênh sửa lệch là chạy lại pipeline (audit để xem, apply để sửa), không phải thao tác tay trên UI. Chỉnh sửa tay chỉ khi pipeline không chạy được, và phải ghi lại lý do.
-
-| Tình huống                        | Hành vi của pipeline                                           |
-| --------------------------------- | -------------------------------------------------------------- |
-| Root issue được tạo               | Kỳ reconcile kế tiếp thêm item (Status do native workflow đặt) |
-| Root issue được gắn parent        | Không còn là root → item bị remove ở kỳ apply kế tiếp          |
-| Sub-issue bị tách parent          | Trở thành root → được thêm ở kỳ apply kế tiếp                  |
-| Sub-issue chuyển sang parent khác | Vẫn là sub-issue → membership không đổi                        |
-| Issue đóng                        | Item ở lại Project; membership lịch sử                         |
-| Item trùng của cùng issue         | Giữ đúng một item, remove phần thừa                            |
-| Item PR/draft trong Project       | Không bao giờ tự remove — chỉ báo trong report                 |
-
-Quy tắc:
-
-- **Sửa lệch qua pipeline, không qua tay.** Report audit là bằng chứng lệch; apply là cách sửa. Không kết luận lệch từ một lần đọc duy nhất nếu pipeline vừa chạy xong — GitHub Projects cần thời gian truyền bá item mới (đọc lại hoặc đợi kỳ audit sau).
-- **Xoá item chỉ theo plan đã audit của pipeline; archive là quyết định riêng của coordinator**, cần lý do được ghi; không suy ra việc archive từ thay đổi hierarchy.
-- **Membership không phải Project `Status`.** `Done` của Project vẫn không phải capability state (§3.1). Native workflow có thể tự đặt `Status` khi item được thêm, Issue đóng hoặc Pull Request merge — đó là trạng thái của item, không phải capability state. Các field còn lại do coordinator cập nhật theo công việc thực tế; policy này không quy định việc bật hay tắt các workflow đó.
-
-### 3.4 Cấu hình tối thiểu
-
-Một Project mới chỉ cần đúng những thứ sau để dùng được:
-
-| Field    | Loại   | Giá trị                                                                                    |
-| -------- | ------ | ------------------------------------------------------------------------------------------ |
-| `Status` | native | `Todo` · `In Progress` · `Done` (giá trị mặc định của GitHub; đổi tên khi có lý do cụ thể) |
-
-Project đang tồn tại còn single-select `Work kind` — có trước policy này và bị **đóng băng**: không set giá trị mới, deprecated chờ bước dọn dẹp trong khối transition ở §2.3. Không đưa nó vào cấu hình tối thiểu và không tạo field phân loại song song với Issue Type.
-
-Chỉ thêm field khác khi có semantics rõ và có người dùng thật:
-
-- `Priority` chỉ khi có tiêu chí ưu tiên được ghi và có người sắp thứ tự theo nó.
-- Field ngày chỉ khi dùng để trả lời một câu hỏi cụ thể (ví dụ "việc gì đang trễ").
-- Không thêm field chỉ để Project trông đầy đủ. Field không ai cập nhật là nhiễu, không phải cấu trúc.
-
-Cấu hình Project là **work item riêng**, cần outcome được người có thẩm quyền xác nhận. PR đổi policy không tự tạo Project. Điều này áp dụng cả cho việc bật hoặc sửa `Auto-add to project` workflow và cho reconciliation pipeline đang chạy (§3.2): đổi policy config của pipeline hoặc filter của native workflow là thay đổi cấu hình, không phải thay đổi policy.
-
 ## 4. GitHub Milestone
+
+> **Lưu ý đánh số:** §3 (GitHub Project) đã bị retire khi loại bỏ GitHub Projects integration; đánh số §4–§7 giữ nguyên để các tham chiếu chéo từ tài liệu khác vẫn hợp lệ.
 
 Milestone chỉ dùng cho **một delivery outcome có biên rõ ràng** — nó là **delivery commitment**, độc lập với product: milestone không phải product boundary, không phải planning horizon, không phải release, và không phải calendar bucket.
 
@@ -269,7 +209,7 @@ Mỗi product có một pipeline `M1 → M2 → Feature Discovery` **độc lậ
 
 **Product và các khái niệm láng giềng.** **Product** là pipeline identity lấy từ registry trên; **driving Milestone** của một work item là Milestone committed đang mở mà work item đó nằm dưới — bất kể milestone đó là của một product hay cross-product — hai khái niệm này định nghĩa tại đây. **Pipeline position** của product là horizon của product đó (bảng trên) — không phải một khái niệm thứ hai. Bốn khái niệm còn lại có canonical home riêng, chỉ link không định nghĩa lại: **feature area** — nhóm thư mục của view Features ([`../features/README.md`](../features/README.md)); **bounded context** — catalog của [`../domains/README.md`](../domains/README.md); **application** — view [`../applications/README.md`](../applications/README.md); **shared context** — ngữ cảnh cắt ngang nhiều pipeline, không có pipeline riêng. Cross-product initiative **không phải một artifact** và không sở hữu gì: bản ghi của nó là shared specification, các work item theo product, tối đa một Milestone, và tuỳ chọn một coordination ledger root issue (§2.2).
 
-**Thẩm quyền commitment.** Tạo Milestone, sửa dòng khai báo và đóng Milestone là thay đổi cấu hình GitHub — work item riêng do người có thẩm quyền quyết định và xác nhận, như cấu hình Project ở §3.4. Agent chỉ đọc và báo lệch; không tự tạo, sửa hay đóng.
+**Thẩm quyền commitment.** Tạo Milestone, sửa dòng khai báo và đóng Milestone là thay đổi cấu hình GitHub — work item riêng do người có thẩm quyền quyết định và xác nhận. Agent chỉ đọc và báo lệch; không tự tạo, sửa hay đóng.
 
 Quy tắc:
 
@@ -340,7 +280,7 @@ Quy tắc Conventional Commit cho PR title, scope Nx project và policy machine-
 
 Ghi lại giới hạn thay vì tự chọn giá trị:
 
-- **Cấu hình không đọc được** (thiếu quyền, Project chưa tồn tại, token thiếu scope) — nêu rõ cái gì chưa xác minh được và để người có quyền quyết định.
+- **Cấu hình không đọc được** (thiếu quyền, token thiếu scope) — nêu rõ cái gì chưa xác minh được và để người có quyền quyết định.
 - **Policy chưa từng được chốt** — ghi như open decision trong Issue hoặc trong tài liệu canonical sở hữu quyết định đó ([`docs/AGENTS.md`](../AGENTS.md) §11), không mặc định một giá trị.
 - **Hai canonical document mâu thuẫn** — dừng và báo; không tự chọn bên thắng.
 
@@ -348,5 +288,5 @@ Ghi lại giới hạn thay vì tự chọn giá trị:
 
 - Canonical location là `docs/engineering/work-management.md`; tài liệu khác tham chiếu, không chép lại.
 - Thay đổi quy tắc phải cập nhật đồng thời các template trong `.github/` và [`contribution-workflow.md`](./contribution-workflow.md) nếu chúng bị ảnh hưởng.
-- Khi cấu hình GitHub thực sự thay đổi (Project được tạo, Milestone được thiết lập), cập nhật phần mô tả **policy**, không thêm ảnh chụp cấu hình.
-- Khối _transition_ ở §2.3 và §3 phải được cập nhật trong cùng thay đổi khi work item cấu hình Issue Type hoặc work item dọn dẹp transition hoàn tất; không để policy đích và thực thi hiện tại mâu thuẫn nhau mà không ghi nhận.
+- Khi cấu hình GitHub thực sự thay đổi (Milestone được thiết lập), cập nhật phần mô tả **policy**, không thêm ảnh chụp cấu hình.
+- Khối _transition_ ở §2.3 phải được cập nhật trong cùng thay đổi khi work item cấu hình Issue Type hoặc work item dọn dẹp transition hoàn tất; không để policy đích và thực thi hiện tại mâu thuẫn nhau mà không ghi nhận.
