@@ -39,6 +39,11 @@ export default defineConfig(() => ({
     fileParallelism: false,
     reporters: ['default'],
     globalSetup: ['./tests/integrations/docker-probe.global-setup.ts'],
+    // `hookTimeout` 300s: probe Docker + các hook dựng PostgreSQL thật không nằm
+    // trong giây thứ 5 mặc định. `testTimeout` 120s cho từng it() chạy against
+    // PostgreSQL thật — dưới tải CI, 5s mặc định đỏ lửng không phải lỗi thật.
+    hookTimeout: 300_000,
+    testTimeout: 120_000,
     coverage: {
       reportsDirectory: './test-output/vitest/coverage',
       provider: 'v8' as const,
