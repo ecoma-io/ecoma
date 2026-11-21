@@ -108,6 +108,10 @@ export async function recoverLoginByRelogin(
   await page.getByTestId('login-code').fill(otp);
   await page.getByTestId('login-code-submit').click();
 
+  // KHÔNG truyền `readOtp` — recovery lồng nhau trong re-login bị chặn cố ý
+  // (chết lần hai trong re-login là lỗi thật — throw, giữ `describeStuckState`).
+  // Nuốt round-trip-400 của helper (run 44784071601) vẫn áp dụng: vòng lặp
+  // phân loại và throw stuck-state bounded thay vì chết bằng TimeoutError.
   await waitForContinueTargetAfterOtpVerify(page, {
     continueTarget: params.continueTarget,
     retryButton: params.retryButton,

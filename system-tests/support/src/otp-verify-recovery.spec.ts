@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Locator, Page } from '@playwright/test';
-import { MAX_VERIFY_ATTEMPTS, waitForContinueTargetAfterOtpVerify } from './otp-verify-recovery.js';
+import {
+  MAX_RESEND_ATTEMPTS,
+  MAX_VERIFY_ATTEMPTS,
+  RESEND_RETRY_GAP_MS,
+  waitForContinueTargetAfterOtpVerify,
+} from './otp-verify-recovery.js';
 
 // Helper thật assert "retry đã sửa" bằng `expect(continueTarget).toBeVisible`
 // của @playwright/test. Mock giữ NGUYÊN ngữ nghĩa assertion: `toBeVisible`
@@ -60,8 +65,21 @@ interface HarnessOptions {
   readonly pageUrl?: string;
   /** `login-request-failed` có đang hiển thị hay không. */
   readonly requestFailedVisible?: boolean;
+  /**
+   * `login-request-failed` ẩn đi sau lượt submit đầu — mô hình trang đã rời
+   * trạng thái lỗi khi response của re-click về; duy nhất đường này chạm được
+   * nhánh rethrow của round-trip timeout không kèm thẻ lỗi (POST chưa hoàn
+   * tất — lỗi thật).
+   */
+  readonly requestFailedHidesAfterSubmit?: boolean;
   /** `login-code-invalid` có đang hiển thị hay không. */
   readonly codeInvalidVisible?: boolean;
+  /**
+   * `login-code-invalid` chỉ hiện SAU lượt submit đầu của helper — mô hình
+   * trình tự run 44784071601: 400 của re-click (nhánh 4) là thứ render thẻ
+   * lỗi, trước đó nhánh 3 chưa được vào.
+   */
+  readonly codeInvalidVisibleAfterSubmit?: boolean;
   /** Kịch bản mount của `login-continue-target`, đọc theo lượt waitFor. */
   readonly continueSequence?: Outcome[];
   /** Kịch bản mount của `login-continue-retry`, đọc theo lượt waitFor. */
@@ -75,6 +93,14 @@ interface HarnessOptions {
    * thay vì resolve) — mock cho đường nuốt race của impl.
    */
   readonly roundTripRace?: boolean;
+  /**
+   * Round-trip submit chết bằng timeout (waitFor ném lỗi timeout thường thay vì
+   * resolve) — mock cho đường nuốt round-trip-400 của impl; kèm thẻ lỗi hiển thị
+   * thì được nuốt, không thì phải rethrow.
+   */
+  readonly roundTripHangs?: boolean;
+  /** Mã OTP caller đã nộp trước khi vào helper — bật vòng freshness của resend. */
+  readonly submittedOtp?: string;
   /**
    * `continueTarget` mount sau khi bấm retry — bật cho test assert
    * `expect(continueTarget).toBeVisible` của impl trên đường sửa lỗi handoff.
@@ -90,26 +116,43 @@ function makeHarness(options: HarnessOptions) {
   const gotoCalls: string[] = [];
   const recoverCalls: string[] = [];
   const codeFormHiddenWaits: number[] = [];
+  const waitTimeouts: number[] = [];
   const page = {
     url: () => options.pageUrl ?? 'https://account.local/login',
     goto: async (url: string) => {
       gotoCalls.push(url);
       return null;
     },
+    // Gap giữa hai lượt resend của vòng freshness — mock no-op có ghi nhận để
+    // test assert nhịp chờ mà không chờ thật 10s.
+    waitForTimeout: async (ms: number) => {
+      waitTimeouts.push(ms);
+    },
     getByTestId: (testId: string) => {
       if (testId === 'login-code-invalid') {
-        return { isVisible: async () => options.codeInvalidVisible ?? false };
+        return {
+          isVisible: async () =>
+            options.codeInvalidVisibleAfterSubmit
+              ? submitClicks.length > 0
+              : (options.codeInvalidVisible ?? false),
+        };
       }
       if (testId === 'login-code-form') {
         return {
           isVisible: async () => true,
           // `waitFor({ state: 'hidden' })` của vòng đợi round-trip submit —
           // resolve như element đã rời DOM, ghi nhận để test assert bước chờ;
-          // khi `roundTripRace`, ném đúng signature race của navigation chết.
+          // khi `roundTripRace`, ném đúng signature race của navigation chết;
+          // khi `roundTripHangs`, ném đúng signature timeout của form bị giữ
+          // lại sau một 400 (`login/index.vue` giữ form khi verify trả kết quả
+          // lỗi, không có navigation nào để ẩn form).
           waitFor: async () => {
             codeFormHiddenWaits.push(codeFormHiddenWaits.length + 1);
             if (options.roundTripRace ?? false) {
               throw new Error('element was detached from the DOM, retrying');
+            }
+            if (options.roundTripHangs ?? false) {
+              throw new Error('locator.waitFor: Timeout 15000ms exceeded');
             }
             return undefined;
           },
@@ -149,12 +192,16 @@ function makeHarness(options: HarnessOptions) {
     ),
     retryButton: scriptedLocator(options.retrySequence ?? [], retryClicks, 'login-continue-retry'),
     requestFailed: {
-      isVisible: async () => options.requestFailedVisible ?? false,
+      isVisible: async () =>
+        options.requestFailedHidesAfterSubmit
+          ? submitClicks.length === 0
+          : (options.requestFailedVisible ?? false),
       waitFor: async () => undefined,
       click: async () => undefined,
     } as unknown as Locator,
     describeStuckState: async () => 'url=https://account.local/login visible=[login-code-form]',
     readOtp: options.readOtp,
+    submittedOtp: options.submittedOtp,
     recoverFromDeadPage: options.wireDeadPageRecovery
       ? async () => {
           recoverCalls.push('dead-page');
@@ -170,6 +217,7 @@ function makeHarness(options: HarnessOptions) {
     gotoCalls,
     recoverCalls,
     codeFormHiddenWaits,
+    waitTimeouts,
   };
 }
 
@@ -335,6 +383,88 @@ describe('waitForContinueTargetAfterOtpVerify', () => {
       roundTripRace: true,
     });
     await expect(harness.run()).rejects.toThrow('swallowed submit round-trip races: 1');
+    expect(harness.submitClicks).toHaveLength(1);
+  });
+
+  it('treats a completed-but-400 round trip as finished and recovers via resend (run 44784071601)', async () => {
+    // Trình tự thật của run 44784071601 (attempt 1): verify đầu chết -1 sau khi
+    // server đã consume challenge ⇒ nhánh 4 re-click nhận 400 và trang GIỮ form
+    // kèm `login-code-invalid` — round-trip timeout phải được nuốt (POST đã hoàn
+    // tất) để nhánh resend chạy, thay vì chết bằng TimeoutError như bản cũ.
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing', 'visible'],
+      requestFailedVisible: true,
+      codeInvalidVisibleAfterSubmit: true,
+      roundTripHangs: true,
+      readOtp: async () => '12345678',
+      submittedOtp: '50538501',
+    });
+    await expect(harness.run()).resolves.toBeUndefined();
+    // Re-click của nhánh 4 + submit của nhánh resend.
+    expect(harness.submitClicks).toHaveLength(2);
+    expect(harness.resendClicks).toEqual(['login-resend']);
+    expect(harness.codeFills).toEqual(['12345678']);
+    expect(harness.codeFormHiddenWaits).toHaveLength(2);
+    expect(harness.recoverCalls).toHaveLength(0);
+  });
+
+  it('re-clicks resend until the mail sink yields a different code, bridging the resend cooldown', async () => {
+    const readOtpCodes = ['11111111', '11111111', '22222222'];
+    let read = 0;
+    const harness = makeHarness({
+      continueSequence: ['missing', 'visible'],
+      codeInvalidVisible: true,
+      readOtp: async () => readOtpCodes[read++] ?? '22222222',
+      submittedOtp: '11111111',
+    });
+    await expect(harness.run()).resolves.toBeUndefined();
+    expect(harness.resendClicks).toHaveLength(3);
+    expect(harness.codeFills).toEqual(['22222222']);
+    expect(harness.waitTimeouts).toEqual([RESEND_RETRY_GAP_MS, RESEND_RETRY_GAP_MS]);
+    expect(harness.submitClicks).toEqual(['login-code-submit']);
+  });
+
+  it('keeps the resend loop bounded at its budget and still fails with the stuck-state throw', async () => {
+    const harness = makeHarness({
+      codeInvalidVisible: true,
+      roundTripHangs: true,
+      readOtp: async () => '11111111',
+      submittedOtp: '11111111',
+    });
+    await expect(harness.run()).rejects.toThrow(
+      'login continue page never appeared after OTP verify',
+    );
+    expect(harness.resendClicks).toHaveLength(MAX_RESEND_ATTEMPTS + 1);
+    expect(harness.waitTimeouts).toHaveLength(MAX_RESEND_ATTEMPTS);
+    expect(harness.waitTimeouts.every((ms) => ms === RESEND_RETRY_GAP_MS)).toBe(true);
+    expect(harness.codeFills).toEqual(['11111111']);
+  });
+
+  it('rethrows the raw timeout when a hung round trip has no rendered error — true death stays fatal', async () => {
+    const harness = makeHarness({
+      requestFailedVisible: true,
+      requestFailedHidesAfterSubmit: true,
+      roundTripHangs: true,
+    });
+    await expect(harness.run()).rejects.toThrow('Timeout 15000ms exceeded');
+    // Nhánh 4 đã re-click đúng một lượt trước khi chết — lỗi không được nuốt
+    // cũng không được bọc thành stuck-state.
+    expect(harness.submitClicks).toHaveLength(1);
+  });
+
+  it('rethrows the raw timeout when only login-request-failed is shown — no completion evidence, no swallow', async () => {
+    // OCR thread #4646321765: `login-request-failed` một mình chỉ chứng tỏ POST
+    // CHƯA có response (chết tầng mạng thật ở lượt verify đầu) — `login/index.vue`
+    // render nó cả khi fetch ném lẫn khi request chết; nuốt timeout khi đó là che
+    // lỗi mạng thật. Chỉ `login-code-invalid` là bằng chứng POST hoàn tất bằng
+    // 400 (trang render nó ở mọi reason 400).
+    const harness = makeHarness({
+      continueSequence: ['missing', 'missing'],
+      requestFailedVisible: true,
+      roundTripHangs: true,
+    });
+    await expect(harness.run()).rejects.toThrow('Timeout 15000ms exceeded');
+    expect(harness.resendClicks).toHaveLength(0);
     expect(harness.submitClicks).toHaveLength(1);
   });
 });
