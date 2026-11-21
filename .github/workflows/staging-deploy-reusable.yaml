@@ -51,6 +51,11 @@ on:
         type: string
         required: false
         default: ''
+      entry-point:
+        description: 'Entry-point path relative to the project root to assert after build (e.g. .output/server/index.mjs) — empty skips the assertion (deploy units whose build does not emit a single entry file)'
+        type: string
+        required: false
+        default: ''
     secrets:
       cloudflare_api_token:
         description: 'Org secret ECOMA_CLOUDFLARE_STAGING_API_TOKEN — the staging control-plane token (§6.12); the CALLER maps the lane-correct org secret'
@@ -146,6 +151,23 @@ jobs:
         env:
           NX_PROJECT: ${{ inputs.project }}
         run: pnpm exec nx run "$NX_PROJECT":build
+      # Hard assertion #353: `if-no-files-found: error` của upload-artifact
+      # KHÔNG bắt được trường hợp output build thiếu — hai path còn lại
+      # (wrangler.jsonc, build-manifest.json) vẫn có file nên upload xanh và
+      # job deploy đỏ muộn hơn ở wrangler ("entry-point file ... not found").
+      # Step này fail sớm ngay sau build khi entry point thiếu; chỉ chạy cho
+      # unit khai `entry-point` (mỗi unit tự khai theo contract build của nó).
+      - name: Assert the wrangler entry point exists
+        if: inputs.entry-point != ''
+        env:
+          PROJECT_ROOT: ${{ steps.locate.outputs.project-root }}
+          ENTRY_POINT: ${{ inputs.entry-point }}
+        run: |
+          set -euo pipefail
+          test -f "$PROJECT_ROOT/$ENTRY_POINT" || {
+            echo "::error::build output entry point \"$PROJECT_ROOT/$ENTRY_POINT\" was not found — the build did not produce the artifact wrangler.jsonc points at (check the build output dir contract of this deploy unit)" >&2
+            exit 1
+          }
       - name: Write the build manifest
         env:
           CONFIG_PATH: ${{ inputs.config-path }}
@@ -173,6 +195,11 @@ jobs:
             ${{ steps.locate.outputs.project-root }}/build-manifest.json
           retention-days: 7
           if-no-files-found: error
+          # Mặc định false của action loại bỏ MỌI path ẩn — trong đó có
+          # `.output` của Nuxt (#353): glob không match file nào trong
+          # `.output`, artifact chỉ còn wrangler.jsonc + build-manifest.json
+          # và deploy đỏ ở wrangler với lỗi entry-point thiếu.
+          include-hidden-files: true
 
   deploy:
     name: Deploy and smoke the staging worker
