@@ -13,11 +13,13 @@
   // KHÔNG có `routes`/`hostname` public — service chỉ có internal API,
   // gọi qua Service Binding từ Worker cùng account (architecture `01` §6).
   //
-  // `env.staging` đã khai (lane #355, Worker `stg-ecoma-transactional-mail`);
-  // `env.production` chưa khai ở M2. Binding khai ở khối top level dưới đây
-  // KHÔNG được Wrangler kế thừa vào named environment — mỗi `env.<lane>` phải
-  // khai lại binding của nó tường minh, và điều kiện readiness trước khi vào
-  // matrix nằm ở overview `02` §4.1/§5.2 + 03-operations.md §2.
+  // `env.staging` khai ở khối `env` cuối file (#355): identity Worker riêng cho
+  // làn staging, provisioning D1 + Queue do `deploys/transactional-mail-deploy`
+  // chạy trên stack Pulumi `staging`. `env.production` CHƯA khai — production
+  // không thuộc M2. Binding khai ở khối top level dưới đây KHÔNG được Wrangler
+  // kế thừa vào named environment — mỗi `env.<lane>` phải khai lại binding của
+  // nó tường minh, và điều kiện readiness trước khi vào matrix nằm ở overview
+  // `02` §4.1/§5.2 + 03-operations.md §2.
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "ecoma-transactional-mail",
   "main": "dist/main.js",
@@ -73,20 +75,36 @@
     ],
   },
 
-  // --- Staging lane (#355) — Worker `stg-ecoma-transactional-mail` ---
+  // ── env.staging (#355) ───────────────────────────────────────────────────────
+  // Worker identity làn staging: `stg-` + tên production (`02-delivery.md` §4.1;
+  // cùng derivation mà lane deploy staging dùng chung của #535 preflight) — tên
+  // Worker là vĩnh viễn, không đổi theo tag.
   //
-  // Worker internal-only: `workers_dev: false` là điều kiện readiness
-  // (03-operations.md §2), không có hostname public nào. Wrangler KHÔNG kế
-  // thừa binding top-level vào `env.<lane>` (02-delivery.md §4.1 điều 1), nên
-  // D1 và Queue producer của làn được khai lại TƯỜNG MINH tại đây.
+  // ⚠️ MỖI binding phải khai lại TƯỜNG MINH trong env này — Wrangler không kế
+  // thừa binding top-level (nhận xét ở đầu file), và staging KHÔNG ĐƯỢC trỏ vào
+  // resource production (02-delivery.md §4.1):
+  // - D1 `stg-mail` do Pulumi provision (stack `staging` của
+  //   `transactional-mail-deploy`) — `database_id` cố ý KHÔNG khai: chưa
+  //   provisioning, và `database_name` + thiếu `database_id` là đúng trạng thái
+  //   "chưa provision" theo §9.1. Sau một lần `staging-up` xanh, id thật đọc từ
+  //   `pulumi stack output mailDatabaseId` và fill vào đây — không điền id đoán
+  //   hay placeholder (guard resource-bindings từ chối id toàn-zeros/rỗng).
+  // - Queue producer tên `stg-ecoma-mail-delivery` — tên per-lane: Queue là tài
+  //   nguyên account-unique, staging tái sử dụng tên production là vi phạm §4.1
+  //   (điều kiện tách resource theo môi trường). Consumer + DLQ cùng chuỗi nằm
+  //   ở apps/transactional-mailer-job/wrangler.jsonc và được provision cùng
+  //   project Pulumi trên; spec hợp đồng của deploy project đối chiếu chéo hai
+  //   file này.
+  // - Cron KHÔNG khai lại ở đây: `triggers` được Wrangler kế thừa từ top-level.
   //
-  // Resource là quyền provision của Pulumi (§9.1): D1 `stg-mail` do
-  // `deploys/transactional-mail-deploy` stack staging tạo và cấp `database_id`
-  // qua stack output `mailDatabaseId` sau lần `staging-up` xanh đầu tiên —
-  // `database_id` CỐ Ý KHÔNG khai ở đây (trạng thái "chưa wiring" trung thực;
-  // điền id đoán sẽ qua mặt guard `resource-bindings` khi flip eligibility).
-  // Queue tham chiếu theo TÊN với chuỗi bốn Queue staging do cùng program
-  // provision (`STAGING_QUEUE_NAMES`). Cron kế thừa `triggers` top-level.
+  // `workers_dev: false` — worker internal-only (không `routes`, chỉ gọi qua
+  // Service Binding), workers.dev public subdomain phải tắt ở từng env.
+  //
+  // `vars` là giá trị vận hành ĐÃ proven trên lane local (WIC env của
+  // `transactional-mail-deploy` — cùng tập script e2e chạy xanh). Secret
+  // (`MAIL_FINGERPRINT_KEYRING`, `MAIL_INTERNAL_AUTH_SECRET_SVC_*`) KHÔNG nằm ở
+  // file này: provision bằng Worker Secrets (`wrangler secret put` / CLI
+  // `tools/dx`), thiếu secret lúc deploy là fail-closed ở loader của app.
   "env": {
     "staging": {
       "name": "stg-ecoma-transactional-mail",
@@ -104,6 +122,26 @@
             "binding": "QUEUE",
           },
         ],
+      },
+      "vars": {
+        "MAIL_INTERNAL_AUTH_SKEW_SECONDS": "300",
+        "MAIL_RATE_LIMIT_PRINCIPAL_LIMIT": "100",
+        "MAIL_RATE_LIMIT_PRINCIPAL_WINDOW_MS": "60000",
+        "MAIL_RATE_LIMIT_SYSTEM_LIMIT": "1000",
+        "MAIL_RATE_LIMIT_SYSTEM_WINDOW_MS": "60000",
+        "MAIL_RATE_LIMIT_KEY_LIMIT": "100",
+        "MAIL_RATE_LIMIT_KEY_WINDOW_MS": "60000",
+        "MAIL_RENDER_MAX_BYTES": "65536",
+        "MAIL_PUBLISH_LEASE_MS": "30000",
+        "MAIL_PUBLISH_BATCH_LIMIT": "10",
+        "MAIL_PUBLISH_MAX_ATTEMPTS": "3",
+        "MAIL_PUBLISH_BACKOFF_BASE_MS": "1000",
+        "MAIL_RECONCILER_MAX_AGE_MS": "600000",
+        "MAIL_RECONCILER_BATCH_LIMIT": "10",
+        "MAIL_RECOVERY_MAX_CYCLES": "2",
+        "MAIL_NONCE_PRUNE_BATCH_LIMIT": "100",
+        "MAIL_RETENTION_CONTENT_MS": "2592000000",
+        "MAIL_RETENTION_STALE_ALERT_MS": "86400000",
       },
     },
   },
