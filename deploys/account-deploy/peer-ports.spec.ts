@@ -111,7 +111,7 @@ describe('peer internal port pins (local-program.ts)', () => {
   it('MAIL_INTERNAL_PORT_OF_MAIL_WIC matches MAIL_INTERNAL_PORT pinned by transactional-mail-deploy', () => {
     expect(readProgramConstant(programSource, 'MAIL_INTERNAL_PORT_OF_MAIL_WIC')).toBe(
       readProgramConstant(
-        resolve(import.meta.dirname, '../transactional-mail-deploy/index.ts'),
+        resolve(import.meta.dirname, '../transactional-mail-deploy/local-program.ts'),
         'MAIL_INTERNAL_PORT',
       ),
     );
