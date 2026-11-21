@@ -55,7 +55,7 @@ The English rule applies to developer-authored content. The following are exempt
 - The database is quota authority and settlement authority; quota changes must remain reconstructible from durable database state.
 - Inter-service events use the transactional outbox and idempotency.
 - Secrets never enter Git, PR builds, or Preview runtime from production environments.
-- One Cloudflare account owns every environment; secrets use native Worker Secrets and deployment environment mechanisms.
+- Staging and production run on separate Cloudflare accounts; each deploy lane reads its own org secret pair (`ECOMA_CLOUDFLARE_STAGING_*`, `ECOMA_CLOUDFLARE_PRODUCTION_*` — `ACCOUND` is the literal secret name) and never the other lane's (#548); secrets use native Worker Secrets and deployment environment mechanisms.
 - Database changes use expand → compatible rollout → contract; prefer forward-fix over data rollback. (invariant 10, `docs/architecture/01-architecture.md` §9)
 - Test placement, test category semantics and Nx test targets follow `docs/architecture/06-testing.md`; `test`, `test-integration` and `system-test` are the canonical target names.
 - Do not introduce node-local application state that breaks recovery or topology changes. (invariant 12, `docs/architecture/01-architecture.md` §9)

@@ -22,9 +22,10 @@ thật chưa chạy).
   tạo config), Pulumi reference `service_id` này; không khai tay vào
   `wrangler.jsonc`.
 - Identity gate staging: tên service bắt buộc prefix `stg-` (cùng quy ước với
-  pipeline Worker secret) và token control-plane duy nhất
-  `ECOMA_CLOUDFLARE_API_TOKEN` (§6.12) — thiếu là từ chối trước khi wrangler
-  chạy; token chỉ tồn tại trong env của subprocess, không bao giờ qua argv.
+  pipeline Worker secret) và cặp credential control-plane của lane staging
+  `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`
+  (§6.12, #548) — thiếu một trong hai là từ chối trước khi wrangler
+  chạy; credential chỉ tồn tại trong env của subprocess, không bao giờ qua argv.
 
 ## Responsibilities
 
@@ -73,8 +74,8 @@ pnpm nx run staging-connectivity:staging-vpc-service-create -- \
   --hostname pg-staging.ecoma.io.vn
 ```
 
-Credential bắt buộc (env-only, không argv, không Git):
-`ECOMA_CLOUDFLARE_API_TOKEN`.
+Credential bắt buộc (env-only, không argv, không Git) — cặp staging:
+`ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`.
 
 ## Testing
 

@@ -21,9 +21,8 @@
     "crons": ["*/5 * * * *"],
   },
   //
-  // CHƯA khai `env.staging`/`env.production`: chưa có Worker identity cho làn
-  // nào của hai làn deploy (thiết kế `02-delivery.md` §7.2, chưa hiện thực),
-  // nên app nằm ngoài deploy matrix. Binding khai ở khối top level dưới đây
+  // `env.staging` đã khai (lane #355, Worker `stg-ecoma-transactional-mailer-job`);
+  // `env.production` chưa khai ở M2. Binding khai ở khối top level dưới đây
   // KHÔNG được Wrangler kế thừa vào named environment — mỗi `env.<lane>` phải
   // khai lại binding của nó tường minh (overview `02` §4.1).
   "$schema": "../../node_modules/wrangler/config-schema.json",
@@ -101,4 +100,67 @@
       "allowed_sender_addresses": ["no-reply@ecoma.io"],
     },
   ],
+
+  // --- Staging lane (#355) — Worker `stg-ecoma-transactional-mailer-job` ---
+  //
+  // Worker internal-only, không hostname public (`workers_dev: false`). Cả
+  // bốn loại binding top-level được khai lại TƯỜNG MINH cho lane (Wrangler
+  // KHÔNG kế thừa binding — 02-delivery.md §4.1 điều 1):
+  //   - D1 `stg-mail-job`: `database_id` do `deploys/transactional-mailer-job-deploy`
+  //     stack staging cấp qua stack output `mailJobDatabaseId` sau lần
+  //     `staging-up` xanh đầu tiên — CỐ Ý KHÔNG khai ở đây (chưa wiring trung
+  //     thực; điền id đoán sẽ qua mặt guard `resource-bindings`).
+  //   - Chuỗi queue staging do `transactional-mail-deploy` provision tập
+  //     trung (đúng một chỗ cho cả chuỗi, §9.1) — consumer khai đồng bộ tên
+  //     theo hằng `STAGING_QUEUE_NAMES` của program đó, DLQ giữ retry policy
+  //     của lane production.
+  //   - Service binding trỏ về Worker staging của control plane
+  //     `stg-ecoma-transactional-mail`, KHÔNG phải Worker production.
+  //   - send_email + vars ghim provider `cloudflare` và sender
+  //     `no-reply@ecoma.io` — hai lớp chặn (vars vs allowed_sender_addresses)
+  //     phải nói cùng một sự thật; gửi thật đỏ cho tới khi domain staging
+  //     được onboard Email Service (03-operations.md, trạng thái provision).
+  // Cron kế thừa `triggers` top-level (Wrangler kế thừa key này).
+  "env": {
+    "staging": {
+      "name": "stg-ecoma-transactional-mailer-job",
+      "workers_dev": false,
+      "d1_databases": [
+        {
+          "binding": "mail-job",
+          "database_name": "stg-mail-job",
+        },
+      ],
+      "queues": {
+        "consumers": [
+          {
+            "queue": "stg-ecoma-mail-delivery",
+            "max_retries": 3,
+            "dead_letter_queue": "stg-ecoma-mail-delivery-dlq",
+          },
+          {
+            "queue": "stg-ecoma-mail-lifecycle-events",
+            "max_retries": 2,
+            "dead_letter_queue": "stg-ecoma-mail-lifecycle-events-dlq",
+          },
+        ],
+      },
+      "services": [
+        {
+          "binding": "TRANSACTIONAL_MAIL_SERVICE",
+          "service": "stg-ecoma-transactional-mail",
+        },
+      ],
+      "send_email": [
+        {
+          "name": "SEND_EMAIL",
+          "allowed_sender_addresses": ["no-reply@ecoma.io"],
+        },
+      ],
+      "vars": {
+        "MAIL_PROVIDER_KIND": "cloudflare",
+        "MAIL_CF_SENDER": "no-reply@ecoma.io",
+      },
+    },
+  },
 }

@@ -20,9 +20,12 @@ import {
  *   này an toàn vì đường remote không thể chạy nhầm: nó fail-closed khi thiếu
  *   token trong env (OCR #511 run 44679254844 — doc hứa "mặc định" nhưng
  *   code lỗi khi gọi trần; giờ khớp nhau).
- * - `--remote` (staging/production từ CI): đọc `ECOMA_CLOUDFLARE_API_TOKEN` từ
- *   env — thiếu là fail-closed, không bao giờ nhận token qua argv; token được
- *   map thành `CLOUDFLARE_API_TOKEN` chỉ trong subprocess wrangler.
+ * - `--remote` (staging/production từ CI): đọc cặp org secret theo lane từ env
+ *   (`ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`
+ *   cho staging, `ECOMA_CLOUDFLARE_PRODUCTION_...` cho production) — phải có
+ *   ĐÚNG MỘT cặp, thiếu hay đủ cả hai là fail-closed; không bao giờ nhận token
+ *   qua argv; credential được map thành `CLOUDFLARE_API_TOKEN` +
+ *   `CLOUDFLARE_ACCOUNT_ID` chỉ trong subprocess wrangler.
  *
  * Tên database ĐỌC từ `wrangler.jsonc` của app (`database_name`, không phải
  * binding name — §3a.4), không nhận từ caller: gõ sai tên không thể tới được
@@ -49,7 +52,8 @@ export default defineCommand({
     remote: {
       type: 'boolean',
       default: false,
-      description: 'Apply against the remote D1 (requires ECOMA_CLOUDFLARE_API_TOKEN in env)',
+      description:
+        'Apply against the remote D1 (requires exactly one lane credential pair in env, e.g. ECOMA_CLOUDFLARE_STAGING_API_TOKEN + ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID)',
     },
     env: {
       type: 'string',

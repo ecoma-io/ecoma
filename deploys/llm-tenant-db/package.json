@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.1",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "//": [
     "Migration authority của database `db-llm-tenant` — hợp đồng",

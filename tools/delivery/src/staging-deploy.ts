@@ -19,9 +19,10 @@
  *    `config/deploy-eligibility.jsonc` (nguồn phân loại canonical, #360).
  * 5. build manifest của artifact khớp run: sha đúng và worker đúng — job
  *    deploy chỉ dùng artifact khớp manifest của run mình (§7.4).
- * 6. Token control-plane `ECOMA_CLOUDFLARE_API_TOKEN` có trong env
- *    (`resolveSecretRunEnv` — tái dụng pipeline worker-secrets, không tái hiện
- *    thực; §6.12).
+ * 6. Cặp credential control-plane của lane staging — `ECOMA_CLOUDFLARE_STAGING_API_TOKEN`
+ *    + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` — có trong env
+ *    (`resolveSecretRunEnv('staging', …)` — tái dụng pipeline worker-secrets,
+ *    không tái hiện thực; §6.12).
  *
  * Sau preflight: `wrangler deploy` qua lớp retry §7.4 (`wrangler-deploy.ts`).
  * Token KHÔNG BAO GIỜ qua argv và không được log; mọi thông điệp lỗi chỉ chứa
@@ -275,9 +276,10 @@ export async function runStagingDeploy(
     `staging deploy: build manifest matches run sha ${params.expectSha} for ${worker}\n`,
   );
 
-  // Token fail-closed với đúng tên biến — tái dụng pipeline worker-secrets
-  // (§6.12), không nhận credential nào khác và không log giá trị.
-  const { env } = resolveSecretRunEnv(sourceEnv);
+  // Cặp credential staging fail-closed với đúng tên org secret — tái dụng
+  // pipeline worker-secrets (§6.12), không nhận credential nào khác và không
+  // log giá trị.
+  const { env } = resolveSecretRunEnv('staging', sourceEnv);
 
   const result = await deps.deployStaging({ configPath: configAbs, env });
   deps.out.write(

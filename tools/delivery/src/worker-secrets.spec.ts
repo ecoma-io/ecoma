@@ -13,7 +13,8 @@ import {
   stripJsoncComments,
   trimTrailingNewline,
   validateSecretName,
-  CONTROL_PLANE_TOKEN_ENV_KEY,
+  CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS,
+  CONTROL_PLANE_TOKEN_ENV_KEYS,
   type SecretAction,
   type WorkerSecretDeps,
 } from './worker-secrets.ts';
@@ -33,6 +34,13 @@ const SAMPLE_CONFIG = `{
 }`;
 
 const TOKEN = 'cf-token-value';
+const ACCOUNT_ID = 'cf-account-id-value';
+
+/** Cặp org secret staging đầy đủ — env nguồn chuẩn của specs lane staging. */
+const STAGING_PAIR_ENV = {
+  [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: TOKEN,
+  [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging]: ACCOUNT_ID,
+};
 
 const okDeps = (
   configText = SAMPLE_CONFIG,
@@ -133,28 +141,83 @@ describe('stagingWorkerNameFromConfig', () => {
 });
 
 describe('resolveSecretRunEnv', () => {
-  it('fails closed with the variable name when the shared token is missing', () => {
-    expect(() => resolveSecretRunEnv({})).toThrowError(
-      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEY, 'u'),
+  it('fails closed with the exact staging org secret name when the token is missing', () => {
+    expect(() => resolveSecretRunEnv('staging', {})).toThrowError(
+      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEYS.staging, 'u'),
     );
-    expect(() => resolveSecretRunEnv({ [CONTROL_PLANE_TOKEN_ENV_KEY]: '   ' })).toThrowError(
-      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEY, 'u'),
+    expect(() =>
+      resolveSecretRunEnv('staging', { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: '   ' }),
+    ).toThrowError(new RegExp(CONTROL_PLANE_TOKEN_ENV_KEYS.staging, 'u'));
+  });
+
+  it('fails closed naming the account secret when the staging pair is incomplete', () => {
+    expect(() =>
+      resolveSecretRunEnv('staging', { [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: TOKEN }),
+    ).toThrowError(new RegExp(CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging, 'u'));
+    expect(() =>
+      resolveSecretRunEnv('staging', {
+        [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: TOKEN,
+        [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging]: '',
+      }),
+    ).toThrowError(new RegExp(CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging, 'u'));
+  });
+
+  it('maps the staging pair to CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID in a minimal env only', () => {
+    const { env } = resolveSecretRunEnv('staging', {
+      PATH: '/usr/bin',
+      HOME: '/home/op',
+      ...STAGING_PAIR_ENV,
+    });
+    expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN);
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBe(ACCOUNT_ID);
+    expect(env.CI).toBe('1');
+    expect(Object.keys(env).toSorted()).toEqual([
+      'CI',
+      'CLOUDFLARE_ACCOUNT_ID',
+      'CLOUDFLARE_API_TOKEN',
+      'HOME',
+      'PATH',
+    ]);
+  });
+
+  it('never reads the other lane pair — production vars cannot satisfy the staging lane', () => {
+    // Chỉ có cặp production trong env: resolution staging phải TỪ CHỐI với đúng
+    // tên org secret staging, không bao giờ fallback sang cặp lane khác.
+    const productionOnly = {
+      [CONTROL_PLANE_TOKEN_ENV_KEYS.production]: 'prod-token',
+      [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.production]: 'prod-account',
+    };
+    expect(() => resolveSecretRunEnv('staging', productionOnly)).toThrowError(
+      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEYS.staging, 'u'),
     );
   });
 
-  it('maps the token to CLOUDFLARE_API_TOKEN in a minimal env only', () => {
-    const { env } = resolveSecretRunEnv({
+  it('resolves the production pair for the production lane without touching staging vars', () => {
+    // Cặp staging có mặt nhưng mang giá trị "rác": lane production phải dùng
+    // đúng cặp production, chứng tỏ không đọc biến staging.
+    const { env } = resolveSecretRunEnv('production', {
       PATH: '/usr/bin',
       HOME: '/home/op',
-      [CONTROL_PLANE_TOKEN_ENV_KEY]: TOKEN,
+      [CONTROL_PLANE_TOKEN_ENV_KEYS.staging]: 'should-not-be-read',
+      [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.staging]: 'should-not-be-read',
+      [CONTROL_PLANE_TOKEN_ENV_KEYS.production]: 'prod-token',
+      [CONTROL_PLANE_ACCOUNT_ID_ENV_KEYS.production]: 'prod-account',
     });
-    expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN);
-    expect(env.CI).toBe('1');
-    expect(Object.keys(env).toSorted()).toEqual(['CI', 'CLOUDFLARE_API_TOKEN', 'HOME', 'PATH']);
+    expect(env.CLOUDFLARE_API_TOKEN).toBe('prod-token');
+    expect(env.CLOUDFLARE_ACCOUNT_ID).toBe('prod-account');
+    expect(env.CLOUDFLARE_API_TOKEN).not.toBe('should-not-be-read');
+  });
+
+  it('fails closed with the exact production org secret name when the production pair is missing', () => {
+    // Chỉ có cặp staging: lane production từ chối với đúng tên production,
+    // không fallback sang staging.
+    expect(() => resolveSecretRunEnv('production', { ...STAGING_PAIR_ENV })).toThrowError(
+      new RegExp(CONTROL_PLANE_TOKEN_ENV_KEYS.production, 'u'),
+    );
   });
 
   it('falls back to the current process PATH/HOME when the source env lacks them', () => {
-    const { env } = resolveSecretRunEnv({ [CONTROL_PLANE_TOKEN_ENV_KEY]: TOKEN });
+    const { env } = resolveSecretRunEnv('staging', { ...STAGING_PAIR_ENV });
     expect(env.PATH).toBe(process.env.PATH);
     expect(env.HOME).toBe(process.env.HOME);
     expect(env.CLOUDFLARE_API_TOKEN).toBe(TOKEN);
@@ -198,7 +261,7 @@ describe('trimTrailingNewline', () => {
 });
 
 describe('putWorkerSecret', () => {
-  const envSource = { PATH: '/usr/bin', HOME: '/home/op', [CONTROL_PLANE_TOKEN_ENV_KEY]: TOKEN };
+  const envSource = { PATH: '/usr/bin', HOME: '/home/op', ...STAGING_PAIR_ENV };
 
   it('runs wrangler with the value on stdin and the token only in the subprocess env', () => {
     const deps = okDeps();

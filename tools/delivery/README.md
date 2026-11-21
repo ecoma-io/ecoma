@@ -8,7 +8,7 @@ Nx project `@ecoma-io/delivery`, tags `type:tooling`, `runtime:native`, `scope:s
 
 - Chống auto-create-không-bảo-vệ của GitHub Environments (§6.13): khai `environment:` trong workflow khiến GitHub tự tạo Environment không có protection nào. Script `ensure-staging-environments` tạo Environment cùng `deployment_branch_policy` trong MỘT lời gọi PUT — không có cửa sổ Environment tồn tại mà trống protection — và idempotent để chạy lại an toàn.
 - Inventory fail-closed: danh sách unit suy từ `config/deploy-eligibility.jsonc` (nguồn phân loại canonical, chỉ nhận `staging: "releaseable"`); inventory rỗng hoặc slug không suy được an toàn là dừng, không đoán.
-- Một control-plane credential duy nhất cho pipeline secret (§6.12): org secret `ECOMA_CLOUDFLARE_API_TOKEN` map vào `CLOUDFLARE_API_TOKEN` chỉ trong env của subprocess wrangler; không per-env token, không alias; giá trị secret chỉ qua stdin, không bao giờ qua argv.
+- Credential control-plane theo lane (§6.12, #548): lane staging đọc cặp org secret `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` (`ACCOUND` là tên thật trên org), map vào `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` chỉ trong env của subprocess wrangler; một lane không bao giờ đọc cặp lane khác, không shared token, không alias; giá trị secret chỉ qua stdin, không bao giờ qua argv.
 
 ## Responsibilities
 
@@ -41,7 +41,7 @@ echo "<rotated>" | npx tsx tools/delivery/src/cli.ts worker-secret stage AXIOM_I
 
 KHÔNG BAO GIỜ ghi giá trị secret ra stdout/stderr hay log CI/CD — CLI chỉ in tên secret và tên Worker, không in giá trị. Nếu một wrapper phía ngoài log lại input, purge log ngay.
 
-Token đọc từ `ECOMA_CLOUDFLARE_API_TOKEN` trong env gọi CLI (org secret GitHub khi chạy trong CI); thiếu token là dừng với đúng tên biến, không fallback credential nào khác.
+Token đọc từ `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` trong env gọi CLI (org secret GitHub khi chạy trong CI; account id đi cùng cặp qua `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID`); thiếu token hay thiếu account id là dừng với đúng tên biến, không fallback credential nào khác.
 
 ## Testing
 

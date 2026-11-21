@@ -7,9 +7,9 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "12.2.1",
+    "@testcontainers/postgresql": "12.2.2",
     "@types/pg": "^8.23.1",
-    "testcontainers": "12.2.1"
+    "testcontainers": "12.2.2"
   },
   "//": "Một dependency lib duy nhất: application lib giữ thuật toán prune (pruneTarget, caps). Toàn bộ I/O của thuật toán đi qua port QueryPool/Sleep, composition root chỉ dựng pool `pg` từ Hyperdrive binding — không có adapter nào đủ concreto để tách infrastructure lib riêng. Job không chia code với serving path của auth/account — chia code là chia ranh giới app→app mà tag Nx cấm.",
   "nx": {

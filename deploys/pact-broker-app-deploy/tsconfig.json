@@ -55,5 +55,13 @@
     // để mặc định "mọi @types trong node_modules".
     "types": ["node"]
   },
-  "files": ["index.ts", "local.ts", "scripts.ts"]
+  "files": [
+    "index.ts",
+    "local-program.ts",
+    "local.ts",
+    "scripts.ts",
+    "staging-program.ts",
+    "staging-run.ts",
+    "staging.ts"
+  ]
 }

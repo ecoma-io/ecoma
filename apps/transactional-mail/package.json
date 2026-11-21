@@ -36,7 +36,7 @@
           "Mặc định `--local`: áp vào D1 local của app (`<app>/.wrangler/state`,",
           "gitignored), không cần credential. Mode remote cho làn staging/production:",
           "`pnpm nx run transactional-mail:db-migrate -c remote` với",
-          "`ECOMA_CLOUDFLARE_API_TOKEN` trong env (§6.12) — token không qua argv,",
+          "cặp `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` trong env (#548, §6.12) — token không qua argv,",
           "không log; `--env <lane>` forward tường minh khi app có named environment.",
           "",
           "`cache: false` — mutate database thật, cùng policy với `db-migrate` của",

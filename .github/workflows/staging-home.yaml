@@ -123,4 +123,7 @@ jobs:
       ref: ${{ needs.context.outputs.deploy_sha }}
       smoke-args: '--redirect /=/en --health /health --noindex /en'
     secrets:
-      cloudflare_api_token: ${{ secrets.ECOMA_CLOUDFLARE_API_TOKEN }}
+      # Làn staging đọc ĐÚNG cặp org secret staging (#548, §6.12) — lane production
+      # dùng cặp ECOMA_CLOUDFLARE_PRODUCTION_* tương ứng, không bao giờ tréo cặp.
+      cloudflare_api_token: ${{ secrets.ECOMA_CLOUDFLARE_STAGING_API_TOKEN }}
+      cloudflare_account_id: ${{ secrets.ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID }}
