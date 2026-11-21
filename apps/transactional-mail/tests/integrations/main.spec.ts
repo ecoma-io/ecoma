@@ -571,10 +571,11 @@ describe('POST /v1/messages (FR-001 end to end on real D1)', () => {
     const db = proxy?.env['mail'] as {
       prepare(sql: string): { run(): Promise<unknown> };
     };
-    await db
-      .prepare("UPDATE mail_templates SET status = 'disabled' WHERE name = 'account.login-otp'")
-      .run();
+    // UPDATE đầu nằm trong try: abort giữa hai UPDATE vẫn được finally khôi phục.
     try {
+      await db
+        .prepare("UPDATE mail_templates SET status = 'disabled' WHERE name = 'account.login-otp'")
+        .run();
       const response = await accountPost(
         env,
         JSON.stringify({
