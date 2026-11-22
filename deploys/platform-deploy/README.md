@@ -27,7 +27,7 @@ Nx project `platform-deploy`, tags `type:deployment`, `scope:platform`, `runtime
 
 ## Staging lane (#350)
 
-Trên stack `staging`, thân chương trình `staging-program.ts` (được entry guard `index.ts` nạp qua dynamic import) khai resource DNS thật: zone non-production `ecoma.io.vn` theo A13 và tập record suy theo scheme hostname MOD1 (`02-delivery.md`) từ inventory eligibility staging — nguồn sự thật duy nhất là `tools/delivery/config/deploy-eligibility.jsonc` (entry `staging: "releaseable"`), cùng nguồn với inventory GitHub Environments của `tools/delivery`. Unit internal-only (push, mail, relay, job) không có hostname public nên không có record; record public là A placeholder originless `192.0.2.0` proxied theo hướng dẫn Cloudflare (Originless setups) — sẵn sàng cho route của Router non-production.
+Trên stack `staging`, thân chương trình `staging-program.ts` (được entry guard `index.ts` nạp qua dynamic import) khai resource DNS thật: zone non-production `ecoma.io.vn` theo A13 và tập record suy theo scheme hostname MOD1 (`02-delivery.md`) từ inventory eligibility staging — nguồn sự thật duy nhất là `tools/delivery/config/deploy-eligibility.jsonc` (entry `staging: "releaseable"`), cùng nguồn với inventory GitHub Environments của `tools/delivery`. Unit internal-only (push, mail, relay, job) không có hostname public nên không có record; unit gắn Wrangler Custom Domain (home) bị loại khỏi record set — Wrangler own record + certificate của attachment, một hostname một owner (§9.1); record còn lại là A placeholder originless `192.0.2.0` proxied theo hướng dẫn Cloudflare (Originless setups) — sẵn sàng cho route của unit public chưa có Custom Domain.
 
 ### Config và credential bắt buộc (fail-closed)
 

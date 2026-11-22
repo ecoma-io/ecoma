@@ -11,17 +11,18 @@
  * Module này không nhân bản danh sách unit; nó chỉ bổ sung phân loại mà
  * eligibility không có: unit nào được cấp hostname public.
  *
- * Scheme MOD1 (`02-delivery.md`): staging public hostname là subdomain của
- * `ecoma.io.vn` (A13), mirror production scheme `01` §7; apex `ecoma.io.vn`
- * phục vụ public web (home); Worker internal-only (push, mail, relay, job)
- * giữ mô hình không hostname public (`workers_dev: false`, chỉ Service
- * Binding) nên không có record DNS nào.
+ * Scheme MOD1 (`02-delivery.md` §4.2, đảo một phần 2026-11-22): staging
+ * public hostname là subdomain của `ecoma.io.vn` (A13), mirror production
+ * scheme `01` §7; unit persistent (home) gắn apex bằng Wrangler Custom
+ * Domain — Wrangler own record + certificate, module này LOẠI unit đó khỏi
+ * record set (một hostname một owner, §9.1); Worker internal-only (push,
+ * mail, relay, job) giữ mô hình không hostname public (`workers_dev: false`,
+ * chỉ Service Binding) nên không có record DNS nào.
  *
- * Record là placeholder originless theo đúng hướng dẫn Cloudflare ("Create
- * DNS records → Originless setups", fetch 2026-11-20): A record `192.0.2.0`
- * proxied — request proxied bị Cloudflare chặn ở edge trước khi chạm origin,
- * nên Router non-production (route `ecoma.io.vn/*`, cần record proxied theo
- * docs Workers Routes, fetch 2026-11-20) serve mà không cần origin thật.
+ * Record còn lại là placeholder originless theo đúng hướng dẫn Cloudflare
+ * ("Create DNS records → Originless setups", fetch 2026-11-20): A record
+ * `192.0.2.0` proxied — request proxied bị Cloudflare chặn ở edge trước khi
+ * chạm origin, sẵn sàng cho route của unit public chưa có Custom Domain.
  */
 
 /** Zone non-production theo A13 — mọi hostname staging là subdomain của zone này. */
@@ -31,10 +32,14 @@ export const STAGING_ROOT_ZONE_NAME = 'ecoma.io.vn';
 export const STAGING_RECORD_PLACEHOLDER_IPV4 = '192.0.2.0';
 
 /**
- * Unit sở hữu apex theo scheme MOD1 — apex của zone non-production mirror
- * production apex `ecoma.io` (`01` §7: public web = home).
+ * Unit gắn hostname public bằng Wrangler Custom Domain trực tiếp
+ * (`02-delivery.md` §4.2: unit persistent mirror production) — Wrangler own
+ * record + certificate của attachment, Pulumi KHÔNG được khai record cùng
+ * hostname (hai tool cùng own một object là vi phạm §9.1). Unit còn lại
+ * (public, chưa có Custom Domain trong wrangler config) vẫn cần record
+ * placeholder originless chờ route.
  */
-const MOD1_APEX_UNIT_SLUG = 'home';
+const MOD1_CUSTOM_DOMAIN_UNIT_SLUGS = ['home'];
 
 /**
  * Unit internal-only theo scheme MOD1 (`02-delivery.md`: "push, mail, relay,
@@ -156,15 +161,17 @@ export function stagingReleaseableSlugs(config: StagingEligibilityConfig): strin
 /**
  * Record set theo scheme MOD1 từ eligibility config: mỗi unit public
  * releaseable đúng MỘT record — apex cho home, `<slug>.ecoma.io.vn` cho unit
- * public còn lại; unit internal-only bị loại khỏi record set.
+ * public còn lại; unit internal-only bị loại khỏi record set; unit gắn
+ * Custom Domain qua Wrangler (`MOD1_CUSTOM_DOMAIN_UNIT_SLUGS`) cũng bị loại —
+ * record của unit đó do Wrangler own khi attach, Pulumi không chạm.
  */
 export function stagingDnsRecordSpecs(config: StagingEligibilityConfig): StagingDnsRecordSpec[] {
   return stagingReleaseableSlugs(config)
     .filter((slug) => !isInternalOnlyUnit(slug))
+    .filter((slug) => !MOD1_CUSTOM_DOMAIN_UNIT_SLUGS.includes(slug))
     .map((slug) => ({
       urnSlug: slug,
-      hostname:
-        slug === MOD1_APEX_UNIT_SLUG ? STAGING_ROOT_ZONE_NAME : `${slug}.${STAGING_ROOT_ZONE_NAME}`,
+      hostname: `${slug}.${STAGING_ROOT_ZONE_NAME}`,
       ttl: 1 as const,
       // Comment cố ý không mang số Issue: provenance thuộc PR/Issue, record
       // DNS chỉ mô tả mục đích vận hành của hostname.

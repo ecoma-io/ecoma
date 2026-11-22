@@ -16,7 +16,7 @@ Client
 Cloudflare ── DNS · TLS · WAF · Rate Limiting · Turnstile
   │
   ├── Public hostname (§7) ──► apps · account · auth · backoffice · payment · llm-api · cache   (ecoma.io — production, không qua Router)
-  ├── Non-production hostname (§7) ──► Router → staging / preview Worker                  (ecoma.io.vn)
+  ├── Non-production hostname (§7) ──► unit persistent: Custom Domain trực tiếp · slot ephemeral: Router → Worker   (ecoma.io.vn)
   ├── Internal — không hostname công khai; Worker không route vẫn có *.workers.dev mặc định (§6) ──► push/mail control + job workers · janitor
   │
   ▼
@@ -199,11 +199,12 @@ Service A ──► API (sync) / Event (async) / Service Binding ──► Servi
 **Ranh giới routing (A13):**
 
 ```text
-Production:    Client → ecoma.io → Cloudflare → production Worker
-Non-production: Client → ecoma.io.vn → Non-production Router → staging / preview Worker
+Production:     Client → ecoma.io → Cloudflare → production Worker
+Non-production: Client → ecoma.io.vn → Cloudflare → unit persistent: Custom Domain trực tiếp tới staging Worker
+                                              └→ slot ephemeral: Non-production Router → staging / preview Worker
 ```
 
-- Production **không đi qua Router**; không có global router hay routing abstraction trên production request path. Router chỉ phục vụ non-production — mục đích của `ecoma.io.vn` là để staging/preview dùng routing đơn giản mà không tạo thêm latency hay operational dependency cho production.
+- Production **không đi qua Router**; không có global router hay routing abstraction trên production request path. Router chỉ phục vụ **slot ephemeral** non-production (preview, candidate) — unit persistent staging (vd home) gắn hostname trực tiếp bằng Custom Domain, cùng cơ chế production (`02` §4.2). Mục đích của `ecoma.io.vn` là để non-production dùng routing đơn giản mà không tạo thêm latency hay operational dependency cho production.
 - Implementation của Router thuộc delivery (`02` §12); `01` chỉ ghi architecture boundary và invariant.
 - **Locale (production, A13):** public URL là `/<locale>/<mount>/<path>`, locale là segment đầu tiên của mọi URL, English cũng mang prefix `/en`; `/` chỉ là locale-resolution entry point, không serve content; không có domain thị trường. Locale strategy của production giữ nguyên, không phụ thuộc vào sự tách domain non-production.
 - `mount` ≠ tên app; app không phục vụ SEO không vào public route table. Production match `mount` thẳng trên path (không qua Router, không strip prefix); các hostname riêng không nằm trong route table public web.

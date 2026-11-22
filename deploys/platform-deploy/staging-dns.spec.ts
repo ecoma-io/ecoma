@@ -152,22 +152,25 @@ describe('parseStagingEligibilityConfig', () => {
 });
 
 describe('stagingDnsRecordSpecs', () => {
-  it('maps the apex unit home to the zone apex hostname', () => {
+  // Regression cho RCA staging smoke 2026-11-22: home gắn apex bằng Wrangler
+  // Custom Domain — record placeholder của Pulumi cùng hostname là two-owner
+  // conflict, nên home bị loại khỏi record set.
+  it('excludes the Wrangler Custom Domain unit home from the record set', () => {
     const specs = stagingDnsRecordSpecs(
       eligibilityConfig({ '@ecoma-io/home': { staging: 'releaseable' } }),
     );
-    expect(specs).toHaveLength(1);
-    expect(specs[0]).toMatchObject({ urnSlug: 'home', hostname: STAGING_ROOT_ZONE_NAME });
+    expect(specs).toEqual([]);
   });
 
   it('drops internal-only units from the record set', () => {
     const specs = stagingDnsRecordSpecs(
       eligibilityConfig({
-        '@ecoma-io/home': { staging: 'releaseable' },
+        '@ecoma-io/account': { staging: 'releaseable' },
         '@ecoma-io/auth-nonce-prune-job': { staging: 'releaseable' },
       }),
     );
-    expect(specs.map((spec) => spec.urnSlug)).toEqual(['home']);
+    // Chỉ internal-only bị loại; unit public không Custom Domain còn lại.
+    expect(specs.map((spec) => spec.urnSlug)).toEqual(['account']);
   });
 
   it('maps a future public unit to its subdomain per the MOD1 mirror scheme', () => {
@@ -184,7 +187,6 @@ describe('stagingDnsRecordSpecs', () => {
   it('keeps every record a proxied originless A placeholder with a bounded comment', () => {
     const specs = stagingDnsRecordSpecs(
       eligibilityConfig({
-        '@ecoma-io/home': { staging: 'releaseable' },
         '@ecoma-io/account': { staging: 'releaseable' },
       }),
     );
@@ -199,7 +201,7 @@ describe('stagingDnsRecordSpecs', () => {
 
   it('keeps issue provenance out of the record comments', () => {
     const specs = stagingDnsRecordSpecs(
-      eligibilityConfig({ '@ecoma-io/home': { staging: 'releaseable' } }),
+      eligibilityConfig({ '@ecoma-io/account': { staging: 'releaseable' } }),
     );
     for (const spec of specs) {
       expect(spec.comment).not.toMatch(/#\d+/u);
@@ -219,12 +221,12 @@ describe('real deploy-eligibility.jsonc', () => {
     ),
   ) as StagingEligibilityConfig;
 
-  it('derives exactly the apex record from the current releaseable inventory', () => {
+  it('derives no placeholder record while home owns the apex via Custom Domain', () => {
     const slugs = stagingReleaseableSlugs(realConfig);
     const specs = stagingDnsRecordSpecs(realConfig);
     expect(slugs).toContain('home');
     expect(slugs).toContain('auth-nonce-prune-job');
-    expect(specs).toHaveLength(1);
-    expect(specs[0]).toMatchObject({ urnSlug: 'home', hostname: STAGING_ROOT_ZONE_NAME });
+    // home = Custom Domain (loại), auth-nonce-prune-job = internal-only (loại).
+    expect(specs).toEqual([]);
   });
 });

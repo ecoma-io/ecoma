@@ -13,10 +13,10 @@ name: Staging deploy (home)
 # 3. Gọi reusable workflow với đúng unit: Environment `staging-home`, Worker
 #    `stg-ecoma-home`, smoke khai theo khả năng của app (§7.5 mục 9).
 #
-# Origin `https://ecoma.io.vn` là apex của zone thuộc #350: tới khi #350/#362
-# dựng Router non-production và gắn hostname, lần chạy thật đầu tiên của job
-# này ĐỨNG ĐÚNG ở smoke (origin chưa tồn tại) — deploy vẫn đi qua được; đây là
-# dependency thật được khai báo, không phải lỗi wiring.
+# Origin `https://ecoma.io.vn` là apex do chính Worker `stg-ecoma-home` phục
+# vụ qua Wrangler Custom Domain (hostname scheme staging, `02-delivery.md`
+# §4.2 — unit persistent gắn trực tiếp, mirror production); record placeholder
+# của Pulumi đã rút khỏi cùng hostname (`staging-dns.ts`).
 
 on:
   workflow_run:
