@@ -37,14 +37,10 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
-
 import { DATABASES, type Database } from './scripts.js';
 import {
-  STAGING_SLOT,
   parseStagingPhaseArg,
   readHyperdriveConfigId,
-  resolveStagingRunEnv,
   runStagingPhase,
   stagingEvidencePath,
 } from './staging-run.js';
@@ -76,21 +72,18 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'llm-api-deploy');
+    const { record, recordPath, env, selection, projectDir } = runStagingPhase(
+      parsed.phase,
+      'llm-api-deploy',
+    );
     console.log(
       `[llm-api-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[llm-api-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
-      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
-      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
-      const projectDir = deployProjectDir('llm-api-deploy');
-      const { backendUrl, env } = resolveStagingRunEnv();
-      const selection = stagingDeploymentAdapter.stackSelection('llm-api-deploy', {
-        slot: STAGING_SLOT,
-        backendUrl,
-      });
+      // Đọc output id bằng ĐÚNG env đã resolve MỘT lần trong `runStagingPhase`
+      // — inventory fail-closed chạy đúng một lần cho cả phase lẫn bước đọc.
       for (const target of DATABASES) {
         const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env, target);
         const binding = STAGING_BINDING_NAMES[target];

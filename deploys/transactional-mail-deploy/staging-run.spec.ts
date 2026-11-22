@@ -1,17 +1,13 @@
 /**
- * Unit tests của engine staging (`staging-run.ts`) — pure functions + exec
- * inject, KHÔNG chạy Pulumi thật và KHÔNG đụng backend nào. Port của
- * `auth-deploy/staging-run.spec.ts` (#539) với refs của project này, thay
- * specs Hyperdrive bằng specs tài nguyên mail: hằng tên D1/queue per-lane
- * (#355), reader output `mailDatabaseId`, và việc guard phân loại riêng slot
- * `staging-candidate` để từ chối (tên tài nguyên slot `-cand` thuộc #381).
+ * Unit tests PER-UNIT của `staging-run.ts` — phần riêng của unit
+ * `transactional-mail` (#355): classify lane (guard riêng slot
+ * `staging-candidate`), hằng tên D1/queue per-lane và wrapper reader output
+ * `mailDatabaseId`. Các test dùng chung của engine (inventory env, ensureStack,
+ * parsers, evidence, runStagingPhase…) đã dồn về
+ * `libs/deployment/src/staging-run.spec.ts` (#543).
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
@@ -19,50 +15,15 @@ import {
   DATABASE_PLACEHOLDER_ID,
   STAGING_MAIL_DATABASE_NAME,
   STAGING_QUEUE_NAMES,
-  appendStagingRecord,
-  backendBucket,
   classifyTransactionalMailDeployStack,
-  ensureStagingStack,
   isProvisionedDatabaseId,
-  parseResourceChanges,
-  parseStagingPhaseArg,
-  r2AccountIdFromStateUrl,
   readDatabaseId,
-  readStagingRevision,
-  resolveStagingRunEnv,
-  runStagingPhase,
-  stagingEvidencePath,
   type StagingExecDeps,
-  type StagingProvisioningRecord,
 } from './staging-run.js';
 
-// `runStagingPhase` dùng `pulumiRun` thật của lib — mock RIÊNG nó thành vi.fn
-// (mặc định throw để spec lỗi phase không đụng Pulumi thật; test đường thành
-// công ghi đè implementation qua `pulumiRunMock.mockImplementationOnce`).
-// `deployProjectDir` trỏ về tmpdir của spec (engine ghi evidence theo
-// projectDir). Mọi export khác giữ nguyên. vi.mock được hoist lên đầu module
-// bởi vitest nên đứng sau import là đúng.
-const { pulumiRunMock } = vi.hoisted(() => ({
-  pulumiRunMock: vi.fn<() => string>(() => {
-    throw new Error('pulumi up failed: simulated phase error');
-  }),
-}));
-vi.mock('@ecoma-io/deployment', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
-  pulumiRun: pulumiRunMock,
-  deployProjectDir: (project: string) => join(tmpdir(), `staging-run-spec-${project}`),
-}));
-
-const cleanup: string[] = [];
-afterEach(() => {
-  for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
-});
-
-function tempProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'staging-run-spec-'));
-  cleanup.push(dir);
-  return dir;
-}
+/** Backend R2 hình đúng tổ hợp (đủ endpoint/region/s3ForcePathStyle=true). */
+const R2_BACKEND_URL =
+  's3://ecoma-pulumi-staging?endpoint=https%3A%2F%2Ftest.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true';
 
 /** ExecResult hình đúng CLI: chỉ cần status/stdout/stderr cho các pure parser. */
 function execResult(
@@ -82,51 +43,19 @@ function recordingExec(results: ExecResult[]): {
     deps: {
       execFn: (command, args) => {
         calls.push({ command, args });
-        const result = results[index] ?? execResult();
+        // Quá số kết quả giả là lỗi test, KHÔNG phải thành công ngầm.
+        const result = results[index];
+        if (result === undefined) {
+          throw new Error(
+            `unexpected exec call #${index + 1} (${command} ${args.join(' ')}) — ` +
+              'the spec mock exhausted its scripted results; update the test',
+          );
+        }
         index += 1;
         return result;
       },
     },
     calls,
-  };
-}
-
-/** Backend R2 hình đúng tổ hợp (đủ endpoint/region/s3ForcePathStyle=true). */
-const R2_BACKEND_URL =
-  's3://ecoma-pulumi-staging?endpoint=https%3A%2F%2Ftest.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true';
-
-/** Env inventory đầy đủ — mỗi test tự bớt khóa để sát khe fail-closed. */
-function fullSourceEnv(): NodeJS.ProcessEnv {
-  return {
-    ECOMA_PULUMI_STATE_URL_STAGING: R2_BACKEND_URL,
-    PULUMI_CONFIG_PASSPHRASE: 'test-passphrase',
-    AWS_ACCESS_KEY_ID: 'test-key',
-    AWS_SECRET_ACCESS_KEY: 'test-secret',
-    CLOUDFLARE_API_TOKEN: 'test-cf-token',
-  };
-}
-
-/** State URL hình đúng với endpoint R2 chỉ định — dùng cho khe parser account id. */
-function stateUrlWithEndpoint(host: string): string {
-  return `s3://ecoma-pulumi-staging?endpoint=${encodeURIComponent(`https://${host}`)}&region=auto&s3ForcePathStyle=true`;
-}
-
-function sampleRecord(
-  overrides: Partial<StagingProvisioningRecord> = {},
-): StagingProvisioningRecord {
-  return {
-    schemaVersion: 1,
-    stackRef: 'organization/transactional-mail-deploy/staging',
-    slot: 'staging',
-    backendBucket: 'ecoma-pulumi-staging.r2.cloudflarestorage.com',
-    gitSha: 'a'.repeat(40),
-    phase: 'preview',
-    revision: 7,
-    resourceChanges: { same: 3 },
-    outcome: 'succeeded',
-    startedAt: '2026-11-20T01:02:03.000Z',
-    finishedAt: '2026-11-20T01:02:04.000Z',
-    ...overrides,
   };
 }
 
@@ -165,94 +94,6 @@ describe('classifyTransactionalMailDeployStack', () => {
       classifyTransactionalMailDeployStack('organization/transactional-mail-deploy/prod'),
     ).toBe('unknown');
     expect(classifyTransactionalMailDeployStack('johndoe')).toBe('unknown');
-  });
-});
-
-describe('resolveStagingRunEnv', () => {
-  it('builds the child env from the full inventory and never carries the file-passphrase variant', () => {
-    const { backendUrl, env } = resolveStagingRunEnv({
-      ...fullSourceEnv(),
-      PULUMI_CONFIG_PASSPHRASE_FILE: '/tmp/should-not-win',
-    });
-    expect(backendUrl).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_BACKEND_URL).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
-    expect(env.PULUMI_SKIP_UPDATE_CHECK).toBe('1');
-    expect(env.PULUMI_CONFIG_PASSPHRASE_FILE).toBeUndefined();
-    // Token Cloudflare là inventory bắt buộc (program khai D1/Queue #355) nhưng
-    // vẫn env-only — không bao giờ vào provider config (state ghi lại config
-    // provider, token thì không).
-    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
-    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
-  });
-
-  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
-    const { env } = resolveStagingRunEnv({
-      ...fullSourceEnv(),
-      PATH: '/usr/bin:/bin',
-      HOME: '/home/operator',
-      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
-      GITHUB_TOKEN: 'decoy-github-token',
-    });
-    expect(env.PATH).toBe('/usr/bin:/bin');
-    expect(env.HOME).toBe('/home/operator');
-    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
-    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
-    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
-    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
-    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
-    expect(env.GITHUB_TOKEN).toBeUndefined();
-    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
-    expect(Object.keys(env).toSorted()).toEqual([
-      'AWS_ACCESS_KEY_ID',
-      'AWS_SECRET_ACCESS_KEY',
-      'CLOUDFLARE_API_TOKEN',
-      'ECOMA_PULUMI_STATE_URL_STAGING',
-      'HOME',
-      'PATH',
-      'PULUMI_BACKEND_URL',
-      'PULUMI_CONFIG_PASSPHRASE',
-      'PULUMI_SKIP_UPDATE_CHECK',
-    ]);
-  });
-
-  it('fails closed listing every missing key at once', () => {
-    const source = fullSourceEnv();
-    delete source.PULUMI_CONFIG_PASSPHRASE;
-    delete source.AWS_ACCESS_KEY_ID;
-    expect(() => resolveStagingRunEnv(source)).toThrow(
-      /PULUMI_CONFIG_PASSPHRASE.*AWS_ACCESS_KEY_ID|AWS_ACCESS_KEY_ID.*PULUMI_CONFIG_PASSPHRASE/su,
-    );
-  });
-
-  it('treats an empty string as a missing credential', () => {
-    expect(() => resolveStagingRunEnv({ ...fullSourceEnv(), AWS_SECRET_ACCESS_KEY: '  ' })).toThrow(
-      /AWS_SECRET_ACCESS_KEY/u,
-    );
-  });
-
-  it('a missing Cloudflare token fails closed because the staging program consults the Cloudflare provider', () => {
-    const source = fullSourceEnv();
-    delete source.CLOUDFLARE_API_TOKEN;
-    expect(() => resolveStagingRunEnv(source)).toThrow(/CLOUDFLARE_API_TOKEN/u);
-  });
-
-  it('a missing state URL means not bootstrapped and refuses without a fallback', () => {
-    const source = fullSourceEnv();
-    delete source.ECOMA_PULUMI_STATE_URL_STAGING;
-    expect(() => resolveStagingRunEnv(source)).toThrow(
-      /ECOMA_PULUMI_STATE_URL_STAGING.*#350|#350.*ECOMA_PULUMI_STATE_URL_STAGING/su,
-    );
-  });
-
-  it('a file:// backend is rejected by the stack-backend pairing rule', () => {
-    expect(() =>
-      resolveStagingRunEnv({
-        ...fullSourceEnv(),
-        ECOMA_PULUMI_STATE_URL_STAGING: 'file:///tmp/some-local-state',
-      }),
-    ).toThrow(/staging.*requires an s3:\/\/ backend/su);
   });
 });
 
@@ -311,213 +152,6 @@ describe('readDatabaseId', () => {
   });
 });
 
-describe('ensureStagingStack', () => {
-  const selection = {
-    environment: 'staging' as const,
-    stackName: 'staging',
-    fullStackRef: 'organization/transactional-mail-deploy/staging',
-    backendUrl: R2_BACKEND_URL,
-  };
-
-  it('a fresh stack init succeeds without a select fallback', () => {
-    const { deps, calls } = recordingExec([execResult()]);
-    ensureStagingStack('/tmp/pd', selection, {}, deps);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.args).toEqual(['stack', 'init', 'staging']);
-  });
-
-  it('an existing stack falls back to select by full ref', () => {
-    const { deps, calls } = recordingExec([
-      execResult({ status: 1, stderr: 'already exists' }),
-      execResult(),
-    ]);
-    ensureStagingStack('/tmp/pd', selection, {}, deps);
-    expect(calls).toHaveLength(2);
-    expect(calls[1]?.args).toEqual([
-      'stack',
-      'select',
-      'organization/transactional-mail-deploy/staging',
-    ]);
-  });
-
-  it('both init and select failing throws with both stderr bodies', () => {
-    const { deps } = recordingExec([
-      execResult({ status: 1, stderr: 'init boom' }),
-      execResult({ status: 1, stderr: 'select boom' }),
-    ]);
-    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(
-      /init boom[\s\S]*select boom/u,
-    );
-  });
-});
-
-describe('parseResourceChanges', () => {
-  it('parses summary.resourceChanges from clean --json output', () => {
-    const stdout = JSON.stringify({ summary: { resourceChanges: { create: 5, same: 2 } } });
-    expect(parseResourceChanges(stdout)).toEqual({ create: 5, same: 2 });
-  });
-
-  it('parses the JSON object embedded after progress noise', () => {
-    const stdout = `some progress line\n${JSON.stringify({ summary: { resourceChanges: { update: 1 } } })}`;
-    expect(parseResourceChanges(stdout)).toEqual({ update: 1 });
-  });
-
-  it('returns undefined for malformed output instead of inventing counts', () => {
-    expect(parseResourceChanges('not json at all')).toBeUndefined();
-    expect(parseResourceChanges('{"summary":{}}')).toBeUndefined();
-    expect(
-      parseResourceChanges('{"summary":{"resourceChanges":{"same":"three"}}}'),
-    ).toBeUndefined();
-  });
-
-  it('an empty change set is undefined, not a fabricated zero map', () => {
-    expect(parseResourceChanges('{"summary":{"resourceChanges":{}}}')).toBeUndefined();
-  });
-});
-
-describe('readStagingRevision', () => {
-  const selection = {
-    environment: 'staging' as const,
-    stackName: 'staging',
-    fullStackRef: 'organization/transactional-mail-deploy/staging',
-    backendUrl: R2_BACKEND_URL,
-  };
-
-  it('takes the version of the newest history entry', () => {
-    const { deps } = recordingExec([
-      execResult({ status: 0, stdout: JSON.stringify([{ version: 12 }, { version: 11 }]) }),
-    ]);
-    expect(readStagingRevision('/tmp/pd', selection, {}, deps)).toBe(12);
-    const { deps: deps2, calls } = recordingExec([]);
-    readStagingRevision('/tmp/pd', selection, {}, deps2);
-    expect(calls[0]?.args).toEqual([
-      'stack',
-      'history',
-      '--json',
-      '--stack',
-      'organization/transactional-mail-deploy/staging',
-    ]);
-  });
-
-  it('a failing or malformed history yields undefined instead of failing the run', () => {
-    expect(
-      readStagingRevision(
-        '/tmp/pd',
-        selection,
-        {},
-        recordingExec([execResult({ status: 1 })]).deps,
-      ),
-    ).toBeUndefined();
-    expect(
-      readStagingRevision(
-        '/tmp/pd',
-        selection,
-        {},
-        recordingExec([execResult({ stdout: 'junk' })]).deps,
-      ),
-    ).toBeUndefined();
-  });
-});
-
-describe('appendStagingRecord', () => {
-  it('writes one new JSON file per run into the evidence dir and never overwrites', () => {
-    const projectDir = tempProjectDir();
-    const first = appendStagingRecord(projectDir, sampleRecord());
-    const second = appendStagingRecord(
-      projectDir,
-      sampleRecord({ phase: 'up', outcome: 'failed' }),
-    );
-    expect(first).not.toBe(second);
-    const files = readdirSync(join(projectDir, '.staging-evidence')).toSorted();
-    expect(files).toHaveLength(2);
-    const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
-    expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed', revision: 7 });
-  });
-
-  it('two records sharing the same millisecond, phase and outcome never overwrite each other', () => {
-    // OCR round 6: hậu tố counter phân biệt filename — cùng mili-giây vẫn là
-    // hai file, hợp đồng append-only không có ngoại lệ.
-    const projectDir = tempProjectDir();
-    const startedAt = '2026-11-20T01:02:03.000Z';
-    const first = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
-    const second = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
-    expect(first).not.toBe(second);
-    expect(readdirSync(join(projectDir, '.staging-evidence'))).toHaveLength(2);
-  });
-});
-
-describe('stagingEvidencePath', () => {
-  it('extracts the evidence path from a failed-run error and refuses every other shape', () => {
-    const failed = Object.assign(new Error('staging up failed'), {
-      recordPath: '/tmp/r.json',
-    });
-    expect(stagingEvidencePath(failed)).toBe('/tmp/r.json');
-    expect(stagingEvidencePath(new Error('no path attached'))).toBeUndefined();
-    expect(stagingEvidencePath('not an error')).toBeUndefined();
-    expect(stagingEvidencePath({ recordPath: 42 })).toBeUndefined();
-  });
-});
-
-describe('backendBucket', () => {
-  it('reduces the backend URL to its bucket authority and drops credentials in the query', () => {
-    // Trong `s3://<bucket>?endpoint=...`, bucket là authority của URL —
-    // endpoint R2 thật nằm ở query parameter, không phải host.
-    expect(backendBucket(R2_BACKEND_URL)).toBe('ecoma-pulumi-staging');
-    expect(backendBucket(R2_BACKEND_URL)).not.toContain('endpoint');
-  });
-});
-
-describe('parseStagingPhaseArg', () => {
-  it('accepts exactly preview and up', () => {
-    expect(parseStagingPhaseArg(['preview'])).toEqual({ kind: 'ok', phase: 'preview' });
-    expect(parseStagingPhaseArg(['up'])).toEqual({ kind: 'ok', phase: 'up' });
-  });
-
-  it('refuses down and destroy with the verb named', () => {
-    expect(parseStagingPhaseArg(['down'])).toEqual({ kind: 'refused', verb: 'down' });
-    expect(parseStagingPhaseArg(['destroy'])).toEqual({ kind: 'refused', verb: 'destroy' });
-  });
-
-  it('a missing argument is a usage error, not an assumed preview', () => {
-    expect(parseStagingPhaseArg([])).toEqual({ kind: 'missing' });
-  });
-});
-
-describe('r2AccountIdFromStateUrl', () => {
-  it('takes the account id from the R2 path-style endpoint host (04 R22)', () => {
-    expect(
-      r2AccountIdFromStateUrl(
-        stateUrlWithEndpoint('a1b2c3d4e5f60718293a4b5c6d7e8f90.r2.cloudflarestorage.com'),
-      ),
-    ).toBe('a1b2c3d4e5f60718293a4b5c6d7e8f90');
-  });
-
-  it('drops the jurisdiction prefix labels, which are not part of the account id', () => {
-    expect(
-      r2AccountIdFromStateUrl(stateUrlWithEndpoint('eu.a1b2c3d4.r2.cloudflarestorage.com')),
-    ).toBe('a1b2c3d4');
-    expect(
-      r2AccountIdFromStateUrl(stateUrlWithEndpoint('fedramp.a1b2c3d4.r2.cloudflarestorage.com')),
-    ).toBe('a1b2c3d4');
-  });
-
-  it('a missing endpoint query parameter refuses instead of guessing', () => {
-    expect(() =>
-      r2AccountIdFromStateUrl('s3://ecoma-pulumi-staging?region=auto&s3ForcePathStyle=true'),
-    ).toThrow(/endpoint/u);
-  });
-
-  it('a non-R2 endpoint refuses with the R22 shape named', () => {
-    expect(() => r2AccountIdFromStateUrl(stateUrlWithEndpoint('s3.amazonaws.com'))).toThrow(
-      /R2 path-style endpoint/u,
-    );
-  });
-
-  it('a malformed state URL refuses', () => {
-    expect(() => r2AccountIdFromStateUrl('not a url')).toThrow(/valid staging state URL/u);
-  });
-});
-
 describe('staging resource name constants', () => {
   it('names the staging D1 database per-lane, not the production name', () => {
     expect(STAGING_MAIL_DATABASE_NAME).toBe('stg-mail');
@@ -536,45 +170,5 @@ describe('staging resource name constants', () => {
     }
     expect(STAGING_QUEUE_NAMES[1]).toBe(`${STAGING_QUEUE_NAMES[0]}-dlq`);
     expect(STAGING_QUEUE_NAMES[3]).toBe(`${STAGING_QUEUE_NAMES[2]}-dlq`);
-  });
-});
-
-describe('runStagingPhase', () => {
-  it('a failed phase keeps the original provisioning error even when writing the evidence record fails', () => {
-    // Cùng tmpdir mà `deployProjectDir` (mocked) trả về — engine ghi evidence
-    // theo projectDir, không theo cwd của spec.
-    const projectDir = join(tmpdir(), 'staging-run-spec-transactional-mail-deploy');
-    cleanup.push(projectDir);
-    mkdirSync(projectDir, { recursive: true });
-    // `.staging-evidence` là FILE (không phải thư mục) — mkdirSync của
-    // `appendStagingRecord` ném EEXIST, mô phỏng disk-full/quyền hạn.
-    writeFileSync(join(projectDir, '.staging-evidence'), 'not a dir');
-    const deps: StagingExecDeps = { execFn: () => execResult() };
-    // Lỗi gốc của phase phải được ném lại nguyên văn — KHÔNG phải EEXIST của
-    // lần ghi evidence.
-    expect(() => runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps)).toThrow(
-      /pulumi up failed: simulated phase error/u,
-    );
-    expect(() => runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps)).toThrow(
-      /staging up failed on organization\/transactional-mail-deploy\/staging/u,
-    );
-    expect(() =>
-      runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps),
-    ).not.toThrow(/evidence/u);
-  });
-
-  it('a succeeded phase stays succeeded even when writing the evidence record fails', () => {
-    // Đối xứng test thất bại ngay trên: ghi evidence không được che mất một
-    // provisioning THÀNH CÔNG — throw của evidence chỉ làm mất record path.
-    const projectDir = join(tmpdir(), 'staging-run-spec-transactional-mail-deploy');
-    cleanup.push(projectDir);
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, '.staging-evidence'), 'not a dir');
-    pulumiRunMock.mockImplementationOnce(() => '{"summary":{"resourceChanges":{"create":5}}}');
-    const deps: StagingExecDeps = { execFn: () => execResult() };
-    const outcome = runStagingPhase('up', 'transactional-mail-deploy', fullSourceEnv(), deps);
-    expect(outcome.record.outcome).toBe('succeeded');
-    expect(outcome.record.resourceChanges).toEqual({ create: 5 });
-    expect(outcome.recordPath).toBe('');
   });
 });

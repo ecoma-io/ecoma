@@ -1,15 +1,16 @@
 /**
- * Unit tests của engine staging (`staging-run.ts`) — pure functions + exec
- * inject, KHÔNG chạy Pulumi thật và KHÔNG đụng backend nào. Port của bản
- * `auth-deploy` (#539) với refs của project này (#354): origin fail-closed
- * (#349), id thật vs placeholder, tên config per-database.
+ * Unit tests PER-UNIT của `staging-run.ts` — phần riêng của unit
+ * `account-deploy`: classify lane, wrapper origin gắn sẵn identity
+ * database/role, wrapper reader output, hằng naming và hợp đồng lane guard của
+ * `index.ts`. Các test dùng chung của engine (inventory env, ensureStack,
+ * parsers, evidence, runStagingPhase…) đã dồn về
+ * `libs/deployment/src/staging-run.spec.ts` (#543) và KHÔNG lặp lại ở đây.
  */
 
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import type { ExecResult } from '@ecoma-io/deployment';
 
@@ -18,34 +19,16 @@ import {
   STAGING_ACCOUNT_DATABASE,
   STAGING_ACCOUNT_HYPERDRIVE_CONFIG_NAME,
   STAGING_ACCOUNT_RUNTIME_ROLE,
-  appendStagingRecord,
-  backendBucket,
-  readGitHeadSha,
   classifyAccountDeployStack,
-  ensureStagingStack,
   isProvisionedHyperdriveConfigId,
-  parseResourceChanges,
-  parseStagingPhaseArg,
-  r2AccountIdFromStateUrl,
   readHyperdriveConfigId,
-  readStagingRevision,
   resolveStagingHyperdriveOrigin,
-  stagingEvidencePath,
-  resolveStagingRunEnv,
   type StagingExecDeps,
-  type StagingProvisioningRecord,
 } from './staging-run.js';
 
-const cleanup: string[] = [];
-afterEach(() => {
-  for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
-});
-
-function tempProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'staging-run-spec-account-'));
-  cleanup.push(dir);
-  return dir;
-}
+/** Backend R2 hình đúng tổ hợp (đủ endpoint/region/s3ForcePathStyle=true). */
+const R2_BACKEND_URL =
+  's3://ecoma-pulumi-staging?endpoint=https%3A%2F%2Ftest.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true';
 
 /** ExecResult hình đúng CLI: chỉ cần status/stdout/stderr cho các pure parser. */
 function execResult(
@@ -83,45 +66,6 @@ function recordingExec(results: ExecResult[]): {
   };
 }
 
-/** Backend R2 hình đúng tổ hợp (đủ endpoint/region/s3ForcePathStyle=true). */
-const R2_BACKEND_URL =
-  's3://ecoma-pulumi-staging?endpoint=https%3A%2F%2Ftest.r2.cloudflarestorage.com&region=auto&s3ForcePathStyle=true';
-
-/** Env inventory đầy đủ — mỗi test tự bớt khóa để sát khe fail-closed. */
-function fullSourceEnv(): NodeJS.ProcessEnv {
-  return {
-    ECOMA_PULUMI_STATE_URL_STAGING: R2_BACKEND_URL,
-    PULUMI_CONFIG_PASSPHRASE: 'test-passphrase',
-    AWS_ACCESS_KEY_ID: 'test-key',
-    AWS_SECRET_ACCESS_KEY: 'test-secret',
-    CLOUDFLARE_API_TOKEN: 'test-cf-token',
-  };
-}
-
-/** State URL hình đúng với endpoint R2 chỉ định — dùng cho khe parser account id. */
-function stateUrlWithEndpoint(host: string): string {
-  return `s3://ecoma-pulumi-staging?endpoint=${encodeURIComponent(`https://${host}`)}&region=auto&s3ForcePathStyle=true`;
-}
-
-function sampleRecord(
-  overrides: Partial<StagingProvisioningRecord> = {},
-): StagingProvisioningRecord {
-  return {
-    schemaVersion: 1,
-    stackRef: 'organization/account-deploy/staging',
-    slot: 'staging',
-    backendBucket: 'ecoma-pulumi-staging.r2.cloudflarestorage.com',
-    gitSha: 'a'.repeat(40),
-    phase: 'preview',
-    revision: 7,
-    resourceChanges: { same: 3 },
-    outcome: 'succeeded',
-    startedAt: '2026-11-20T01:02:03.000Z',
-    finishedAt: '2026-11-20T01:02:04.000Z',
-    ...overrides,
-  };
-}
-
 describe('classifyAccountDeployStack', () => {
   it('local namespace slug routes to the local lane', () => {
     expect(classifyAccountDeployStack('organization/account-deploy/local-john')).toBe('local');
@@ -141,115 +85,6 @@ describe('classifyAccountDeployStack', () => {
   it('any other slug is unknown and must fail closed', () => {
     expect(classifyAccountDeployStack('organization/account-deploy/prod')).toBe('unknown');
     expect(classifyAccountDeployStack('johndoe')).toBe('unknown');
-  });
-});
-
-describe('resolveStagingRunEnv', () => {
-  it('builds the child env from the full inventory and never carries the file-passphrase variant', () => {
-    const { backendUrl, env } = resolveStagingRunEnv({
-      ...fullSourceEnv(),
-      PULUMI_CONFIG_PASSPHRASE_FILE: '/tmp/should-not-win',
-    });
-    expect(backendUrl).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_BACKEND_URL).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
-    expect(env.PULUMI_SKIP_UPDATE_CHECK).toBe('1');
-    expect(env.PULUMI_CONFIG_PASSPHRASE_FILE).toBeUndefined();
-    // Token Cloudflare giờ là inventory bắt buộc (program khai HyperdriveConfig
-    // #350) nhưng vẫn env-only — không bao giờ vào provider config (state ghi
-    // lại config provider, token thì không).
-    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
-    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
-  });
-
-  it('allowlists the child env to the inventory keys plus PATH/HOME and never leaks an unrelated variable', () => {
-    const { env } = resolveStagingRunEnv({
-      ...fullSourceEnv(),
-      PATH: '/usr/bin:/bin',
-      HOME: '/home/operator',
-      CLOUDFLARE_ACCOUNT_ID: 'decoy-account-id',
-      GITHUB_TOKEN: 'decoy-github-token',
-    });
-    expect(env.PATH).toBe('/usr/bin:/bin');
-    expect(env.HOME).toBe('/home/operator');
-    expect(env.ECOMA_PULUMI_STATE_URL_STAGING).toBe(R2_BACKEND_URL);
-    expect(env.PULUMI_CONFIG_PASSPHRASE).toBe('test-passphrase');
-    expect(env.AWS_ACCESS_KEY_ID).toBe('test-key');
-    expect(env.AWS_SECRET_ACCESS_KEY).toBe('test-secret');
-    expect(env.CLOUDFLARE_API_TOKEN).toBe('test-cf-token');
-    expect(env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
-    expect(env.GITHUB_TOKEN).toBeUndefined();
-    // Đủ chặt để mọi khóa lạ của môi trường operator bị cắt khỏi env con.
-    expect(Object.keys(env).toSorted()).toEqual([
-      'AWS_ACCESS_KEY_ID',
-      'AWS_SECRET_ACCESS_KEY',
-      'CLOUDFLARE_API_TOKEN',
-      'ECOMA_PULUMI_STATE_URL_STAGING',
-      'HOME',
-      'PATH',
-      'PULUMI_BACKEND_URL',
-      'PULUMI_CONFIG_PASSPHRASE',
-      'PULUMI_SKIP_UPDATE_CHECK',
-    ]);
-  });
-
-  it('falls back PATH/HOME to process.env when the source env lacks them instead of spawning with undefined', () => {
-    // OCR round 5: env thiếu PATH/HOME không được biến thành spawn ENOENT khó
-    // chẩn đoán — fallback về process.env cho đúng hai khóa đó.
-    const source = fullSourceEnv();
-    delete source.PATH;
-    delete source.HOME;
-    const { env } = resolveStagingRunEnv(source);
-    expect(env.PATH).toBe(process.env.PATH);
-    expect(env.HOME).toBe(process.env.HOME);
-  });
-
-  it('fails closed listing every missing key at once', () => {
-    const source = fullSourceEnv();
-    delete source.PULUMI_CONFIG_PASSPHRASE;
-    delete source.AWS_ACCESS_KEY_ID;
-    expect(() => resolveStagingRunEnv(source)).toThrow(
-      /PULUMI_CONFIG_PASSPHRASE.*AWS_ACCESS_KEY_ID|AWS_ACCESS_KEY_ID.*PULUMI_CONFIG_PASSPHRASE/su,
-    );
-  });
-
-  it('treats an empty string as a missing credential', () => {
-    expect(() => resolveStagingRunEnv({ ...fullSourceEnv(), AWS_SECRET_ACCESS_KEY: '  ' })).toThrow(
-      /AWS_SECRET_ACCESS_KEY/u,
-    );
-  });
-
-  it('a missing Cloudflare token fails closed because the staging program consults the Cloudflare provider', () => {
-    const source = fullSourceEnv();
-    delete source.CLOUDFLARE_API_TOKEN;
-    expect(() => resolveStagingRunEnv(source)).toThrow(/CLOUDFLARE_API_TOKEN/u);
-  });
-
-  it('a missing state URL means not bootstrapped and refuses without a fallback', () => {
-    const source = fullSourceEnv();
-    delete source.ECOMA_PULUMI_STATE_URL_STAGING;
-    expect(() => resolveStagingRunEnv(source)).toThrow(
-      /ECOMA_PULUMI_STATE_URL_STAGING.*#354|#354.*ECOMA_PULUMI_STATE_URL_STAGING/su,
-    );
-  });
-
-  it('a file:// backend is rejected by the stack-backend pairing rule', () => {
-    expect(() =>
-      resolveStagingRunEnv({
-        ...fullSourceEnv(),
-        ECOMA_PULUMI_STATE_URL_STAGING: 'file:///tmp/some-local-state',
-      }),
-    ).toThrow(/staging.*requires an s3:\/\/ backend/su);
-  });
-
-  it('returns the adapter selection so a run never consults stackSelection twice', () => {
-    // OCR round 2: selection cấp ngay trong `resolveStagingRunEnv` — caller
-    // (`runStagingPhase`) dùng lại, không gọi adapter lần hai.
-    const { selection } = resolveStagingRunEnv(fullSourceEnv());
-    expect(selection.environment).toBe('staging');
-    expect(selection.stackName).toBe('staging');
-    expect(selection.backendUrl).toBe(R2_BACKEND_URL);
-    expect(selection.fullStackRef).toBe('organization/account-deploy/staging');
   });
 });
 
@@ -380,324 +215,6 @@ describe('readHyperdriveConfigId', () => {
   it('a malformed output yields undefined instead of a fabricated id', () => {
     const { deps } = recordingExec([execResult({ stdout: 'junk' })]);
     expect(readHyperdriveConfigId('/tmp/pd', selection, {}, deps)).toBeUndefined();
-  });
-});
-
-describe('ensureStagingStack', () => {
-  const selection = {
-    environment: 'staging' as const,
-    stackName: 'staging',
-    fullStackRef: 'organization/account-deploy/staging',
-    backendUrl: R2_BACKEND_URL,
-  };
-
-  it('a fresh stack init succeeds without a select fallback', () => {
-    const { deps, calls } = recordingExec([execResult()]);
-    ensureStagingStack('/tmp/pd', selection, {}, deps);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.args).toEqual(['stack', 'init', 'staging']);
-  });
-
-  it('an existing stack falls back to select by full ref', () => {
-    const { deps, calls } = recordingExec([
-      execResult({ status: 1, stderr: 'already exists' }),
-      execResult(),
-    ]);
-    ensureStagingStack('/tmp/pd', selection, {}, deps);
-    expect(calls).toHaveLength(2);
-    expect(calls[1]?.args).toEqual(['stack', 'select', 'organization/account-deploy/staging']);
-  });
-
-  it('an init failure without an already-exists stderr fails loudly instead of a select fallback', () => {
-    // OCR round 3: lỗi thật của `stack init` (mạng/backend/credential) không
-    // được che giấu bởi một lần `stack select` thành công trên stack trùng tên.
-    const { deps, calls } = recordingExec([execResult({ status: 1, stderr: 'network boom' })]);
-    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(/network boom/u);
-    expect(calls).toHaveLength(1);
-  });
-
-  it('an init failure with a non-string stderr throws with the raw value instead of coercing it', () => {
-    // OCR round 4: `RegExp.test(undefined)` ép kiểu thành "undefined" — guard
-    // typeof phải giữ nguyên giá trị thô trong message lỗi.
-    const { deps, calls } = recordingExec([
-      { status: 1, stdout: '', stderr: undefined } as unknown as ExecResult,
-    ]);
-    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(/undefined/u);
-    expect(calls).toHaveLength(1);
-  });
-
-  it('both init and select failing throws with both stderr bodies', () => {
-    const { deps, calls } = recordingExec([
-      execResult({ status: 1, stderr: 'already exists but select also fails' }),
-      execResult({ status: 1, stderr: 'select boom' }),
-    ]);
-    expect(() => ensureStagingStack('/tmp/pd', selection, {}, deps)).toThrow(
-      /already exists[\s\S]*select boom/u,
-    );
-    expect(calls).toHaveLength(2);
-  });
-});
-
-describe('parseResourceChanges', () => {
-  it('parses summary.resourceChanges from clean --json output', () => {
-    const stdout = JSON.stringify({ summary: { resourceChanges: { create: 2, same: 5 } } });
-    expect(parseResourceChanges(stdout)).toEqual({ create: 2, same: 5 });
-  });
-
-  it('parses the JSON object embedded after progress noise', () => {
-    const stdout = `some progress line\n${JSON.stringify({ summary: { resourceChanges: { update: 1 } } })}`;
-    expect(parseResourceChanges(stdout)).toEqual({ update: 1 });
-  });
-
-  it('parses the JSON object even when progress noise itself contains a brace', () => {
-    // OCR round 5: parse thử từng vị trí `{` — dòng noise chứa `{` không được
-    // làm mất resourceChanges.
-    const stdout = `progress {"partial":\n${JSON.stringify({ summary: { resourceChanges: { same: 4 } } })}`;
-    expect(parseResourceChanges(stdout)).toEqual({ same: 4 });
-  });
-
-  it('returns undefined for malformed output instead of inventing counts', () => {
-    expect(parseResourceChanges('not json at all')).toBeUndefined();
-    expect(parseResourceChanges('{"summary":{}}')).toBeUndefined();
-    expect(
-      parseResourceChanges('{"summary":{"resourceChanges":{"same":"three"}}}'),
-    ).toBeUndefined();
-  });
-
-  it('an empty change set is undefined, not a fabricated zero map', () => {
-    expect(parseResourceChanges('{"summary":{"resourceChanges":{}}}')).toBeUndefined();
-  });
-});
-
-describe('readStagingRevision', () => {
-  const selection = {
-    environment: 'staging' as const,
-    stackName: 'staging',
-    fullStackRef: 'organization/account-deploy/staging',
-    backendUrl: R2_BACKEND_URL,
-  };
-
-  it('takes the version of the newest history entry', () => {
-    const { deps } = recordingExec([
-      execResult({ status: 0, stdout: JSON.stringify([{ version: 12 }, { version: 11 }]) }),
-    ]);
-    expect(readStagingRevision('/tmp/pd', selection, {}, deps)).toBe(12);
-    const { deps: deps2, calls } = recordingExec([execResult()]);
-    readStagingRevision('/tmp/pd', selection, {}, deps2);
-    expect(calls[0]?.args).toEqual([
-      'stack',
-      'history',
-      '--json',
-      '--stack',
-      'organization/account-deploy/staging',
-    ]);
-  });
-
-  it('a failing or malformed history yields undefined instead of failing the run', () => {
-    expect(
-      readStagingRevision(
-        '/tmp/pd',
-        selection,
-        {},
-        recordingExec([execResult({ status: 1 })]).deps,
-      ),
-    ).toBeUndefined();
-    expect(
-      readStagingRevision(
-        '/tmp/pd',
-        selection,
-        {},
-        recordingExec([execResult({ stdout: 'junk' })]).deps,
-      ),
-    ).toBeUndefined();
-  });
-});
-
-describe('appendStagingRecord', () => {
-  it('writes one new JSON file per run into the evidence dir and never overwrites', () => {
-    const projectDir = tempProjectDir();
-    const first = appendStagingRecord(projectDir, sampleRecord());
-    const second = appendStagingRecord(
-      projectDir,
-      sampleRecord({ phase: 'up', outcome: 'failed' }),
-    );
-    expect(first).not.toBe(second);
-    const files = readdirSync(join(projectDir, '.staging-evidence')).toSorted();
-    expect(files).toHaveLength(2);
-    const parsed = JSON.parse(readFileSync(second, 'utf8')) as StagingProvisioningRecord;
-    expect(parsed).toMatchObject({ schemaVersion: 1, phase: 'up', outcome: 'failed', revision: 7 });
-  });
-
-  it('two records sharing the same millisecond, phase and outcome never overwrite each other', () => {
-    // OCR round 5: hậu tố counter phân biệt filename — cùng mili-giây vẫn là
-    // hai file, hợp đồng append-only không có ngoại lệ.
-    const projectDir = tempProjectDir();
-    const startedAt = '2026-11-20T01:02:03.000Z';
-    const first = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
-    const second = appendStagingRecord(projectDir, sampleRecord({ startedAt }));
-    expect(first).not.toBe(second);
-    expect(readdirSync(join(projectDir, '.staging-evidence'))).toHaveLength(2);
-  });
-});
-
-describe('readGitHeadSha', () => {
-  it('runs git with the PATH/HOME of the injected source env, never process.env', () => {
-    let capturedEnv: NodeJS.ProcessEnv | undefined;
-    const deps: StagingExecDeps = {
-      execFn: (_command, _args, _cwd, env) => {
-        capturedEnv = env;
-        return execResult({ stdout: `${'a'.repeat(40)}\n` });
-      },
-    };
-    const sha = readGitHeadSha('/tmp/pd', { PATH: '/injected/bin', HOME: '/injected/home' }, deps);
-    expect(sha).toBe('a'.repeat(40));
-    expect(capturedEnv).toEqual({ PATH: '/injected/bin', HOME: '/injected/home' });
-  });
-
-  it('falls back PATH/HOME to process.env when the injected source env lacks them', () => {
-    // OCR round 5: cùng fallback với env Pulumi — git phải chạy được, không
-    // chết spawn với PATH undefined.
-    let capturedEnv: NodeJS.ProcessEnv | undefined;
-    const deps: StagingExecDeps = {
-      execFn: (_command, _args, _cwd, env) => {
-        capturedEnv = env;
-        return execResult({ stdout: `${'a'.repeat(40)}\n` });
-      },
-    };
-    readGitHeadSha('/tmp/pd', {}, deps);
-    expect(capturedEnv?.PATH).toBe(process.env.PATH);
-    expect(capturedEnv?.HOME).toBe(process.env.HOME);
-  });
-
-  it('a failing or non-SHA output yields undefined instead of a fabricated sha', () => {
-    const failing: StagingExecDeps = {
-      execFn: () => execResult({ status: 1 }),
-    };
-    expect(readGitHeadSha('/tmp/pd', {}, failing)).toBeUndefined();
-    const junk: StagingExecDeps = {
-      execFn: () => execResult({ stdout: 'not-a-sha' }),
-    };
-    expect(readGitHeadSha('/tmp/pd', {}, junk)).toBeUndefined();
-  });
-});
-
-describe('stagingEvidencePath', () => {
-  it('surfaces the recordPath a failed runStagingPhase attaches and ignores other errors', () => {
-    expect(stagingEvidencePath(Object.assign(new Error('x'), { recordPath: '/tmp/r.json' }))).toBe(
-      '/tmp/r.json',
-    );
-    expect(stagingEvidencePath(new Error('no path'))).toBeUndefined();
-    expect(stagingEvidencePath('boom')).toBeUndefined();
-    expect(
-      stagingEvidencePath(Object.assign(new Error('x'), { recordPath: undefined })),
-    ).toBeUndefined();
-  });
-});
-
-describe('runStagingPhase evidence-write failure', () => {
-  it('keeps the original Pulumi error as `cause` when the evidence write also fails', async () => {
-    // OCR round 4: lỗi gốc phải unwrap được qua `cause` (ES2022) — message gộp
-    // là cho operator, caller phân loại lỗi theo lỗi Pulumi gốc.
-    vi.doMock('@ecoma-io/deployment', async (importOriginal) => ({
-      ...(await importOriginal<typeof import('@ecoma-io/deployment')>()),
-      deployProjectDir: () => {
-        // Evidence write phải THẤT BẠI: `.staging-evidence` bị thay bằng một
-        // FILE thường — `mkdirSync(recursive)` ném EEXIST (không tạo được thư
-        // mục trên đường dẫn đã là file), bị catch vào `catch (recordError)`
-        // và giữ nguyên lỗi Pulumi qua `cause`.
-        const dir = tempProjectDir();
-        writeFileSync(join(dir, '.staging-evidence'), 'not a directory', 'utf8');
-        return dir;
-      },
-      pulumiRun: () => {
-        throw new Error('pulumi up boom');
-      },
-    }));
-    vi.resetModules();
-    const mocked = await import('./staging-run.js');
-    const thrown = (() => {
-      try {
-        mocked.runStagingPhase(
-          'preview',
-          'account-deploy',
-          { ...fullSourceEnv(), PATH: '/injected/bin', HOME: '/injected/home' },
-          { execFn: () => execResult() },
-        );
-        return undefined;
-      } catch (error) {
-        return error as Error & { cause?: unknown };
-      }
-    })();
-    // OCR round 5: mock phải gỡ kể cả khi một assert nào đó ném — mock rò rỉ
-    // sang test sau là cross-test pollution.
-    try {
-      expect(thrown?.message).toMatch(/pulumi up boom[\s\S]*evidence write failed/u);
-      expect(thrown?.cause).toBeInstanceOf(Error);
-      expect((thrown?.cause as Error | undefined)?.message).toBe('pulumi up boom');
-    } finally {
-      vi.doUnmock('@ecoma-io/deployment');
-      vi.resetModules();
-    }
-  });
-});
-
-describe('backendBucket', () => {
-  it('reduces the backend URL to its bucket authority and drops credentials in the query', () => {
-    // Trong `s3://<bucket>?endpoint=...`, bucket là authority của URL —
-    // endpoint R2 thật nằm ở query parameter, không phải host.
-    expect(backendBucket(R2_BACKEND_URL)).toBe('ecoma-pulumi-staging');
-    expect(backendBucket(R2_BACKEND_URL)).not.toContain('endpoint');
-  });
-});
-
-describe('parseStagingPhaseArg', () => {
-  it('accepts exactly preview and up', () => {
-    expect(parseStagingPhaseArg(['preview'])).toEqual({ kind: 'ok', phase: 'preview' });
-    expect(parseStagingPhaseArg(['up'])).toEqual({ kind: 'ok', phase: 'up' });
-  });
-
-  it('refuses down and destroy with the verb named', () => {
-    expect(parseStagingPhaseArg(['down'])).toEqual({ kind: 'refused', verb: 'down' });
-    expect(parseStagingPhaseArg(['destroy'])).toEqual({ kind: 'refused', verb: 'destroy' });
-  });
-
-  it('a missing argument is a usage error, not an assumed preview', () => {
-    expect(parseStagingPhaseArg([])).toEqual({ kind: 'missing' });
-  });
-});
-
-describe('r2AccountIdFromStateUrl', () => {
-  it('takes the account id from the R2 path-style endpoint host (04 R22)', () => {
-    expect(
-      r2AccountIdFromStateUrl(
-        stateUrlWithEndpoint('a1b2c3d4e5f60718293a4b5c6d7e8f90.r2.cloudflarestorage.com'),
-      ),
-    ).toBe('a1b2c3d4e5f60718293a4b5c6d7e8f90');
-  });
-
-  it('drops the jurisdiction prefix labels, which are not part of the account id', () => {
-    expect(
-      r2AccountIdFromStateUrl(stateUrlWithEndpoint('eu.a1b2c3d4.r2.cloudflarestorage.com')),
-    ).toBe('a1b2c3d4');
-    expect(
-      r2AccountIdFromStateUrl(stateUrlWithEndpoint('fedramp.a1b2c3d4.r2.cloudflarestorage.com')),
-    ).toBe('a1b2c3d4');
-  });
-
-  it('a missing endpoint query parameter refuses instead of guessing', () => {
-    expect(() =>
-      r2AccountIdFromStateUrl('s3://ecoma-pulumi-staging?region=auto&s3ForcePathStyle=true'),
-    ).toThrow(/endpoint/u);
-  });
-
-  it('a non-R2 endpoint refuses with the R22 shape named', () => {
-    expect(() => r2AccountIdFromStateUrl(stateUrlWithEndpoint('s3.amazonaws.com'))).toThrow(
-      /R2 path-style endpoint/u,
-    );
-  });
-
-  it('a malformed state URL refuses', () => {
-    expect(() => r2AccountIdFromStateUrl('not a url')).toThrow(/valid staging state URL/u);
   });
 });
 
