@@ -629,9 +629,12 @@ export function stagingHyperdriveWiringExit(
   wiring: { binding: string; wranglerPath: string },
   deps: StagingExecDeps = defaultDeps,
 ): number {
+  // Cùng đường resolve projectDir với `runStagingPhase` — mock `projectDirFn`
+  // trong test phải có hiệu lực ở bước wiring, không chỉ lúc provision.
+  const projectDir = (deps.projectDirFn ?? deployProjectDir)(project);
   const hyperdriveConfigId = readStackOutputId(
     'hyperdriveConfigId',
-    deployProjectDir(project),
+    projectDir,
     selection,
     env,
     deps,
