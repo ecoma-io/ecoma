@@ -160,8 +160,8 @@
           "commands": [
             "npx vitest run -c vitest.integration.config.mts",
             "bash tests/browser/ensure-playwright-browser.sh",
-            "npx playwright test -c playwright.config.ts",
-            "npx playwright test -c playwright.unavailable.config.ts"
+            "bash -o pipefail -c 'npx playwright test -c playwright.config.ts 2>&1 | tee .playwright-prototype.log'",
+            "bash -o pipefail -c 'npx playwright test -c playwright.unavailable.config.ts 2>&1 | tee .playwright-unavailable.log'"
           ],
           "parallel": false
         },
@@ -179,6 +179,12 @@
           "`.css`/`.html`/`.json` của build: nâng cấp wrangler đổi hành vi assets",
           "layer mà suite worker-runtime đo, nên cache phải mất hiệu lực khi nó đổi",
           "(cùng cấu hình với target `test-integration` của `apps/llm-console`).",
+          "",
+          "Hai lane Playwright bọc `bash -o pipefail -c '... | tee .playwright-*.log'`",
+          "để stdout/stderr của webServer được ghi ra file log dùng làm bằng chứng",
+          "chẩn đoán khi lane treo (nx spawn lệnh qua `/bin/sh`, không phải bash,",
+          "nên phải gọi bash tường minh — `${PIPESTATUS}` của bash không dùng được",
+          "trong sh).",
           "",
           "Suite browser (Playwright) gắn vào target này, không phải target `e2e`",
           "riêng — 06-testing.md §4: mọi suite app-owned dưới tests/ thuộc",
