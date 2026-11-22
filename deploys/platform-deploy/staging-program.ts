@@ -98,9 +98,9 @@ const eligibility = parseStagingEligibilityConfig(
 // → Originless setups", fetch 2026-11-20): request bị Cloudflare chặn ở
 // edge trước origin, nên record sẵn sàng cho route của Router non-production
 // mà không đòi origin thật. Record là của Pulumi (create + update + delete
-// theo state) — Wrangler Custom Domain tự sinh record riêng, không hai bên
-// cùng own một hostname (việc đưa apex về Router là điều kiện đã ghi trong
-// `02-delivery.md` trước khi làn staging đầu tiên chạy).
+// theo state) — unit gắn Wrangler Custom Domain (home, `02-delivery.md`
+// §4.2) bị loại khỏi record set vì Wrangler own record + certificate của
+// attachment; Pulumi không bao giờ cùng own một hostname với Wrangler (§9.1).
 export const stagingDnsRecords = stagingDnsRecordSpecs(eligibility).map(
   (record) =>
     new cloudflare.DnsRecord(

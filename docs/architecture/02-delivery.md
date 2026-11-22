@@ -571,27 +571,32 @@ Rejected alternative: **tách host PostgreSQL riêng cho staging ngay từ M2** 
 chi phí gấp đôi không mua thêm điều kiện môi trường nào vì mọi guarantee cách ly nằm ở database/role/credential; việc
 tách vẫn mở như operational trigger.
 
-**Hostname scheme — theo A13: Router non-production trên zone `ecoma.io.vn`.** Staging public hostname là **subdomain
-của `ecoma.io.vn`**, mirror production hostname scheme của `01` §7 (`account.ecoma.io.vn` ↔ `account.ecoma.io`, …); apex
-`ecoma.io.vn` phục vụ public web (home). Một **Router Worker non-production** — deploy unit riêng, chưa tồn tại trong
-cây, hiện thực thuộc Delivery — sở hữu route table: nhận request trên zone qua route pattern `ecoma.io.vn/*` và
-`*.ecoma.io.vn/*` (Workers route hỗ trợ wildcard, most-specific wins — Cloudflare Workers docs, fetch 2026-11-19) rồi
-dispatch theo hostname qua Service Binding tới Worker `stg-<unit>`. Worker internal-only (push, mail, relay, job) giữ
-mô hình hiện hành: không hostname public, `workers_dev: false`, chỉ Service Binding (`01` §6) — ở cả hai lane. Phương
-án đã loại:
+**Hostname scheme — theo A13: hai lớp trên zone `ecoma.io.vn` (đảo một phần 2026-11-22).** Staging public hostname là
+**subdomain của `ecoma.io.vn`**, mirror production hostname scheme của `01` §7 (`account.ecoma.io.vn` ↔
+`account.ecoma.io`, …); apex `ecoma.io.vn` phục vụ public web (home). Scheme chia theo **vòng đời deployment**:
 
-- **Per-unit Custom Domain gắn trực tiếp** (mỗi Worker một `<unit>.ecoma.io.vn`): mỗi Custom Domain sinh Advanced
-  Certificate **không tự xoá khi detach** — đã verify với Cloudflare Custom Domains docs, fetch 2026-11-19, và §9.1
-  "Teardown Custom Domain" đã ghi cùng hiện tượng; hàng chục cert residual cần runbook dọn tay, và nó là deviation A13
-  cần ADR mà không có lợi ích đo được bù đắp.
+- **Unit persistent** (staging identity lâu dài, mirror production — home hiện tại): gắn hostname public **trực tiếp
+  bằng Wrangler Custom Domain** trên env staging — cùng cơ chế production dùng trên `ecoma.io`. Lý do đảo phương án cũ
+  (Router cho mọi unit): lý do ban đầu — cert residual khi detach — chỉ đo được trên **slot ephemeral** (preview,
+  candidate); với unit persistent, deployment sống như production nên cert residual không phát sinh trong vận hành
+  thường, trong khi chờ Router làm mọi làn staging đứng đỏ ở smoke vô thời hạn (đã đo: mọi run home staging từ
+  #572 đỏ ở smoke vì apex chỉ có record placeholder không route). Wrangler own record + certificate của attachment;
+  Pulumi không khai record cùng hostname (`staging-dns.ts` loại unit Custom Domain khỏi record set placeholder —
+  một object một owner, §9.1).
+- **Slot ephemeral** (preview, candidate `*-cand` — khi hiện thực): đi qua **Router Worker non-production** — deploy
+  unit riêng, chưa tồn tại trong cây, hiện thực thuộc Delivery — sở hữu route table `ecoma.io.vn/*` và
+  `*.ecoma.io.vn/*` (Workers route hỗ trợ wildcard, most-specific wins — Cloudflare Workers docs, fetch 2026-11-19)
+  rồi dispatch theo hostname qua Service Binding tới Worker `stg-<unit>`. Lý do Router vẫn đúng cho lớp này: mỗi slot
+  sinh/tan theo run, Custom Domain ở đây gây đúng cert residual đã đo — Router thay route entry thay vì domain +
+  certificate. Việc khai apex về Router khi Router hiện thực **không** rút Custom Domain của unit persistent
+  (most-specific wins để slot ephemeral không đụng hostname persistent).
+
+Worker internal-only (push, mail, relay, job) giữ mô hình hiện hành: không hostname public, `workers_dev: false`, chỉ
+Service Binding (`01` §6) — ở cả hai lane. Phương án đã loại:
+
 - **`*.workers.dev` cho public surface:** subdomain `workers.dev` không cho phép kiểm soát hostname theo zone
   non-production (mục đích định danh của `ecoma.io.vn` theo A13), và không có tiền tố môi trường nhất quán để route/dispatch
   tập trung như Router.
-
-**Gap hiện trạng phải sửa khi hiện thực:** `apps/home/wrangler.jsonc` env `staging` gắn apex `ecoma.io.vn` trực tiếp
-vào `stg-ecoma-home` qua `"custom_domain": true` (`apps/home/wrangler.jsonc:22`) — lệch A13 và chiếm đúng hostname
-apex của Router. Quyết định này **giữ A13** (không cần ADR deviation): việc sửa — bỏ `routes` staging của home, đưa
-apex về Router — thuộc Delivery (#350/#362), phải xong trước khi làn staging đầu tiên chạy.
 
 **Cloudflare account riêng cho Staging — đã chấp nhận (đảo quyết định 2026-11-20, #548; A12 mới qua #553).** Đánh giá
 bằng bằng chứng, không giữ mặc định baseline. Trạng thái cũ của mục này là **rejected, giữ A12**: bị loại vì (1)

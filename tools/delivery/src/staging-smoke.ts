@@ -33,9 +33,10 @@
  * success cho revision edge không còn phục vụ), abort là `GuardAbortError`
  * (CLI in marker + exit khác 0). Guard không bật → hành vi cũ giữ nguyên.
  *
- * Origin là tham số (pattern tái dụng được): lần chạy thật đầu tiên của home
- * trỏ apex `ecoma.io.vn` và chờ dependency thật của #350 (zone DNS) +
- * #350/#362 (Router non-production) — module này không suy hostname từ config.
+ * Origin là tham số (pattern tái dụng được) — home staging trỏ apex
+ * `ecoma.io.vn` do chính Worker `stg-ecoma-home` phục vụ qua Wrangler Custom
+ * Domain (`02-delivery.md` §4.2, unit persistent); module này không suy
+ * hostname từ config.
  */
 
 import {

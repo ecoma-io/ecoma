@@ -37,6 +37,16 @@ export const STAGING_RECORD_PLACEHOLDER_IPV4 = '192.0.2.0';
 const MOD1_APEX_UNIT_SLUG = 'home';
 
 /**
+ * Unit gắn hostname public bằng Wrangler Custom Domain trực tiếp
+ * (`02-delivery.md` §4.2: unit persistent mirror production) — Wrangler own
+ * record + certificate của attachment, Pulumi KHÔNG được khai record cùng
+ * hostname (hai tool cùng own một object là vi phạm §9.1). Unit còn lại
+ * (public, chưa có Custom Domain trong wrangler config) vẫn cần record
+ * placeholder originless chờ route.
+ */
+const MOD1_CUSTOM_DOMAIN_UNIT_SLUGS = ['home'];
+
+/**
  * Unit internal-only theo scheme MOD1 (`02-delivery.md`: "push, mail, relay,
  * job") — không hostname public, không record. Job bắt bằng suffix `-job`
  * (auth-nonce-prune-job, transactional-mailer-job, web-push-notification-job);
@@ -156,11 +166,14 @@ export function stagingReleaseableSlugs(config: StagingEligibilityConfig): strin
 /**
  * Record set theo scheme MOD1 từ eligibility config: mỗi unit public
  * releaseable đúng MỘT record — apex cho home, `<slug>.ecoma.io.vn` cho unit
- * public còn lại; unit internal-only bị loại khỏi record set.
+ * public còn lại; unit internal-only bị loại khỏi record set; unit gắn
+ * Custom Domain qua Wrangler (`MOD1_CUSTOM_DOMAIN_UNIT_SLUGS`) cũng bị loại —
+ * record của unit đó do Wrangler own khi attach, Pulumi không chạm.
  */
 export function stagingDnsRecordSpecs(config: StagingEligibilityConfig): StagingDnsRecordSpec[] {
   return stagingReleaseableSlugs(config)
     .filter((slug) => !isInternalOnlyUnit(slug))
+    .filter((slug) => !MOD1_CUSTOM_DOMAIN_UNIT_SLUGS.includes(slug))
     .map((slug) => ({
       urnSlug: slug,
       hostname:
