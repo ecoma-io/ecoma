@@ -10,7 +10,7 @@
  * | Chiều            | Local                                | Staging                                        |
  * | ---------------- | ------------------------------------ | ---------------------------------------------- |
  * | `runtime`        | Docker + Wrangler-in-Container (WIC) | Cloudflare Workers + Hyperdrive                |
- * | `routing`        | Traefik (tunnel nội bộ máy dev)      | Workers Router trên zone `ecoma.io.vn` (§4.2)  |
+ * | `routing`        | Traefik (tunnel nội bộ máy dev)      | Cloudflare trên zone `ecoma.io.vn` (§4.2 — Custom Domain trực tiếp hoặc Router cho slot ephemeral) |
  * | `namespaceMode`  | per-worktree (xxHash64 của root)     | `fixed` — staging cố định, không theo worktree |
  * | `passphraseSource` | file tự sinh trong worktree        | GitHub Environment secret per-stack (§7.4.1)   |
  *

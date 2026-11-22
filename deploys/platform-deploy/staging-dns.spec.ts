@@ -165,11 +165,12 @@ describe('stagingDnsRecordSpecs', () => {
   it('drops internal-only units from the record set', () => {
     const specs = stagingDnsRecordSpecs(
       eligibilityConfig({
-        '@ecoma-io/home': { staging: 'releaseable' },
+        '@ecoma-io/account': { staging: 'releaseable' },
         '@ecoma-io/auth-nonce-prune-job': { staging: 'releaseable' },
       }),
     );
-    expect(specs).toEqual([]);
+    // Chỉ internal-only bị loại; unit public không Custom Domain còn lại.
+    expect(specs.map((spec) => spec.urnSlug)).toEqual(['account']);
   });
 
   it('maps a future public unit to its subdomain per the MOD1 mirror scheme', () => {
