@@ -35,14 +35,7 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
-
-import {
-  parseStagingPhaseArg,
-  readHyperdriveConfigId,
-  resolveStagingRunEnv,
-  runStagingPhase,
-} from './staging-run.js';
+import { parseStagingPhaseArg, readHyperdriveConfigId, runStagingPhase } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
   `[auth-deploy] staging refused: "${verb}" is not a staging lifecycle phase — ` +
@@ -64,21 +57,18 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath } = runStagingPhase(parsed.phase, 'auth-deploy');
+    const { record, recordPath, env, selection, projectDir } = runStagingPhase(
+      parsed.phase,
+      'auth-deploy',
+    );
     console.log(
       `[auth-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[auth-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
-      // Đọc output id bằng CÙNG inventory + selection của lần `up` vừa xanh —
-      // một lần `resolveStagingRunEnv` duy nhất cho khối này.
-      const projectDir = deployProjectDir('auth-deploy');
-      const { backendUrl, env } = resolveStagingRunEnv();
-      const selection = stagingDeploymentAdapter.stackSelection('auth-deploy', {
-        slot: 'staging',
-        backendUrl,
-      });
+      // Đọc output id bằng ĐÚNG env đã resolve MỘT lần trong `runStagingPhase`
+      // — inventory fail-closed chạy đúng một lần cho cả phase lẫn bước đọc.
       const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
       if (hyperdriveConfigId === undefined) {
         console.error(

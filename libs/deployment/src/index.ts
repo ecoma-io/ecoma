@@ -23,6 +23,8 @@
  * - `local-env` — secret primitives dùng chung + đọc `ROOT_HOST` từ `.env`.
  * - `pulumi-cli-warmup` — làm ấm CLI `pulumi` trước khi Automation API dựng
  *   workspace (banner cài shim npm + cửa sổ ETXTBSY trên cache lạnh).
+ * - `staging-run` — engine dùng chung lane staging (preview/up, inventory
+ *   fail-closed, evidence append-only; #543 — hợp nhất 12 bản copy).
  */
 
 export {
@@ -135,3 +137,34 @@ export {
   warmPulumiCli,
   warmPulumiCliOnce,
 } from './pulumi-cli-warmup.js';
+
+export {
+  RESOURCE_PLACEHOLDER_ID,
+  STAGING_ORIGIN_HOST_CONFIG_KEY,
+  STAGING_ORIGIN_PASSWORD_CONFIG_KEY,
+  STAGING_ORIGIN_PORT_CONFIG_KEY,
+  STAGING_SLOT,
+  appendStagingRecord,
+  backendBucket,
+  classifyDeployStackRef,
+  ensureStagingStack,
+  isProvisionedResourceId,
+  parseResourceChanges,
+  parseStagingPhaseArg,
+  r2AccountIdFromStateUrl,
+  readGitHeadSha,
+  readStackOutputId,
+  readStagingRevision,
+  resolveStagingHyperdriveOrigin,
+  resolveStagingRunEnv,
+  runStagingPhase,
+  stagingEvidencePath,
+  stagingHyperdriveWiringExit,
+  type StagingExecDeps,
+  type StagingHyperdriveOrigin,
+  type StagingHyperdriveOriginConfig,
+  type StagingPhase,
+  type StagingProvisioningRecord,
+  type StagingResourceChanges,
+  type StagingRunEnv,
+} from './staging-run.js';

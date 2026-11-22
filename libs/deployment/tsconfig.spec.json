@@ -8,7 +8,8 @@
     "types": ["vitest/globals", "vitest/importMeta", "vite/client", "node", "vitest"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["es2022", "es2023.array"]
   },
   "include": [
     "vite.config.ts",

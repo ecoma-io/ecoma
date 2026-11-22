@@ -37,8 +37,6 @@
 // oxlint-disable no-console -- entry CLI chạy trên Node; console là kênh
 // báo cáo duy nhất của operator (như `local.ts`).
 
-import { deployProjectDir, stagingDeploymentAdapter } from '@ecoma-io/deployment';
-
 import { parseStagingPhaseArg, readHyperdriveConfigId, runStagingPhase } from './staging-run.js';
 
 const REFUSAL_MESSAGE = (verb: string): string =>
@@ -61,21 +59,20 @@ function main(argv: readonly string[]): number {
       console.error(REFUSAL_MESSAGE(parsed.verb));
       return 1;
     }
-    const { record, recordPath, runEnv } = runStagingPhase(parsed.phase, 'pact-broker-app-deploy');
+    const { record, recordPath, env, selection, projectDir } = runStagingPhase(
+      parsed.phase,
+      'pact-broker-app-deploy',
+    );
     console.log(
       `[pact-broker-app-deploy] staging ${record.phase} OK: ${record.stackRef} ` +
         `(revision ${record.revision ?? 'n/a'}, changes ${JSON.stringify(record.resourceChanges ?? {})})`,
     );
     console.log(`[pact-broker-app-deploy] evidence record: ${recordPath}`);
     if (parsed.phase === 'up') {
-      // Đọc output id bằng ĐÚNG env đã resolve MỘT lần trong `runStagingPhase`
-      // — inventory fail-closed chạy đúng một lần cho cả phase lẫn bước đọc.
-      const projectDir = deployProjectDir('pact-broker-app-deploy');
-      const selection = stagingDeploymentAdapter.stackSelection('pact-broker-app-deploy', {
-        slot: 'staging',
-        backendUrl: runEnv.backendUrl,
-      });
-      const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, runEnv.env);
+      // Đọc output id bằng ĐÚNG env/selection/projectDir đã resolve MỘT lần
+      // trong `runStagingPhase` — inventory fail-closed chạy đúng một lần cho
+      // cả phase lẫn bước đọc.
+      const hyperdriveConfigId = readHyperdriveConfigId(projectDir, selection, env);
       if (hyperdriveConfigId === undefined) {
         console.error(
           '[pact-broker-app-deploy] staging up OK but the hyperdrive config id could not be ' +
