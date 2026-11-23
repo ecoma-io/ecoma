@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
-import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig(() => ({
@@ -8,7 +7,9 @@ export default defineConfig(() => ({
   cacheDir: '../../node_modules/.vite/libs/ui-ecoma-logo',
   // tsconfigPaths resolve alias tsconfig (`@ecoma-io/*`), vue() transform
   // component `.vue` — đặt sau vì transform pipeline đọc theo thứ tự.
-  plugins: [tsconfigPaths(), nxCopyAssetsPlugin(['*.md']), vue()],
+  // Không cần copy-assets: vitest không emit build output, còn spec đọc asset
+  // thẳng từ source qua `readFileSync` (xem `ecoma-logo.spec.ts`).
+  plugins: [tsconfigPaths(), vue()],
   test: {
     name: '@ecoma-io/ui-ecoma-logo',
     watch: false,
