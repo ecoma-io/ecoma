@@ -77,6 +77,13 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    // Pool `vmThreads`: đo trực tiếp trên máy dev 2026-11-23 (`pnpm exec vitest
+    // run`, 5 lần mỗi pool, #604) — median 2.73s so với 6.51s của pool default
+    // sau khi đã thêm docblock node-env cho server spec; cả 10 lần đều xanh
+    // 13/13. Lưu ý stub global phải isolate chặt per-test, vì VM context dùng
+    // chung có thể rò rỉ giữa các file (nguyên nhân fail ở #598 ghi nhận ở các
+    // project khác).
+    pool: 'vmThreads',
     // `tests/setup.ts` cài global của Nuxt **trước** mọi test file: component gọi
     // tên trần (`useRoute`, `useHead`, `onMounted`) lúc `setup()`, và global phải
     // có mặt trước lần render đầu.

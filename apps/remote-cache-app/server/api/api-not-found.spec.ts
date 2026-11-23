@@ -1,5 +1,6 @@
 import { createApp, toWebHandler } from 'h3';
 import { describe, expect, it } from 'vitest';
+// @vitest-environment node
 
 import catchAll from '../api/[...path]';
 import apiIndex from '../api/index';
