@@ -1,15 +1,16 @@
 /// <reference types='vitest' />
 import { defineConfig, defaultExclude } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
-import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/home',
-  // `nxViteTsPaths()` resolve alias `@ecoma-io/*` từ `tsconfig.base.json`;
-  // `vue()` transform component `.vue` (nuxt.config.ts cũng khai alias này cho
-  // runtime — hai nơi phải khớp, xem `apps/home/nuxt.config.ts`).
-  plugins: [nxViteTsPaths(), vue()],
+  // `tsconfigPaths()` resolve alias `@ecoma-io/*` theo `paths` của tsconfig
+  // mà project tham chiếu; `vue()` transform component `.vue` (nuxt.config.ts
+  // cũng khai alias này cho runtime — hai nơi phải khớp, xem
+  // `apps/home/nuxt.config.ts`).
+  plugins: [tsconfigPaths(), vue()],
   resolve: {
     // Nuxt alias không tồn tại ngoài Nuxt runtime: `#shared` là output của
     // Nuxt, ở đây phải tự trỏ, còn `~`/`~/` map vào `app/` theo convention
@@ -19,8 +20,9 @@ export default defineConfig(() => ({
       '~': new URL('./app', import.meta.url).pathname,
       '~/': new URL('./app/', import.meta.url).pathname,
       // `@ecoma-io/ui-ecoma-logo` — library scope:shared duy nhất workspace này
-      // tiêu thụ. `nxViteTsPaths()` đọc `paths` từ `tsconfig.base.json`, nhưng
-      // file đó để rỗng (`"paths": {}`) — do đó alias phải được khai báo tường
+      // tiêu thụ. `tsconfigPaths()` đọc `paths` từ các tsconfig mà project
+      // tham chiếu, nhưng `tsconfig.base.json` để rỗng (`"paths": {}`) — do
+      // đó alias phải được khai báo tường
       // minh ở đây, giống `apps/account` làm cho `@ecoma-io/*` của nó. Bỏ qua,
       // test mount `EcomaLogo` sẽ fail với "Cannot find module
       // '@ecoma-io/ui-ecoma-logo'" dù typecheck của app vẫn xanh (tsc chỉ
