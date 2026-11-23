@@ -48,7 +48,7 @@ chưa xảy ra).
   ghi trên issue #349. Wiring Hyperdrive tiêu thụ `service_id` thuộc #350.
 - KHÔNG chọn công cụ backup cuối — placeholder built-ins + rclone với
   `TODO(349/tool)`; mục "Chưa chốt" `03-operations.md` §10 giữ quyền quyết.
-- KHÔNG sở hữu migration schema (các `deploys/*-db`, §3a) hay runtime Worker;
+- KHÔNG sở hữu migration schema (các `databases/*-db`, §3a) hay runtime Worker;
   KHÔNG có lane local (PostgreSQL local cho worktree thuộc lane local của
   `platform-deploy`).
 - KHÔNG xóa/destroy: chỉ hai phase `preview`/`up` — teardown staging là

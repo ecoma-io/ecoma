@@ -1,6 +1,6 @@
 /**
  * Apply migration `db-llm-gateway`, `db-llm-tenant`, `db-llm-marketplace` qua
- * **runner canonical của migration authority** (`deploys/llm-<target>-db`
+ * **runner canonical của migration authority** (`databases/llm-<target>-db`
  * `runner.mts migrate` — cutover #376, được gọi bằng `tsx` qua
  * `child_process`) trên PostgreSQL thật.
  *

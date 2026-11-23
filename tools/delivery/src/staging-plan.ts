@@ -15,7 +15,7 @@
  *    slug từ tên project (`stagingUnits`), config `apps/<slug>/wrangler.jsonc`,
  *    Environment `staging-<slug>`.
  * 3. Migration-aware (điều #362): batch unit nào khai phụ thuộc `*-db` (cạnh
- *    "app consumer → deploys/<name>-db" của §3a.1, đọc từ
+ *    "app consumer → databases/<name>-db" của §3a.1, đọc từ
  *    `nx.implicitDependencies` của project unit) mà project db đó nằm trong
  *    affected set thì có MỘT migration step trước deploy của batch. Không có
  *    cạnh nào trên graph → không có step nào: coordinator không tự bịa cặp
@@ -53,7 +53,7 @@ export interface StagingPlanUnit {
 
 /** Một migration step phải chạy TRƯỚC deploy của batch (điều #362). */
 export interface StagingPlanMigrationStep {
-  /** Nx project `deploys/<name>-db` sở hữu migration. */
+  /** Nx project `databases/<name>-db` sở hữu migration. */
   dbProject: string;
   /** Target migration của project db (hợp đồng §3a: `db-migrate`). */
   target: string;
@@ -109,7 +109,7 @@ export function readNxReleaseProjects(
   return projects as string[];
 }
 
-/** Đọc `nx.implicitDependencies` của một unit — cạnh "app consumer → deploys/<name>-db" của §3a.1. */
+/** Đọc `nx.implicitDependencies` của một unit — cạnh "app consumer → databases/<name>-db" của §3a.1. */
 function readImplicitDependencies(
   packageJsonPath: string,
   deps: Pick<StagingPlanDeps, 'readTextFile'>,

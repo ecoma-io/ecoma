@@ -217,7 +217,7 @@ const provision = new command.local.Command(
 
 /**
  * Migration qua **đường canonical** (cutover #375): container ephemeral trên
- * platform network chạy runner thật của `deploys/backoffice-db` (wrapper
+ * platform network chạy runner thật của `databases/backoffice-db` (wrapper
  * §3a.3 — guard `current_database()` fail-closed, advisory lock giữ nguyên khóa
  * `hashtext('db-backoffice')` của pipe cũ, `drizzle-kit migrate` atomic
  * per-run). Chuỗi `adopt && migrate`: trên stack legacy (đã có bảng schema

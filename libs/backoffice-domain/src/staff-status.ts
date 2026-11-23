@@ -56,7 +56,7 @@ export function isBackofficeStaffStatus(value: unknown): value is BackofficeStaf
  *
  * `suspended` còn đường quay lại `active`; `terminated` không có transition
  * nào đi ra ở tầng domain. Khối `CHECK`/trigger của migration
- * (`deploys/backoffice-db/migrations/0001_*.sql`) và tầng application đều neo vào
+ * (`databases/backoffice-db/migrations/0001_*.sql`) và tầng application đều neo vào
  * cùng tập này.
  */
 export function isTerminalStaffStatus(status: BackofficeStaffStatus): boolean {

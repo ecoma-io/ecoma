@@ -16,7 +16,7 @@
  * bằng PostgreSQL client với credential **migrator** (runtime role không có
  * INSERT trên `tenant_members` — grant trong `0002_roles_and_grants.sql` — và
  * bootstrap là đường duy nhất ghi membership), không bao giờ chạy từ Worker —
- * cùng ranh giới runner/Worker với migration authority `deploys/remote-cache-db`
+ * cùng ranh giới runner/Worker với migration authority `databases/remote-cache-db`
  * (HD6: Hyperdrive không hỗ trợ advisory lock; script này chỉ DML nên không cần lock).
  *
  * Hành vi (ADR-0020 Quyết định 5, 6, 9, 13; domain model §2.1–§2.4, §2.9;
@@ -245,7 +245,7 @@ export function parseBootstrapEnv(env: NodeJS.ProcessEnv): BootstrapTenantInput 
 /**
  * Bootstrap tenant canonical — core logic dùng chung bởi CLI và integration
  * test (một đường code duy nhất, đúng pattern runner-canonical của
- * authority `deploys/remote-cache-db/runner.mts`: vòng apply viết riêng trong
+ * authority `databases/remote-cache-db/runner.mts`: vòng apply viết riêng trong
  * test là test bản sao, không test runner).
  *
  * Client truyền vào phải là credential **migrator** (owner của schema sau khi

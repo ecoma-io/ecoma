@@ -17,7 +17,7 @@ Nx project `@ecoma-io/account`, tags `type:composition`, `scope:account`, `runti
 - **BFF dữ liệu tài khoản**: routes cho `profile`, `emails`, `notifications`, `preferences`, `privacy-requests`, `sessions`, `applications` (`server/api/`) — đọc/ghi `db-account` qua `accountHyperdrive` (`server/utils/bindings.ts`) và tầng `server/lib/data-domain.ts`.
 - **Internal contract cho `auth`**: `GET /internal/account/status`, `GET /internal/account/profiles` (`server/routes/internal/`) sau envelope HMAC; back-channel đẩy kết quả verify và consent sang `auth` qua `server/lib/auth-client.ts`.
 - **Health/readiness**: `GET /health` (protocol-only) và `GET /ready` (probe `db-account` thật) tại `server/routes/`.
-- **Schema `db-account`**: migration SQL thuần dưới `deploys/account-db/migrations/` (authority), áp dụng theo thứ tự tên file — xem `db/README.md`.
+- **Schema `db-account`**: migration SQL thuần dưới `databases/account-db/migrations/` (authority), áp dụng theo thứ tự tên file — xem `db/README.md`.
 - Secret cấu hình qua `runtimeConfig` (`NUXT_*`); trên lane local các giá trị được inject bởi `deploys/account-deploy`.
 
 ## Boundaries

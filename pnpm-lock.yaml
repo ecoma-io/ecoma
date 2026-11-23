@@ -808,7 +808,157 @@ importers:
         specifier: workspace:*
         version: link:../../libs/web-push-notification-job-infrastructure
 
-  deploys/account-db:
+  databases/account-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/auth-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/backoffice-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/llm-gateway-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/llm-marketplace-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/llm-tenant-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/pact-broker-app-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/pact-broker-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/remote-cache-app-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/remote-cache-db:
+    devDependencies:
+      '@testcontainers/postgresql':
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
+      testcontainers:
+        specifier: 12.2.2
+        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
+
+  databases/staff-access-db:
     devDependencies:
       '@testcontainers/postgresql':
         specifier: 12.2.2
@@ -829,41 +979,11 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/auth-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
   deploys/auth-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
-
-  deploys/backoffice-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
 
   deploys/backoffice-deploy:
     dependencies:
@@ -889,56 +1009,11 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/llm-gateway-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
-  deploys/llm-marketplace-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
   deploys/llm-seller-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
-
-  deploys/llm-tenant-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
 
   deploys/pact-broker-api-deploy:
     dependencies:
@@ -946,41 +1021,11 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/pact-broker-app-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
   deploys/pact-broker-app-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
-
-  deploys/pact-broker-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
 
   deploys/platform-deploy:
     dependencies:
@@ -1000,56 +1045,11 @@ importers:
         specifier: workspace:*
         version: link:../../libs/deployment
 
-  deploys/remote-cache-app-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
   deploys/remote-cache-app-deploy:
     dependencies:
       '@ecoma-io/deployment':
         specifier: workspace:*
         version: link:../../libs/deployment
-
-  deploys/remote-cache-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-
-  deploys/staff-access-db:
-    devDependencies:
-      '@testcontainers/postgresql':
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
-      pg:
-        specifier: ^8.23.1
-        version: 8.23.1
-      testcontainers:
-        specifier: 12.2.2
-        version: 12.2.2(bare-buffer@3.7.3)(supports-color@10.2.2)
 
   deploys/staff-access-deploy:
     dependencies:

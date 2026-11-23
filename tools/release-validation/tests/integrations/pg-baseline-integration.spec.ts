@@ -22,7 +22,7 @@ import {
  * Suite integration của cơ chế baseline (§3a.6, #379) — chạy **CLI thật**
  * (`src/cli.ts`) trên hai container PostgreSQL thật qua docker CLI:
  * - source: instance chứa "previous release" (journal fixture baseline
- *   áp bằng runner thật của `deploys/remote-cache-db`);
+ *   áp bằng runner thật của `databases/remote-cache-db`);
  * - target: disposable validation instance mà mechanism recreate/restore.
  *
  * Các behavior được chứng minh:

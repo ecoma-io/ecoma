@@ -46,7 +46,7 @@
  * sinh và truyền qua stack config `--config` (stdin, không argv), rồi đi vào
  * script qua kênh `environment` của `command.local.Command` — command text và
  * argv không chứa credential nào (chi tiết ở `scripts.ts`). Migration chạy **đường
- * canonical** (`deploys/staff-access-db` runner — chuỗi `adopt && migrate` cutover
+ * canonical** (`databases/staff-access-db` runner — chuỗi `adopt && migrate` cutover
  * #375; advisory lock giữ nguyên khóa `hashtext('db-staff-access')`) bằng
  * container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
@@ -85,7 +85,7 @@ import {
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (runner `deploys/staff-access-db` — deploy
+ * là đúng một đường code canonical (runner `databases/staff-access-db` — deploy
  * không tự viết lại vòng migration).
  */
 const NODE_IMAGE =
@@ -235,7 +235,7 @@ const provision = new command.local.Command(dockerResourceName(ns, 'staff-access
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy runner thật của `deploys/staff-access-db` (chuỗi `adopt && migrate` —
+ * chạy runner thật của `databases/staff-access-db` (chuỗi `adopt && migrate` —
  * advisory lock giữ nguyên khóa `hashtext('db-staff-access')`, `drizzle-kit
  * migrate` atomic). Repo mount read-only. KHÔNG chạy qua binding Hyperdrive
  * (HD6: advisory lock).

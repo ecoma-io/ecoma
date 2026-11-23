@@ -133,10 +133,10 @@
           "default",
           "^production",
           {
-            "fileset": "{workspaceRoot}/deploys/remote-cache-db/**"
+            "fileset": "{workspaceRoot}/databases/remote-cache-db/**"
           },
           {
-            "fileset": "{workspaceRoot}/deploys/remote-cache-app-db/**"
+            "fileset": "{workspaceRoot}/databases/remote-cache-app-db/**"
           },
           {
             "fileset": "{workspaceRoot}/apps/remote-cache-api/wrangler.jsonc"

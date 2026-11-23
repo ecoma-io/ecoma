@@ -8,7 +8,7 @@
  * từ `globalSetup` trước khi worker nào kịp báo xanh giả. Cùng luật với
  * `apps/account/tests/integrations/harness.ts` — pattern tham chiếu.
  *
- * Apply đi qua **runner migration hợp đồng của `deploys/staff-access-db`**
+ * Apply đi qua **runner migration hợp đồng của `databases/staff-access-db`**
  * (cutover #375) — spawn `runner.mts migrate`, đúng đường mà production đi,
  * gồm guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây
  * là tạo runner thứ hai không có lock.
@@ -23,7 +23,7 @@ import { STAFF_ACCESS_DATABASE } from '../../db/migrate.mts';
 const STAFF_ACCESS_DB_PROJECT = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'staff-access-db',
 );
 
@@ -245,7 +245,7 @@ export interface StaffAccessDatabaseOptions {
  * `CREATE SCHEMA`, nhưng `SET ROLE` thì không.
  */
 /**
- * Apply migration qua runner thật của `deploys/staff-access-db` — spawn
+ * Apply migration qua runner thật của `databases/staff-access-db` — spawn
  * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * Tách riêng khỏi `startStaffAccessDatabase` để test "apply lại là no-op"
@@ -300,7 +300,7 @@ export async function applyMigrations(database: { host: string; port: number }):
   });
   if (code !== 0) {
     throw new Error(
-      `deploys/staff-access-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+      `databases/staff-access-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
     );
   }
 }

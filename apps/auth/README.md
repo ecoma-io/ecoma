@@ -14,7 +14,7 @@ Nx project `@ecoma-io/auth`, tags `type:composition`, `scope:auth`, `runtime:edg
 
 - **Route surface hai lớp** (`src/main.ts`): Hono giữ `/health`, `/ready`, hai route discovery, `/authorize`, `/authorize/confirm` và năm route internal POST `/internal/session/verified`, `/internal/consent/context`, `/internal/consent/decide`, `/internal/connected-applications`, `/internal/connected-applications/revoke`; pipeline của provider giữ `/auth`, `/auth/:uid` (resume), `/token`, `/jwks.json`, `/revocation`, `/session/end` qua bảng chuyển tiếp `PROVIDER_ROUTES`. Feature `userinfo` của provider bị tắt trong `src/oidc/provider.ts` nên không có route nào cho nó.
 - **Readiness fail-closed** `GET /ready`: kiểm đủ hai binding (`HYPERDRIVE`, `ACCOUNT_SERVICE`), nạp cấu hình signing, probe `db-auth` và probe `account` qua đúng Service Binding mà mọi request thật đi; `GET /health` chỉ protocol-only.
-- **Schema `db-auth`**: 14 migration SQL dưới `deploys/auth-db/migrations/` (`0001`…`0014`, authority); driver PostgreSQL đi qua lớp adapter trong `libs/auth-infrastructure`, không import thẳng trong app.
+- **Schema `db-auth`**: 14 migration SQL dưới `databases/auth-db/migrations/` (`0001`…`0014`, authority); driver PostgreSQL đi qua lớp adapter trong `libs/auth-infrastructure`, không import thẳng trong app.
 - **Cấu hình secret** (`src/config.ts`): `AUTH_SIGNING_KEY` + `AUTH_SIGNING_KEY_ID` (PKCS#8 PEM), `AUTH_HANDLE_KEY` + `AUTH_HANDLE_KEY_VERSION`, `AUTH_INTERNAL_SECRET` với slot verify-only `AUTH_INTERNAL_PREVIOUS_SECRET`/`AUTH_INTERNAL_PREVIOUS_KID`, `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_RESOURCES`, `AUTH_COOKIE_KEYS`, `AUTH_ACCOUNT_BASE_URL` — không biến nào có default; thiếu là lỗi nạp tường minh.
 - **Binding** khai trong `wrangler.jsonc`: Hyperdrive `HYPERDRIVE` (→ `db-auth`) và Service Binding `ACCOUNT_SERVICE` (→ shim Worker `ecoma-account-bridge` trên lane local; shim chuyển tiếp HTTP tới container account qua `BRIDGE_TARGET_ORIGIN` do `deploys/auth-deploy` inject).
 
@@ -52,7 +52,7 @@ pnpm nx run @ecoma-io/auth:test-integration # tests/integrations + tests/databas
 
 - [`docs/domains/auth/README.md`](../../docs/domains/auth/README.md) — bounded context `auth`; [`domain-model.md`](../../docs/domains/auth/domain-model.md) — chính sách OAuth/OIDC, consent ≠ grant, handle X/Y/Z, invariant.
 - [`docs/applications/auth/README.md`](../../docs/applications/auth/README.md) — component doc; [`01-architecture.md`](../../docs/applications/auth/01-architecture.md) (runtime, schema `db-auth`, giao thức login/consent), [`02-requirements.md`](../../docs/applications/auth/02-requirements.md) (FR/NFR, threat model), [`03-operations.md`](../../docs/applications/auth/03-operations.md) (role & migration, key rotation, runbook).
-- [`deploys/auth-db/migrations/README.md`](../../deploys/auth-db/migrations/README.md) — quy ước migration và role của `db-auth`.
+- [`databases/auth-db/migrations/README.md`](../../databases/auth-db/migrations/README.md) — quy ước migration và role của `db-auth`.
 - [`apps/account/README.md`](../../apps/account/README.md) — bounded context `account` bên kia hai contract back-channel.
 - [`docs/architecture/local-development/02-account-auth-topology.md`](../../docs/architecture/local-development/02-account-auth-topology.md) — topology local của cặp account/auth.
 - [`docs/features/identity/oidc-application-access.md`](../../docs/features/identity/oidc-application-access.md) — capability người dùng mà protocol này phục vụ.

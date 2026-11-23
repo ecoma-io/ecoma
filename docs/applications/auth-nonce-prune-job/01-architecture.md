@@ -49,14 +49,14 @@ Job giữ nguyên học thuyết xoá: chỉ xoá `expires_at < now()` (vị t�
 
 Worker không cầm credential `_migrator_` (quyền DDL không bao giờ là Worker secret — `docs/architecture/02-delivery.md` §6; script cũ chạy bằng migrator trên CI runner, nên không port thẳng được). Hai migration sinh một role pruner riêng cho mỗi kho (mỗi database một principal, thống nhất như "hai job đối xứng" của workflow cũ):
 
-| Kho          | Role                         | Quyền trên bảng nonce              | Migration (tạo + grant)                                    |
-| ------------ | ---------------------------- | ---------------------------------- | ---------------------------------------------------------- |
-| `db-auth`    | `ecoma_auth_nonce_pruner`    | `SELECT, DELETE` một bảng duy nhất | `deploys/auth-db/migrations/0014_nonce_pruner_role.sql`    |
-| `db-account` | `ecoma_account_nonce_pruner` | `SELECT, DELETE` một bảng duy nhất | `deploys/account-db/migrations/0007_nonce_pruner_role.sql` |
+| Kho          | Role                         | Quyền trên bảng nonce              | Migration (tạo + grant)                                      |
+| ------------ | ---------------------------- | ---------------------------------- | ------------------------------------------------------------ |
+| `db-auth`    | `ecoma_auth_nonce_pruner`    | `SELECT, DELETE` một bảng duy nhất | `databases/auth-db/migrations/0014_nonce_pruner_role.sql`    |
+| `db-account` | `ecoma_account_nonce_pruner` | `SELECT, DELETE` một bảng duy nhất | `databases/account-db/migrations/0007_nonce_pruner_role.sql` |
 
 Cả hai: `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`; `GRANT USAGE` trên schema; REVOKE `INSERT, UPDATE, TRUNCATE, TRIGGER, REFERENCES`. Không có `CREATE` trên schema nào. Credential của role này không vào Git và không vào `wrangler.jsonc` — nó sống trong config Hyperdrive trên account Cloudflare, được Hyperdrive truyền tới Worker qua `connectionString` của binding ở runtime (pattern `apps/account/server/utils/db.ts`).
 
-⚠️ Role pruner chỉ được tồn tại đúng hai quyền này trên đúng một bảng: nới quyền runtime hoặc nới pruner để cron "chạy được" đều bị cấm — xoá một nonce còn hiệu lực là mở lại cửa sổ replay, đúng học thuyết `0010` của db-auth. Sweep quyền tương ứng: `deploys/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" (ô 2d) và `apps/account/db/README.md` (provisioning snippet + file tree).
+⚠️ Role pruner chỉ được tồn tại đúng hai quyền này trên đúng một bảng: nới quyền runtime hoặc nới pruner để cron "chạy được" đều bị cấm — xoá một nonce còn hiệu lực là mở lại cửa sổ replay, đúng học thuyết `0010` của db-auth. Sweep quyền tương ứng: `databases/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" (ô 2d) và `apps/account/db/README.md` (provisioning snippet + file tree).
 
 ## 5. Thuật toán — port nguyên văn từ `PRUNE_SCRIPT`
 

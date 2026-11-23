@@ -28,7 +28,7 @@
       "path": "./deploys/pact-broker-app-deploy"
     },
     {
-      "path": "./deploys/pact-broker-app-db"
+      "path": "./databases/pact-broker-app-db"
     },
     {
       "path": "./deploys/llm-api-deploy"
@@ -64,37 +64,37 @@
       "path": "./deploys/remote-cache-app-deploy"
     },
     {
-      "path": "./deploys/llm-marketplace-db"
+      "path": "./databases/llm-marketplace-db"
     },
     {
-      "path": "./deploys/llm-gateway-db"
+      "path": "./databases/llm-gateway-db"
     },
     {
-      "path": "./deploys/llm-tenant-db"
+      "path": "./databases/llm-tenant-db"
     },
     {
-      "path": "./deploys/backoffice-db"
+      "path": "./databases/backoffice-db"
     },
     {
-      "path": "./deploys/staff-access-db"
+      "path": "./databases/staff-access-db"
     },
     {
-      "path": "./deploys/account-db"
+      "path": "./databases/account-db"
     },
     {
-      "path": "./deploys/auth-db"
+      "path": "./databases/auth-db"
     },
     {
-      "path": "./deploys/pact-broker-db"
+      "path": "./databases/pact-broker-db"
     },
     {
       "path": "./deploys/staging-pg-host"
     },
     {
-      "path": "./deploys/remote-cache-db"
+      "path": "./databases/remote-cache-db"
     },
     {
-      "path": "./deploys/remote-cache-app-db"
+      "path": "./databases/remote-cache-app-db"
     }
   ]
 }

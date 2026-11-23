@@ -18,8 +18,8 @@
  *     PostgreSQL này — một runner không có Docker daemon sẽ ĐỎ ngay tại
  *     `globalSetup`, không có đường skip.
  *  2. Migrations/bootstrap/token chạy qua **subprocess** của các CLI vận hành
- *     được tài liệu hoá (`deploys/pact-broker-db/runner.mts` migrate,
- *     `deploys/pact-broker-app-db/runner.mts` migrate — cutover #378,
+ *     được tài liệu hoá (`databases/pact-broker-db/runner.mts` migrate,
+ *     `databases/pact-broker-app-db/runner.mts` migrate — cutover #378,
  *     `db/bootstrap-tenant.mts`, `db/provision-machine-token.mts`) — đường
  *     dẫn FILE, không import code
  *     app→app; `pg` được resolve từ node_modules của API bên trong subprocess
@@ -664,8 +664,8 @@ export async function startFakeOidcAuth(): Promise<FakeOidcAuth> {
  * Chạy một CLI vận hành (của API hay của app) bằng tsx subprocess — credential
  * chỉ qua env của process, không bao giờ argv. Import của script (`pg`, libs)
  * được resolve từ node_modules của project chứa script bên trong subprocess.
- * Migration chạy đúng runner authority (`deploys/pact-broker-db`,
- * `deploys/pact-broker-app-db` — cutover #378) với cwd project +
+ * Migration chạy đúng runner authority (`databases/pact-broker-db`,
+ * `databases/pact-broker-app-db` — cutover #378) với cwd project +
  * `tsconfig.db.json` — cùng runner với lane.
  */
 function runCliScript(
@@ -1103,14 +1103,14 @@ export async function startBrokerStack(): Promise<BrokerStack> {
       APP_DATABASE;
 
     runCliScript(
-      'deploys/pact-broker-db/runner.mts',
+      'databases/pact-broker-db/runner.mts',
       { DATABASE_URL: migratorUrl },
-      { cwd: resolve(REPO_ROOT, 'deploys/pact-broker-db'), tsconfig: 'tsconfig.db.json' },
+      { cwd: resolve(REPO_ROOT, 'databases/pact-broker-db'), tsconfig: 'tsconfig.db.json' },
     );
     runCliScript(
-      'deploys/pact-broker-app-db/runner.mts',
+      'databases/pact-broker-app-db/runner.mts',
       { DATABASE_URL: appMigratorUrl },
-      { cwd: resolve(REPO_ROOT, 'deploys/pact-broker-app-db'), tsconfig: 'tsconfig.db.json' },
+      { cwd: resolve(REPO_ROOT, 'databases/pact-broker-app-db'), tsconfig: 'tsconfig.db.json' },
     );
     runCliScript('apps/pact-broker-api/db/bootstrap-tenant.mts', {
       DATABASE_URL: runtimeUrl,

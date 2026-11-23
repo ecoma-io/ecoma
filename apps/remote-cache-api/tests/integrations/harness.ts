@@ -9,7 +9,7 @@
  * `apps/staff-access/tests/integrations/harness.ts` — tham chiếu.
  *
  * Apply đi qua **runner thật của migration authority** — spawn CLI
- * `deploys/remote-cache-db/runner.mts migrate` (cutover #377: runner cũ
+ * `databases/remote-cache-db/runner.mts migrate` (cutover #377: runner cũ
  * `db/apply.mts` đã retire; đây là cùng runner mà lane chạy, gồm advisory lock
  * + guard `current_database()` + `drizzle-kit migrate`). Viết vòng apply riêng
  * ở đây là tạo runner thứ hai không có lock — lỗi đã từng xảy ra ở
@@ -24,7 +24,7 @@ import process from 'node:process';
 /**
  * Tên database hợp đồng mà service này sở hữu — phải khớp
  * `REMOTE_CACHE_DATABASE`; authority pin cùng giá trị qua guard
- * `current_database()` (`deploys/remote-cache-db/runner.mts`).
+ * `current_database()` (`databases/remote-cache-db/runner.mts`).
  */
 export const REMOTE_CACHE_DATABASE = 'db-remote-cache';
 
@@ -78,7 +78,7 @@ export interface RemoteCacheDatabase {
 
 /**
  * Apply migration qua **runner thật của authority** — spawn CLI
- * `deploys/remote-cache-db/runner.mts migrate` với credential migrator thật.
+ * `databases/remote-cache-db/runner.mts migrate` với credential migrator thật.
  *
  * ⚠️ `databaseUrl` phải là credential **migrator** thật (không `SET ROLE`):
  * quyền `CREATE` trên database là điều kiện để `0001` chạy, và `SET ROLE`
@@ -86,7 +86,7 @@ export interface RemoteCacheDatabase {
  */
 export function applyMigrations(databaseUrl: string): void {
   const repoRoot = resolve(import.meta.dirname, '../../../..');
-  const dbProjectRoot = resolve(repoRoot, 'deploys/remote-cache-db');
+  const dbProjectRoot = resolve(repoRoot, 'databases/remote-cache-db');
   const require = createRequire(import.meta.url);
   const tsxCli = require.resolve('tsx/cli');
   const result = spawnSync(

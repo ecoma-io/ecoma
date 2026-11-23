@@ -103,7 +103,7 @@ jobs:
     # PostgreSQL thật cho các suite `test-integration` của `apps/account`,
     # `auth-infrastructure` và `apps/auth` đến từ **testcontainers**:
     # mỗi spec file tự dựng một container `postgres:17-alpine`, provision hai role
-    # đúng runbook `deploys/auth-db/migrations/README.md` (migrator có DDL, runtime chỉ
+    # đúng runbook `databases/auth-db/migrations/README.md` (migrator có DDL, runtime chỉ
     # DML) và apply migration bằng credential migrator thật. Không có service
     # container hay biến `AUTH_TEST_PG_*` nào ở đây — runner chỉ cần có Docker.
     # Password trong harness là của database nhúng ném đi sau mỗi run, không phải

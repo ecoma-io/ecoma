@@ -118,7 +118,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy runner thật
- * của `deploys/auth-db` (wrapper §3a.3 — guard `current_database()` fail-closed,
+ * của `databases/auth-db` (wrapper §3a.3 — guard `current_database()` fail-closed,
  * advisory lock giữ nguyên khóa `hashtext('db-auth')` của runner cũ,
  * statement_timeout, `drizzle-kit migrate` atomic per-run). Chuỗi
  * `adopt && migrate` là hợp đồng cutover #375: trên stack legacy, adopt verify
@@ -140,7 +140,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/auth-db \\
+  -w /repo/databases/auth-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'

@@ -8,6 +8,7 @@ import {
   ARCH_TAG_DIMENSIONS,
   buildWorkspaceState,
   CONTRACT_EDGE_OWNERSHIP,
+  DATABASE_DIR,
   DEPLOYMENT_DIR,
   DEPLOYMENT_TYPE,
   findDanglingDeploymentRefs,
@@ -834,6 +835,46 @@ describe('validateDeploymentGraph', () => {
 
   it('accepts a deployment project that sits in deploys/ with the right tag', () => {
     expect(validateDeploymentGraph(deployState(['account-deploy']))).toEqual([]);
+  });
+
+  it('accepts a migration authority placed in databases/ with the deployment tag (#618)', () => {
+    // `databases/` là thư mục deployment thứ hai: migration authority `*-db`
+    // mang cùng `type:deployment` nhưng nằm ngoài `deploys/` — lượt vị trí
+    // phải chấp nhận nó, không báo misplaced.
+    const authority = {
+      ...node('account-db', ['scope:account', DEPLOYMENT_TYPE, 'runtime:native']),
+      root: `${DATABASE_DIR}/account-db`,
+    };
+    const platform = deployNode(PLATFORM_DEPLOY_PROJECT, 'platform');
+    const withPlatform = { ...authority, dependencies: [PLATFORM_DEPLOY_PROJECT] };
+    expect(
+      validateDeploymentGraph({
+        projects: new Map([
+          [platform.name, platform],
+          [withPlatform.name, withPlatform],
+        ]),
+      }),
+    ).toEqual([]);
+  });
+
+  it('flags an untagged project inside databases/ (second deployment directory, #618)', () => {
+    const platform = deployNode(PLATFORM_DEPLOY_PROJECT, 'platform');
+    const untagged = {
+      ...node('rogue-db', ['scope:platform', 'type:infrastructure', 'runtime:native']),
+      root: `${DATABASE_DIR}/rogue-db`,
+    };
+    const violations = validateDeploymentGraph({
+      projects: new Map([
+        [platform.name, platform],
+        [untagged.name, untagged],
+      ]),
+    });
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({
+      project: 'rogue-db',
+      kind: 'misplaced-deployment-project',
+    });
+    expect(violations[0].detail).toContain(DEPLOYMENT_TYPE);
   });
 
   it('rejects a dependency between two deployment units', () => {

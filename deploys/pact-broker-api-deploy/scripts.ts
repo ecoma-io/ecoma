@@ -157,14 +157,14 @@ export interface MigrateScriptInputs {
 /**
  * Script migrate: container ephemeral trên platform network chạy đúng
  * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
- * của migration authority `deploys/pact-broker-db` (cutover #378 — §3a.3 mục E:
+ * của migration authority `databases/pact-broker-db` (cutover #378 — §3a.3 mục E:
  * cùng container ephemeral, command đổi từ runner cũ `apps/pact-broker-api/
  * db/apply.mts` sang wrapper `runner.mts` giữ advisory lock
  * `pg_advisory_lock(hashtext('db-pact-broker'))` rồi spawn `drizzle-kit
  * migrate`). KHÔNG chạy qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ
  * advisory lock — `docs/applications/pact-broker/03-operations.md` §2).
  *
- * `cwd` của container là thư mục project db (`/repo/deploys/pact-broker-db`) —
+ * `cwd` của container là thư mục project db (`/repo/databases/pact-broker-db`) —
  * `runner.mts` lấy `process.cwd()` làm workspaceRoot để resolve
  * `drizzle.config.ts` + `migrations/` của authority.
  *
@@ -181,7 +181,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/pact-broker-db \\
+  -w /repo/databases/pact-broker-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate

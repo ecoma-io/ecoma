@@ -1,6 +1,6 @@
 # Staff Access Infrastructure
 
-Lớp adapter PostgreSQL của bounded context `staff-access` (`@ecoma-io/staff-access-infrastructure`): client postgres.js qua Hyperdrive binding `DB_STAFF_ACCESS` (database `db-staff-access`) và bộ repository đọc/ghi schema `staff_access`. SQL trong repository là bản chép của schema trong `deploys/staff-access-db/migrations/` — lib không tự định nghĩa bảng hay giá trị schema, và không chứa logic authorization nào (catalog govern, backend enforce — ADR-0009).
+Lớp adapter PostgreSQL của bounded context `staff-access` (`@ecoma-io/staff-access-infrastructure`): client postgres.js qua Hyperdrive binding `DB_STAFF_ACCESS` (database `db-staff-access`) và bộ repository đọc/ghi schema `staff_access`. SQL trong repository là bản chép của schema trong `databases/staff-access-db/migrations/` — lib không tự định nghĩa bảng hay giá trị schema, và không chứa logic authorization nào (catalog govern, backend enforce — ADR-0009).
 
 Nx project `@ecoma-io/staff-access-infrastructure`, tags `type:infrastructure`, `scope:staff-access`, `runtime:edge`.
 
@@ -33,7 +33,7 @@ pnpm nx run @ecoma-io/staff-access-infrastructure:lint
 pnpm nx run @ecoma-io/staff-access-infrastructure:typecheck
 ```
 
-Repository mới đi kèm migration tương ứng trong `deploys/staff-access-db/migrations/` — thêm cột hay bảng ở lib mà không có migration là lệch schema.
+Repository mới đi kèm migration tương ứng trong `databases/staff-access-db/migrations/` — thêm cột hay bảng ở lib mà không có migration là lệch schema.
 
 ## Testing
 

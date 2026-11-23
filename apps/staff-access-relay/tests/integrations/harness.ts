@@ -7,7 +7,7 @@
  * ranh giới deploy unit, nên hai harness giống nhau là **có chủ đích**, không
  * phải nợ kỹ thuật. Khác biệt bắt buộc bởi chủ thể của suite này:
  *
- *  1. Apply migration bằng cách **đọc file** trong `deploys/staff-access-db/migrations`
+ *  1. Apply migration bằng cách **đọc file** trong `databases/staff-access-db/migrations`
  *     (đường dẫn FILE, không phải import code app→app): runner `db/apply.mts` của
  *     staff-access không import chéo được qua ranh giới deploy unit.
  *  2. Client là driver `pg` — đúng driver mà relay chạy production (`src/main.ts`
@@ -42,12 +42,12 @@ const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
 /**
- * Thư mục migration authority của `db-staff-access` — `deploys/staff-access-db`
+ * Thư mục migration authority của `db-staff-access` — `databases/staff-access-db`
  * (02-delivery.md §3a.1), không ở relay. Đường dẫn file để harness ĐỌC.
  */
 export const MIGRATIONS_DIR = join(
   import.meta.dirname,
-  '../../../../deploys/staff-access-db/migrations',
+  '../../../../databases/staff-access-db/migrations',
 );
 
 export interface RelayDatabase {
@@ -173,7 +173,7 @@ async function applyMigrations(migrator: Client): Promise<void> {
 
 /**
  * Dựng container PostgreSQL, provision hai role, apply migration thật của
- * `deploys/staff-access-db/migrations` bằng credential migrator thật.
+ * `databases/staff-access-db/migrations` bằng credential migrator thật.
  */
 export async function startRelayDatabase(): Promise<RelayDatabase> {
   const container = await startPostgresContainer((c) =>

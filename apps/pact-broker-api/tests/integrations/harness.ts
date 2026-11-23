@@ -132,7 +132,7 @@ async function runDockerProbe(): Promise<void> {
 
 /**
  * Apply migration qua **runner thật của authority** — spawn CLI
- * `deploys/pact-broker-db/runner.mts migrate` (cutover #378: runner cũ
+ * `databases/pact-broker-db/runner.mts migrate` (cutover #378: runner cũ
  * `db/apply.mts` đã retire; đây là cùng runner mà lane chạy, gồm advisory lock
  * + guard `current_database()` + `drizzle-kit migrate`). Viết vòng apply riêng
  * ở đây là tạo runner thứ hai không có lock — lỗi đã từng xảy ra ở
@@ -144,7 +144,7 @@ async function runDockerProbe(): Promise<void> {
  */
 export function applyMigrations(databaseUrl: string): void {
   const repoRoot = resolve(import.meta.dirname, '../../../..');
-  const dbProjectRoot = resolve(repoRoot, 'deploys/pact-broker-db');
+  const dbProjectRoot = resolve(repoRoot, 'databases/pact-broker-db');
   const require = createRequire(import.meta.url);
   const tsxCli = require.resolve('tsx/cli');
   const result = spawnSync(

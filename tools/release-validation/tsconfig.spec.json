@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "//": "Composite cho emitDeclarationOnly của graph typecheck — spec unit colocated (src/*.spec.ts) VÀ suite integration (tests/integrations — tiền lệ `deploys/remote-cache-db`): suite integration được typecheck cùng graph nhưng CHẠY qua target `test-integration` (Docker bắt buộc).",
+  "//": "Composite cho emitDeclarationOnly của graph typecheck — spec unit colocated (src/*.spec.ts) VÀ suite integration (tests/integrations — tiền lệ `databases/remote-cache-db`): suite integration được typecheck cùng graph nhưng CHẠY qua target `test-integration` (Docker bắt buộc).",
   "compilerOptions": {
     "composite": true,
     "outDir": "./out-tsc/vitest",

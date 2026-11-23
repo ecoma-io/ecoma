@@ -18,7 +18,7 @@ const RUNTIME = 'ecoma_remote_cache_app_runtime';
 
 /**
  * Grant kỳ vọng của runtime, theo đúng `0001_remote_cache_app_bff_sessions.sql`
- * (authority `deploys/remote-cache-app-db`), theo từng bảng — danh sách tường
+ * (authority `databases/remote-cache-app-db`), theo từng bảng — danh sách tường
  * minh, không suy ra từ quy tắc chung:
  *
  * - `bff_sessions`: SELECT + INSERT + UPDATE + DELETE — sliding idle

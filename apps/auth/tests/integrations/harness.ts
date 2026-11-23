@@ -22,12 +22,12 @@ import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
 /**
- * Runner migration hợp đồng của `deploys/auth-db` (cutover #375): harness
+ * Runner migration hợp đồng của `databases/auth-db` (cutover #375): harness
  * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
  * guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây
  * (đọc file `.sql` rồi bắn từng file) là tạo runner thứ hai không có lock.
  */
-const AUTH_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'deploys', 'auth-db');
+const AUTH_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'databases', 'auth-db');
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.
@@ -61,8 +61,8 @@ const SUPERUSER_PASSWORD = 'ecoma_test_superuser_pw';
 /** Mật khẩu chung cho hai role test — secret giả, database ném đi sau mỗi run. */
 const ROLE_PASSWORD = 'ecoma_test_role_pw';
 
-/** Thư mục migration authority `deploys/auth-db/migrations` (02-delivery.md §3a.1). */
-export const MIGRATIONS_DIR = join(import.meta.dirname, '../../../../deploys/auth-db/migrations');
+/** Thư mục migration authority `databases/auth-db/migrations` (02-delivery.md §3a.1). */
+export const MIGRATIONS_DIR = join(import.meta.dirname, '../../../../databases/auth-db/migrations');
 
 type Sql = import('postgres').Sql;
 
@@ -269,7 +269,7 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Áp migration qua runner thật của `deploys/auth-db` — spawn `runner.mts
+ * Áp migration qua runner thật của `databases/auth-db` — spawn `runner.mts
  * migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * ⚠️ Lần chạy đầu trên database **trắng**: kit ghi history rồi áp toàn bộ
@@ -324,13 +324,13 @@ async function applyMigrations(database: { host: string; port: number }): Promis
   });
   if (code !== 0) {
     throw new Error(
-      `deploys/auth-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+      `databases/auth-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
     );
   }
 }
 
 /**
- * Provisioning theo runbook operator (`deploys/auth-db/migrations/README.md`
+ * Provisioning theo runbook operator (`databases/auth-db/migrations/README.md`
  * §"Vai trò của operator", auth 03-operations.md §3.2), làm bằng superuser — đúng vai trò
  * admin, không phải migration.
  *

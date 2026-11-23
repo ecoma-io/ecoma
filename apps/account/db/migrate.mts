@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * Đường dẫn thư mục authority `deploys/account-db/migrations` (02-delivery.md §3a.1).
+ * Đường dẫn thư mục authority `databases/account-db/migrations` (02-delivery.md §3a.1).
  *
  * Tính từ vị trí file này chứ không từ `process.cwd()`: Nx đặt `cwd: apps/account`
  * cho target của project, còn `vitest` lại chạy với `root` khác, và `cwd` là
@@ -13,11 +13,11 @@ import { resolve } from 'node:path';
  * dẫn đã là tuyệt đối.
  *
  * Helper này chỉ ĐỌC file SQL authority cho test integration — app consumer →
- * `deploys/<name>-db` là chiều dependency được phép theo §3a.1.
+ * `databases/<name>-db` là chiều dependency được phép theo §3a.1.
  */
 export const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
-  '../../../deploys/account-db/migrations',
+  '../../../databases/account-db/migrations',
 );
 
 /** Tên database của service này trong provisioning; không hard-code trong SQL. */

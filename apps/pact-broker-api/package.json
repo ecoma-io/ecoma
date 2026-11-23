@@ -23,7 +23,7 @@
     "`db/provision-machine-token.mts` — script DB chạy ở CI runner/lane (Node),",
     "không thuộc bundle Worker. Nguồn `pg` runtime của app là",
     "`@ecoma-io/pact-broker-api-infrastructure`. Migration runner đã về",
-    "`deploys/pact-broker-db` (cutover #378)."
+    "`databases/pact-broker-db` (cutover #378)."
   ],
   "nx": {
     "tags": [

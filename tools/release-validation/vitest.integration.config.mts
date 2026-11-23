@@ -12,7 +12,7 @@ import { defineConfig } from 'vitest/config';
  * NÉM và toàn bộ lần chạy đỏ (fail-loud, 06-testing.md §6) — skip với exit 0
  * không phải kết quả chấp nhận được. Suite này chạy pg_dump/psql thật của
  * container postgres:17-alpine (docker CLI) + runner migration thật của
- * `deploys/remote-cache-db` trên PostgreSQL thật.
+ * `databases/remote-cache-db` trên PostgreSQL thật.
  */
 export default defineConfig(() => ({
   root: import.meta.dirname,

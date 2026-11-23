@@ -26,7 +26,7 @@
  *   throw — recordPath rỗng là tín hiệu provenance gap.
  *
  * Tách bạch hai lifecycle (§7.4.1): module này chỉ provision infrastructure
- * Pulumi — deploy Worker là Wrangler, migration là `deploys/*-db`; không đường
+ * Pulumi — deploy Worker là Wrangler, migration là `databases/*-db`; không đường
  * nào ở đây đụng hai lifecycle đó.
  *
  * Ranh giới credential (§6/§7.4.1): mọi credential đi qua environment của

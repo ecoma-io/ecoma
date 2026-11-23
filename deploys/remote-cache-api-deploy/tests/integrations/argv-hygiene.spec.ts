@@ -7,7 +7,7 @@
  * Bản sao pattern của `deploys/llm-api-deploy/tests/integrations/argv-hygiene.spec.ts`
  * (06-testing.md §6: không shared test-support giữa các deploy unit), rút còn
  * đúng hai bước mà unit này có: provision (hai role) và migrate (đường canonical
- * `runner.mts migrate` của authority `deploys/remote-cache-db` — cutover #377).
+ * `runner.mts migrate` của authority `databases/remote-cache-db` — cutover #377).
  *
  * Thiết kế (06-testing.md §2/§4 — app-owned suite, Docker là phụ thuộc cứng,
  * vắng Docker là suite ĐỎ theo §6):
@@ -463,7 +463,7 @@ describe('migrate runs the canonical runner against the right database', () => {
     const flowState = requireFlow();
     const { result } = flowState.migrateRun;
     expect(result.code).toBe(0);
-    // stdout của runner `deploys/remote-cache-db`: kit apply + dòng xác nhận
+    // stdout của runner `databases/remote-cache-db`: kit apply + dòng xác nhận
     // của wrapper "migrate complete: history covers every journal entry" —
     // bằng chứng migrate chạy hết adopted set trên DATABASE ĐANG KẾT NỐI
     // (guard current_database() của wrapper đã chốt đúng db-remote-cache).

@@ -32,7 +32,7 @@ pnpm nx run @ecoma-io/auth-infrastructure:lint
 pnpm nx run @ecoma-io/auth-infrastructure:typecheck  # tsc --build --emitDeclarationOnly
 ```
 
-Mã nguồn nằm dưới `src/`; migration SQL của `db-auth` thuộc `deploys/auth-db/migrations/`, không thuộc lib này.
+Mã nguồn nằm dưới `src/`; migration SQL của `db-auth` thuộc `databases/auth-db/migrations/`, không thuộc lib này.
 
 ## Testing
 

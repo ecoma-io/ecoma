@@ -17,7 +17,7 @@ import { resolve } from 'node:path';
 import { BACKOFFICE_DATABASE } from '../../db/migrate.mts';
 
 /**
- * Runner migration hợp đồng của `deploys/backoffice-db` (cutover #375): harness
+ * Runner migration hợp đồng của `databases/backoffice-db` (cutover #375): harness
  * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
  * guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây là
  * tạo runner thứ hai không có lock.
@@ -25,7 +25,7 @@ import { BACKOFFICE_DATABASE } from '../../db/migrate.mts';
 const BACKOFFICE_DB_PROJECT = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
 );
 
@@ -192,7 +192,7 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Apply migration qua runner thật của `deploys/backoffice-db` — spawn
+ * Apply migration qua runner thật của `databases/backoffice-db` — spawn
  * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * Tách riêng khỏi `startBackofficeDatabase` để test "apply lại là no-op" gọi
@@ -247,7 +247,7 @@ export async function applyMigrations(database: { host: string; port: number }):
   });
   if (code !== 0) {
     throw new Error(
-      `deploys/backoffice-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+      `databases/backoffice-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
     );
   }
 }

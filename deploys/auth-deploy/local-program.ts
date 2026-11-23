@@ -7,7 +7,7 @@
  *
  * PR database isolation (issue #181): stack này provision `db-auth` + bộ 4 role
  * chuẩn (owner/migrator/runtime/pruner) trên PostgreSQL của platform, chạy
- * migration qua **đường canonical** (`deploys/auth-db` runner — chuỗi `adopt &&
+ * migration qua **đường canonical** (`databases/auth-db` runner — chuỗi `adopt &&
  * migrate` cutover #375; advisory lock giữ nguyên khóa `hashtext('db-auth')`,
  * verify checksum ledger `auth.schema_migrations` trước khi stamp), rồi seed
  * client public `backoffice` cho lane local (issue #194 — seed per-environment
@@ -44,7 +44,7 @@
  * guard-create khi thiếu nhưng KHÔNG BAO GIỜ `ALTER ROLE ecoma_owner PASSWORD`
  * (hai stack cùng ALTER một password là race xoá mật khẩu nhau). SQL
  * provisioning theo `docs/applications/auth/03-operations.md` §3.1/§3.2 và
- * `deploys/auth-db/migrations/README.md` §"Vai trò của operator": revoke chéo điều
+ * `databases/auth-db/migrations/README.md` §"Vai trò của operator": revoke chéo điều
  * kiện hoá theo `pg_database` (REVOKE trên database không tồn tại là lỗi),
  * PUBLIC trước per-role sau.
  */
@@ -95,7 +95,7 @@ import {
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (runner `deploys/auth-db` — deploy không tự
+ * là đúng một đường code canonical (runner `databases/auth-db` — deploy không tự
  * viết lại vòng migration).
  */
 const NODE_IMAGE =
@@ -257,7 +257,7 @@ const provision = new command.local.Command(dockerResourceName(ns, 'auth') + '-p
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy runner thật của `deploys/auth-db` (chuỗi `adopt && migrate` — advisory
+ * chạy runner thật của `databases/auth-db` (chuỗi `adopt && migrate` — advisory
  * lock giữ nguyên khóa `hashtext('db-auth')`, verify checksum ledger trước khi
  * stamp, `drizzle-kit migrate` atomic). Repo mount read-only.
  *
@@ -328,7 +328,7 @@ const redirectUriRemoteCacheAppLocal = pulumi.interpolate`${remoteCacheAppOrigin
  * (issue #194, phần local): `oauth_clients` rỗng là `createProvider` ném lúc
  * dựng provider — mọi `/authorize` 500 trong khi `/ready` vẫn xanh.
  *
- * ⚠️ Vì sao seed ở deploy program mà KHÔNG phải migration `deploys/auth-db/migrations/`:
+ * ⚠️ Vì sao seed ở deploy program mà KHÔNG phải migration `databases/auth-db/migrations/`:
  * redirect URI được so **exact string** (`client_redirect_uris`, FR-002), và
  * origin thật của callback BFF trên local là `https://office-<ns>.<rootHostname>`
  * với port Docker cấp động lúc create (port chỉ có SAU khi platform up —

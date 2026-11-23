@@ -8,7 +8,7 @@
  * không probe lại.
  *
  * Apply đi qua **runner thật của migration authority** — spawn CLI
- * `deploys/remote-cache-app-db/runner.mts migrate` (cutover #377) bằng
+ * `databases/remote-cache-app-db/runner.mts migrate` (cutover #377) bằng
  * credential migrator thật, không `SET ROLE`: advisory lock + guard
  * `current_database()` là một phần của điều được kiểm, còn `SET ROLE` không
  * chứng minh được quyền kết nối thật. Viết vòng apply riêng ở đây là tạo runner
@@ -27,7 +27,7 @@ import { Client } from 'pg';
 
 const APP_DIR = resolve(import.meta.dirname, '..', '..');
 const REPO_ROOT = resolve(APP_DIR, '..', '..');
-const APP_DB_PROJECT = resolve(REPO_ROOT, 'deploys', 'remote-cache-app-db');
+const APP_DB_PROJECT = resolve(REPO_ROOT, 'databases', 'remote-cache-app-db');
 /** Tsx của repo — chạy runner của authority mà không cần dep nào ở project này. */
 const TSX_BIN = resolve(REPO_ROOT, 'node_modules/.bin/tsx');
 

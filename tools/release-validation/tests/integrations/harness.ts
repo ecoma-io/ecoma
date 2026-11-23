@@ -63,7 +63,7 @@ export interface PgContainer {
   readonly hostPort: number;
   /** URL nhìn TỪ TRONG container — mọi psql/pg_dump qua `docker exec` dùng URL này. */
   internalUrl(database: string): string;
-  /** URL migrator nhìn từ HOST — spawn `deploys/remote-cache-db` runner dùng nó. */
+  /** URL migrator nhìn từ HOST — spawn `databases/remote-cache-db` runner dùng nó. */
   hostMigratorUrl(): string;
   /** URL migrator nhìn TỪ TRONG container — restore psql qua `docker exec` dùng nó. */
   internalMigratorUrl(): string;
@@ -210,13 +210,13 @@ export function prepareAuthority(pg: PgContainer): void {
 
 /**
  * Apply journal fixture bằng **runner thật** của migration authority
- * `deploys/remote-cache-db` (spawn tsx với `--config` fixture) — viết vòng
+ * `databases/remote-cache-db` (spawn tsx với `--config` fixture) — viết vòng
  * apply riêng ở đây là tạo runner thứ hai không có advisory lock, lỗi repo đã
  * từng gặp. Dùng để dựng state "previous release" trên source trước khi capture.
  */
 export function applyFixtureMigrations(pg: PgContainer, configName: string): ExecResult {
   const repoRoot = resolve(import.meta.dirname, '../../../..');
-  const dbProjectRoot = resolve(repoRoot, 'deploys/remote-cache-db');
+  const dbProjectRoot = resolve(repoRoot, 'databases/remote-cache-db');
   const configPath = resolve(import.meta.dirname, 'fixtures', configName);
   const require = createRequire(import.meta.url);
   const tsxCli = require.resolve('tsx/cli');

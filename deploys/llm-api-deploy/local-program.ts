@@ -19,7 +19,7 @@
  * script chỉ chứa TÊN biến môi trường, và SQL `ALTER ROLE ... PASSWORD` được
  * dựng trong shell rồi nạp vào psql qua **STDIN** (`docker exec -i`, không
  * `-c`) — chi tiết kênh ở `scripts.ts`. Migration chạy **đường canonical**
- * (`deploys/llm-<target>-db` — `runner.mts migrate`, cutover #376: advisory
+ * (`databases/llm-<target>-db` — `runner.mts migrate`, cutover #376: advisory
  * lock `hashtext('db-llm-<target>')` + guard `current_database()` trên wrapper,
  * engine `drizzle-kit migrate` + history `__drizzle_migrations` thuộc kit) bằng
  * container node pin chạy tsx của repo trên platform network, KHÔNG qua binding
@@ -82,7 +82,7 @@ import { environmentTriggers } from './environment-triggers.js';
  * publish host port (invariant platform) và host không route được tới IP
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
- * là đúng một đường code canonical (`deploys/llm-<target>-db` `runner.mts`) —
+ * là đúng một đường code canonical (`databases/llm-<target>-db` `runner.mts`) —
  * deploy không tự viết lại vòng migration.
  */
 const NODE_IMAGE =
@@ -220,7 +220,7 @@ const provision = new command.local.Command(dockerResourceName(ns, 'llm-api') + 
 /**
  * Migration qua **đường canonical**, MỘT command cho MỖI database: container
  * ephemeral trên platform network chạy đúng runner của migration authority
- * `deploys/llm-<target>-db` — `npx tsx --tsconfig tsconfig.db.json runner.mts
+ * `databases/llm-<target>-db` — `npx tsx --tsconfig tsconfig.db.json runner.mts
  * migrate` (cutover #376; advisory lock `hashtext('db-llm-<target>')` và verify
  * `current_database()` khớp DB đích nằm trong wrapper, chống chạy nhầm
  * credential). KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).

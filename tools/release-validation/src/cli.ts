@@ -42,7 +42,7 @@ import { runValidation, type ValidationDeps } from './runner.ts';
  * - `validate` — restore baseline vào target DÙNG-ĐI (bắt buộc
  *   `--confirm-disposable-target`: mechanism DROP database hợp đồng trên
  *   target), integrity check, rồi apply candidate migrations từ
- *   baseline-verified qua migration authority thật (`deploys/<slug>-db`
+ *   baseline-verified qua migration authority thật (`databases/<slug>-db`
  *   runner — không runner thứ hai). Không có `--baseline` = first-release
  *   fresh-install path.
  */
@@ -147,7 +147,7 @@ function stringFlag(flags: ReadonlyMap<string, string | boolean>, name: string):
 }
 
 /**
- * Spawn migration authority runner thật (`deploys/<slug>-db/runner.mts
+ * Spawn migration authority runner thật (`databases/<slug>-db/runner.mts
  * migrate`) qua tsx — cùng lệnh target `db-migrate` của project đó (advisory
  * lock + guard `current_database()` + kit atomic per-run, §3a.3/§3a.5).
  */

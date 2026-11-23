@@ -29,11 +29,11 @@ import {
   CANONICAL_ROLE_NAME,
 } from '../../db/bootstrap.mts';
 
-/** Bản migration hợp đồng của `deploys/staff-access-db` (cutover #375). */
+/** Bản migration hợp đồng của `databases/staff-access-db` (cutover #375). */
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'staff-access-db',
   'migrations',
 );

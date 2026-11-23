@@ -142,7 +142,7 @@ export interface MigrateScriptInputs {
 /**
  * Script migrate: container ephemeral trên platform network chạy đúng
  * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
- * của migration authority `deploys/pact-broker-app-db` (cutover #378 — §3a.3
+ * của migration authority `databases/pact-broker-app-db` (cutover #378 — §3a.3
  * mục E: command đổi từ runner cũ `apps/pact-broker-app/db/apply.mts` sang
  * wrapper `runner.mts` giữ advisory lock
  * `pg_advisory_lock(hashtext('db-pact-broker-app'))` rồi spawn
@@ -157,7 +157,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/pact-broker-app-db \\
+  -w /repo/databases/pact-broker-app-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate

@@ -71,10 +71,10 @@ describe('classifyEligibility', () => {
   };
 
   it('prefers explicit entries over rules and classifies by rule otherwise', () => {
-    const classified = classifyEligibility(['@ecoma-io/home', 'deploys/home-db'], config);
+    const classified = classifyEligibility(['@ecoma-io/home', 'databases/home-db'], config);
 
     expect(classified.get('@ecoma-io/home')).toEqual({ staging: 'releaseable' });
-    expect(classified.get('deploys/home-db')).toEqual({
+    expect(classified.get('databases/home-db')).toEqual({
       staging: 'excluded',
       reason: 'migration project',
     });

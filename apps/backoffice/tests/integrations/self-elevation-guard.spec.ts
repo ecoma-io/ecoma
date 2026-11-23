@@ -22,11 +22,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { type BackofficeDatabase, startBackofficeDatabase } from './harness.ts';
 
-/** Bản migration hợp đồng của `deploys/backoffice-db` (cutover #375). */
+/** Bản migration hợp đồng của `databases/backoffice-db` (cutover #375). */
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
   'migrations',
 );

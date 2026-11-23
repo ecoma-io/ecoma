@@ -14,13 +14,13 @@ Nx project `@ecoma-io/staff-access-domain`, tags `type:domain`, `scope:staff-acc
 - **Staff status** (`staff-status.ts`): `STAFF_ACCESS_STAFF_STATUS` (`active`, `suspended`, `terminated`), `STAFF_ACCESS_STAFF_STATUSES`, `isStaffAccessStaffStatus`, `isTerminalStaffAccessStatus` — chỉ `terminated` là terminal; `suspended` còn đường quay lại `active`, và không có hàm nào chuyển `terminated` sang trạng thái khác.
 - **Lỗi** (`errors.ts`): `staffAccessDomainError`, `isStaffAccessDomainError`, catalog `STAFF_ACCESS_DOMAIN_ERROR_MESSAGES` — cùng pattern với `libs/account-domain/src/errors.ts` và `libs/backoffice-domain/src/errors.ts`.
 
-Consumer: `apps/staff-access` — `src/main.ts` dùng `isStaffAccessDomainError` ở error path, `src/routes.ts` dùng `staffAccessDomainError`; CHECK/trigger của migration `deploys/staff-access-db/migrations/0001_staff_access_domain.sql` neo vào cùng tập trạng thái.
+Consumer: `apps/staff-access` — `src/main.ts` dùng `isStaffAccessDomainError` ở error path, `src/routes.ts` dùng `staffAccessDomainError`; CHECK/trigger của migration `databases/staff-access-db/migrations/0001_staff_access_domain.sql` neo vào cùng tập trạng thái.
 
 ## Boundaries
 
 - Thuần TypeScript: không import Nx project khác, không SQL, không Node builtin, không I/O; mọi tham số thời gian do caller truyền vào, domain không đọc đồng hồ.
 - **Khai báo lại vocabulary thay vì import contracts**: `type:domain` không được phụ thuộc `type:contracts`, nên tập nhãn được khai độc lập với `StaffStatus` của `@ecoma-io/staff-access-contracts`; `staff-status.spec.ts` ghim sự đối xứng giữa hai tập.
-- Điều được ghim ở đây là **sự tách trục** và tính terminal của `terminated` — nội dung catalog permission và nội dung role system xuất phát từ catalog thật (`deploys/staff-access-db/migrations/0003_permission_catalog_seed.sql`, [ADR-0004](../../docs/domains/staff-access/adr/0004-custom-role-administration.md)), không được phát minh trong thư viện này.
+- Điều được ghim ở đây là **sự tách trục** và tính terminal của `terminated` — nội dung catalog permission và nội dung role system xuất phát từ catalog thật (`databases/staff-access-db/migrations/0003_permission_catalog_seed.sql`, [ADR-0004](../../docs/domains/staff-access/adr/0004-custom-role-administration.md)), không được phát minh trong thư viện này.
 - Không có cơ chế outbox/transport nào ở đây: delivery entitlement của Phase 2 và revision semantics thuộc [ADR-0002](../../docs/domains/staff-access/adr/0002-revocation-latency-risk-class.md) và [ADR-0016](../../docs/domains/staff-access/adr/0016-outbox-relay-mechanism.md); `revision` ở đây chỉ là số thứ tự tăng đơn điệu.
 
 ## Development

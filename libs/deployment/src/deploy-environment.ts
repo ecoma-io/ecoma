@@ -28,7 +28,7 @@
  * unit giữ nguyên như lane local.
  *
  * ⚠️ Seam này KHÔNG định nghĩa migration semantics: schema migration thuộc các
- * migration project `deploys/*-db` (#373/#374) — coordinator invoke migration
+ * migration project `databases/*-db` (#373/#374) — coordinator invoke migration
  * targets qua contract của issue đó, không qua đây. Việc provision resource
  * staging thật (#350) cũng nằm ngoài seam: adapter staging chỉ chốt cách chọn
  * backend + stack, chưa chạy Pulumi nào.

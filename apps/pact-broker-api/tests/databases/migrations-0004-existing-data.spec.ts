@@ -16,7 +16,7 @@
  * phân loại, nên không thể dựng trạng thái pre-0004 ở đó. Vì vậy mỗi test tự
  * chạy một PostgreSQL dùng một lần rồi vứt (cùng chi phí với test "reports
  * zero applied" của `migrations.spec.ts`), áp `0001`–`0003` từ file SQL của
- * authority `deploys/pact-broker-db` (cutover #378) theo thứ tự tên file,
+ * authority `databases/pact-broker-db` (cutover #378) theo thứ tự tên file,
  * chèn các hàng legacy, rồi áp `0004` — file đang xét — từng file một. Replay
  * full-runner trên mọi file vẫn do `migrations.spec.ts` đảm nhận.
  *
@@ -39,13 +39,13 @@ const RUNTIME_ROLE = 'ecoma_pact_broker_runtime';
 const DATABASE_NAME = 'db-pact-broker';
 
 /**
- * Nguồn SQL duy nhất của migration là authority `deploys/pact-broker-db`
+ * Nguồn SQL duy nhất của migration là authority `databases/pact-broker-db`
  * (cutover #378). Test đọc file theo slug cuối của tag journal — idx có thể
  * đổi khi move-in/generate lại, slug là định danh ổn định của nội dung.
  */
 const DB_MIGRATIONS_DIR = resolve(
   import.meta.dirname,
-  '../../../../deploys/pact-broker-db/migrations',
+  '../../../../databases/pact-broker-db/migrations',
 );
 
 function readMigrationBySlug(slug: string): { name: string; sql: string } {

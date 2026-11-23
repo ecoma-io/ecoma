@@ -823,8 +823,8 @@ describe('ocr-result-gate', () => {
     const paths = writeCase(
       ocrResult({}),
       '[ocr] 4 file(s) changed, reviewing 2 in /repo\n' +
-        '[ocr] Skipping plan phase for group "deploys/auth-db/migrations/0010_x.sql" (1 file(s), max 18 lines, total 18 lines)\n' +
-        '[ocr] Skipping plan phase for group "deploys/account-db/migrations/0003_y.sql" (1 file(s), max 13 lines, total 13 lines)\n',
+        '[ocr] Skipping plan phase for group "databases/auth-db/migrations/0010_x.sql" (1 file(s), max 18 lines, total 18 lines)\n' +
+        '[ocr] Skipping plan phase for group "databases/account-db/migrations/0003_y.sql" (1 file(s), max 13 lines, total 13 lines)\n',
     );
     const { status, stdout } = runGate(paths);
     expect(status).toBe(0);
