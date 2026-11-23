@@ -112,18 +112,7 @@
         "options": {
           "cwd": "apps/pact-broker-api",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "`dependsOn: build` bắt buộc cho `worker-runtime.spec.ts`: suite khởi động",
-          "workerd (createTestHarness) trên chính `wrangler.jsonc` của app, mà `main`",
-          "của nó trỏ vào `dist/main.js` — artifact chỉ tồn tại sau `esbuild`. Thiếu",
-          "build thì `listen()` ném ngay, đỏ thay vì pass rỗng (tiền lệ llm-seller).",
-          "",
-          "Các suite integration còn lại (`api.spec`, `revoke-isolation`, `tests/databases`)",
-          "import thẳng TS nguồn — `../../src/main` (`buildApp`), `deploys/pact-broker-db/runner.mts` (harness),",
-          "các lib qua export `./src/index.ts` của workspace; bundle esbuild không tiêu",
-          "thụ ở đó nên `dependsOn` chỉ là chi phí build thêm một lần cho file."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -154,27 +143,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",
@@ -215,20 +187,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/pact-broker-api",
@@ -273,21 +231,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/pact-broker-api",
           "command": "vitest run"

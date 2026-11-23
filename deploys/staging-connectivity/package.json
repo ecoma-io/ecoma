@@ -32,7 +32,6 @@
     ],
     "targets": {
       "staging-vpc-service-create": {
-        "//": "Một lần tạo VPC service staging: đối số của operator được Nx append sau `--`. Yêu cầu cặp ECOMA_CLOUDFLARE_STAGING_API_TOKEN + ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID trong env (fail-closed, #548); name bắt buộc prefix `stg-`; --tunnel-id bắt buộc (wrangler 4.165.0). Output dòng `service_id=<uuid>` là contract cho wiring Hyperdrive #350. KHÔNG có target down/delete: xoá service là bước vận hành tường minh qua `wrangler vpc service delete` theo runbook, không phải lane mutate ngầm. nx:run-commands chạy ở workspace root nên path là ref repo-root-relative `tools/delivery/src/cli.ts` (cùng hình dạng arch-check resolveCommandBase kiểm).",
         "executor": "nx:run-commands",
         "options": {
           "command": "npx tsx tools/delivery/src/cli.ts vpc-service create"

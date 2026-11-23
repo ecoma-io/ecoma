@@ -55,7 +55,6 @@
       "typecheck": {
         "executor": "nx:run-commands",
         "dependsOn": [
-          "^typecheck",
           "nuxt-prepare"
         ],
         "cache": true,
@@ -71,15 +70,7 @@
         "options": {
           "cwd": "apps/pact-broker-app",
           "command": "npx nuxt typecheck && npx tsc --project tsconfig.db.json"
-        },
-        "//": [
-          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
-          "mirror đúng cách apps/backoffice và apps/account đã làm: Nuxt sinh",
-          "`.nuxt/tsconfig.*.json` với `noEmit: true`, còn target mặc định chạy",
-          "`tsc --build --emitDeclarationOnly` — hai option xung đột (TS5069), và",
-          "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
-          "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
-        ]
+        }
       },
       "test": {
         "executor": "nx:run-commands",
@@ -117,21 +108,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/pact-broker-app",
           "command": "vitest run"
@@ -183,66 +159,7 @@
         "options": {
           "cwd": "apps/pact-broker-app",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
-          "`tests/integrations/worker-runtime.spec.ts` khởi động workerd trên",
-          "`wrangler.jsonc` của app, mà `main`/`assets.directory` của nó trỏ vào",
-          "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
-          "ném ngay, đỏ thay vì pass rỗng (cùng cấu hình với target",
-          "`test-integration` của `apps/llm-console` và `apps/backoffice`).",
-          "",
-          "`dependsOn` thứ hai là cạnh cross-project CẦN THIẾT (issue #181): suite",
-          "contract + browser boot workerd cho `pact-broker-api` từ `dist/main.js`",
-          "của nó — thứ chỉ tồn tại sau build của API. Suite KHÔNG import code API",
-          "(module boundary cấm), nhưng execution của nó phụ thuộc artifact build —",
-          "cạnh task-graph là kênh khai báo đúng, không phải tiện nghi.",
-          "",
-          "`command` không còn path filter: `include` của config integration là",
-          "nguồn chọn suite duy nhất (tests/integrations/** + tests/browser/**);",
-          "filter thừa tạo hai nguồn thật và che mất suite mới khi thư mục đổi tên.",
-          "",
-          "`inputs` khai thêm `db/**` + `wrangler.jsonc` của API: suite chạy CLI",
-          "migrations/bootstrap/token từ thư mục đó qua tsx subprocess — đổi",
-          "script hay config Hyperdrive phải mất hiệu lực cache dù build của API",
-          "có thể không đổi (db scripts không nằm trong artifact Nitro).",
-          "",
-          "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
-          "suite assert trên asset do build emit, không chỉ trên `.js`.",
-          "",
-          "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
-          "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
-          "suite này đo, nên cache phải mất hiệu lực khi nó đổi.",
-          "",
-          "Docker là phụ thuộc cứng của target (globalSetup probe fail-loud) —",
-          "không khai được như `externalDependencies` vì docker là binary hệ",
-          "thống ngoài npm; runner thiếu Docker sẽ đỏ ở `globalSetup`, đúng luật",
-          "06-testing.md §6.",
-          "",
-          "`command` (số ít) thay cho `commands` + `parallel: false`: target chỉ",
-          "còn một lệnh chạy. Hai lệnh trước đây tồn tại chỉ để cấp binary",
-          "chromium TRƯỚC vitest; bỏ bước đó thì `parallel` cũng hết đối tượng —",
-          "không còn hai lệnh nào để tranh nhau thứ tự.",
-          "",
-          "Target này KHÔNG tự cấp Playwright chromium, và đó là chủ ý (issue",
-          "#253): thiếu browser phải đỏ thẳng, không được lặng lẽ cài trong một",
-          "Nx task song song. Job `integration-test` của CI cấp browser một lần ở",
-          "cấp job (`npx playwright install --with-deps chromium`, xem",
-          "`.github/workflows/ci.yaml`). Suite `tests/browser/read-pages.spec.ts`",
-          "tự `chromium.launch()` BÊN TRONG vitest — không phải lane",
-          "`playwright test` riêng như `apps/backoffice` — nên thiếu browser là",
-          "đỏ ngay tại `chromium.launch()` của suite đó, không phải ở một assert",
-          "mơ hồ hơn. Máy dev mới chạy `npx playwright install chromium` một lần;",
-          "target không làm hộ.",
-          "",
-          "`inputs.env: CI` GIỮ LẠI, đã kiểm chứ không đoán: suite và config",
-          "integration không đọc `process.env.CI` (grep `process.env` trong",
-          "`tests/**` chỉ thấy credential/Hyperdrive của harness), nhưng chính",
-          "vitest đổi hành vi theo `isCI` ở `allowOnly` — `.only` lọt vào source",
-          "làm local lọc im lặng còn CI đỏ. Entry này có từ trước script cấp",
-          "browser (blame commit 52bd011), nên nó không phải di sản của script",
-          "vừa bỏ, và vẫn là khoá cache cần giữ."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -273,27 +190,12 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "build": {
         "cache": true,
         "dependsOn": [
-          "^build",
           "nuxt-prepare"
         ],
         "inputs": [
@@ -325,34 +227,7 @@
             "buildOutputDirName": ".output-node"
           }
         },
-        "parallelism": true,
-        "//": [
-          "`outputs` dùng `{options.*}` interpolation với option theo configuration:",
-          "production khai `.nuxt`+`.output` (contract wrangler), development khai",
-          "`.nuxt-node`+`.output-node`. Lý do BẮT BUỘC phải tách: Nx XOÁ mọi thư",
-          " mục nằm trong `outputs` của task trước khi chạy (và trước khi restore",
-          "cache) — nếu task development khai cả `.output` thì mỗi lần",
-          "`build:development` xoá mất artifact production mà test-integration đang",
-          "đọc.",
-          "Lưu ý coupling: `nx:run-commands` forward mọi option không nhận diện thành",
-          "CLI arg, nên lệnh chạy thật là `nuxt build --buildDirName=.nuxt",
-          "--buildOutputDirName=.output` — @nuxt/cli hiện bỏ qua flag lạ (vô hại),",
-          "nhưng một bản @nuxt/cli parse argument nghiêm ngặt sau này sẽ phải đổi cơ",
-          "chế. Options vẫn nằm trong hash của task — chính điều đó tách cache",
-          "dev/production.",
-          "`dependsOn` gồm `^build` và `nuxt-prepare`: build configuration",
-          "`development` cần `.nuxt` tồn tại — project `tsconfig.json` reference",
-          "`./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi",
-          "`typescript.typeCheck: true`, trong khi build đó đặt `buildDir` sang",
-          "`.nuxt-node` (không sinh `.nuxt`).",
-          "Hai configuration tách bạch qua khối `$env['node-docker']` trong",
-          "`nuxt.config.ts` (`--envName=node-docker` — tên envName riêng, KHÁC",
-          "`development`/`production`, vì `nuxt dev` tự kích hoạt envName",
-          "`development` nên khối `$development` sẽ lọt vào mọi lần `nx serve`):",
-          "production giữ preset `cloudflare-module`, development preset",
-          "`node-server`; `defaultConfiguration: production` để `nx build` không",
-          "config vẫn ra artifact wrangler như cũ."
-        ]
+        "parallelism": true
       },
       "serve": {
         "continuous": true,

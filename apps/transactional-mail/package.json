@@ -27,37 +27,14 @@
             "cwd": "apps/transactional-mail",
             "command": "npx tsx ../../tools/dx/index.ts d1-migrate --dir . --remote"
           }
-        },
-        "//": [
-          "Call site DUY NHẤT để áp migration D1 `mail` (cutover #382 — hợp đồng",
-          "`docs/architecture/02-delivery.md` §3a.4, quyết định A+ của #373: authority",
-          "nằm ở app unit, KHÔNG có project `deploys/<name>-db` riêng cho D1).",
-          "",
-          "Mặc định `--local`: áp vào D1 local của app (`<app>/.wrangler/state`,",
-          "gitignored), không cần credential. Mode remote cho làn staging/production:",
-          "`pnpm nx run transactional-mail:db-migrate -c remote` với",
-          "cặp `ECOMA_CLOUDFLARE_STAGING_API_TOKEN` + `ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID` trong env (#548, §6.12) — token không qua argv,",
-          "không log; `--env <lane>` forward tường minh khi app có named environment.",
-          "",
-          "`cache: false` — mutate database thật, cùng policy với `db-migrate` của",
-          "các project PostgreSQL `deploys/*-db`."
-        ]
+        }
       },
       "test-integration": {
         "executor": "nx:run-commands",
-        "dependsOn": [],
         "options": {
           "cwd": "apps/transactional-mail",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "KHÔNG `build`: suite D1 chạy qua `getPlatformProxy` (workerd in-process) và",
-          "import repository/application trực tiếp từ TS nguồn (export `./src/index.ts`);",
-          "`getPlatformProxy` chỉ đọc binding/migration từ `wrangler.jsonc`, không chạy",
-          "`main: dist/main.js` — ba job app (push-notification, web-push,",
-          "auth-nonce-prune) vốn chạy cùng hình thức không build trước. Không spec nào",
-          "đọc `dist/`; bundle esbuild chỉ tiêu thụ ở làn deploy."
-        ]
+        }
       },
       "build": {
         "executor": "@nx/esbuild:esbuild",
@@ -194,27 +171,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",
@@ -261,20 +221,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/transactional-mail",
@@ -319,21 +265,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/transactional-mail",
           "command": "vitest run"

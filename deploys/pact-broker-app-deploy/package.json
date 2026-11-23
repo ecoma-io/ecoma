@@ -24,7 +24,6 @@
     ],
     "targets": {
       "local-up": {
-        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi health gate container CỦA CHÍNH unit (`ecoma-<ns>-pact-app` healthy theo healthcheck Docker của unit). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
@@ -57,7 +56,6 @@
         ]
       },
       "local-down": {
-        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`; platform tự xoá volume PostgreSQL mọi lần down). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
@@ -68,7 +66,6 @@
         }
       },
       "staging-preview": {
-        "//": "Lane staging #358 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (port của pattern đã merge #453/#350/#539/#358, giữ pattern copy). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. Chương trình trên stack staging khai HyperdriveConfig của `db-pact-broker-app` (#358, `staging-program.ts`); origin đọc từ stack config và FAIL CLOSED khi chưa có — đường tới origin private là Tunnel/VPC Service của #349. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
@@ -79,7 +76,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` và surface id thật để wiring `env.staging.hyperdrive` của `apps/pact-broker-app/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
@@ -118,27 +114,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "production",
@@ -158,20 +137,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
@@ -212,21 +177,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
           "command": "vitest run"
@@ -235,19 +185,6 @@
         "parallelism": true
       },
       "local-build": {
-        "//": [
-          "Wrapper chạy artifact build TRƯỚC image build: `local-up` dependsOn target này,",
-          "Nx Task Graph ghim thứ tự `build:development` -> `local.ts up` (Pulumi) -> image",
-          "build COPY `.output-node/`. Wrapper là cách native DUY NHẤT ghim configuration:",
-          "`TargetDependencyConfig` (Nx 23.3.2) không có field `configuration` nên",
-          "`dependsOn` không viết được `build:development` (string bị parse thành literal",
-          "target name), còn propagation qua `defaultConfiguration` của app build là",
-          "`production` — artifact `cloudflare-module`, không chạy được bằng `node`.",
-          "`cache: false` là CONTRACT của lane local (nx.json targetDefaults",
-          "`tag:type:deployment`): target mutate Docker resource thật, cache hit là bỏ",
-          "một lần build thật. Target build thật của app (`@ecoma-io/pact-broker-app:build`) vẫn là",
-          "cache unit của riêng nó — wrapper chỉ gọi, không cache kết quả."
-        ],
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",

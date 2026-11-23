@@ -29,12 +29,7 @@
         "options": {
           "cwd": "system-tests/local-smoke",
           "command": "node src/local-smoke.mjs"
-        },
-        "//": [
-          "Target chạy script smoke với ROOT_HOST đọc từ `.env` của worktree (target `local-smoke` của",
-          "platform-deploy truyền giá trị qua argv). `cache: false` là CONTRACT (cùng rationale với",
-          "`system-test`): script verify serving-path sống ngoài inputs của Nx."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -65,27 +60,12 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
         "dependsOn": [
-          "build",
-          "^typecheck"
+          "build"
         ],
         "cache": true,
         "inputs": [
@@ -128,20 +108,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "system-tests/local-smoke",
@@ -186,21 +152,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "system-tests/local-smoke",
           "command": "vitest"
@@ -209,9 +160,6 @@
         "parallelism": true
       },
       "build": {
-        "dependsOn": [
-          "^build"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",
@@ -247,20 +195,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Builds the project with `tsc`.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "{projectRoot}",

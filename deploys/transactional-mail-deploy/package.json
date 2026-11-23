@@ -25,7 +25,6 @@
     ],
     "targets": {
       "local-up": {
-        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi health gate container CỦA CHÍNH unit (`ecoma-<ns>-mail-wic` healthy theo healthcheck Docker của unit). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mail-deploy",
@@ -62,7 +61,6 @@
         ]
       },
       "local-down": {
-        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`; platform tự xoá volume PostgreSQL mọi lần down). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mail-deploy",
@@ -73,7 +71,6 @@
         }
       },
       "staging-preview": {
-        "//": "Lane staging #355 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (bản copy có chủ đích của pattern đã merge #453/#539). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. Chương trình trên stack staging khai D1 `stg-mail` + chuỗi bốn Queue staging (#355, `staging-program.ts`) — đúng bảng ownership §9.1 (Pulumi provision resource, Wrangler deploy Worker, migration thuộc #382). KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mail-deploy",
@@ -84,7 +81,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `mailDatabaseId` và surface id thật để wiring `env.staging.d1_databases` của `apps/transactional-mail/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo resource).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mail-deploy",
@@ -130,21 +126,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/transactional-mail-deploy",
           "command": "vitest run"
@@ -181,27 +162,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "production",
@@ -221,20 +185,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mail-deploy",

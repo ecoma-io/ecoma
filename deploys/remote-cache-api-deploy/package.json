@@ -24,7 +24,6 @@
     ],
     "targets": {
       "local-up": {
-        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), giải `tenantOwnerSub` qua dx runner trên account/staff-access (#20), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. dependsOn account-deploy + staff-access-deploy:local-up — bước giải `tenantOwnerSub` đọc migrator credential cross-stack và chạy `bootstrap-superadmin --resolve-if-bootstrapped` trên `db-account` + `db-staff-access` (pattern pact-broker-api-deploy #20). Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `dist/` mount lúc container start — bundle chưa build là wrangler fail entry-point và container restart loop (#247). Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -61,7 +60,6 @@
         ]
       },
       "local-down": {
-        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -72,7 +70,6 @@
         }
       },
       "local-smoke": {
-        "//": "Smoke real-storage của unit vừa lên (`smoke.ts`): `GET /ready` phải báo `storage: 'configured'`, rồi CLIENT S3 THẬT của app (`S3ObjectStorage`) round-trip trên bucket SeaweedFS của platform. Inner chạy trong container TRÊN repo mount và nằm CÙNG app (`apps/remote-cache-api/smoke/smoke-inner.mts`) để import được class thật — ranh giới module cấm deploy → composition, còn composition tự import chính nó là hợp lệ. `dependsOn` chỉ khai `target` KHÔNG kèm `projects`: với dependency dạng object, Nx mặc định không khai `projects` là CHÍNH project này (self-dependency) — smoke phụ thuộc `local-up` của cùng unit, và `build` của app chạy transitive qua `dependsOn` của `local-up`. Node LÁ trong lane: không target nào phụ thuộc smoke — smoke là cổng kiểm chứng cuối, không phải prerequisite của unit nào. Secret đi QUA STDIN của `docker run -i` (`smoke.ts`), không qua argv/`-e`/label/log. Cache bị tắt ở targetDefaults `nx.json` (đo Docker state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -88,7 +85,6 @@
         ]
       },
       "staging-preview": {
-        "//": "Lane staging #350 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (pattern copy #453; tổng quát hoá là follow-up #543). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Chương trình trên stack staging khai R2 bucket object storage của remote-cache (#350/#514, `staging-program.ts`) và HyperdriveConfig của `db-remote-cache` (pattern pilot #539, query cache OFF theo contract của app); origin đọc từ stack config và FAIL CLOSED khi chưa có — đường tới origin private là Tunnel/VPC Service của #349. Chạy thật còn chặn prerequisite vận hành: bootstrap backend state (một lần ngoài mọi stack) + token Cloudflare + R2 token bucket-scoped + passphrase per-stack. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -99,7 +95,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `hyperdriveConfigId` và surface id thật để wiring `env.staging.hyperdrive` của `apps/remote-cache-api/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -138,28 +133,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "//": "Một chương trình typecheck duy nhất: graph Pulumi chính (`tsc --build` composite — các entry + helper). Script smoke inner KHÔNG thuộc project này: nó nằm CÙNG app (`apps/remote-cache-api/smoke/smoke-inner.mts`) để import được class `S3ObjectStorage` thật (ranh giới module cấm deploy → composition) và được typecheck bởi app qua `tsconfig.spec.json` của app.",
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "production",
@@ -179,20 +156,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
@@ -233,21 +196,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
           "command": "vitest run"
@@ -258,22 +206,10 @@
       "test-integration": {
         "executor": "nx:run-commands",
         "cache": false,
-        "dependsOn": [],
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
         },
-        "//": [
-          "Suite integration app-owned (06-testing.md §2/§4): argv-hygiene —",
-          "chạy đúng script provision/migrate mà index.ts render, với sentinel",
-          "credentials, shim docker ghi argv và sweep /proc/*/cmdline; assert",
-          "không secret nào vào argv/log/output/script text, đồng thời trạng",
-          "thái database sau provision + migration vẫn đúng. Bắt buộc Docker:",
-          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip. Target",
-          "luôn không cacheable vì mutate Docker/database thật.",
-          "Không `dependsOn` build bundle WIC: suite không chạy wrangler worker.",
-          "Import thẳng `scripts.ts` nguồn — đúng text mà Pulumi chạy."
-        ],
         "configurations": {}
       }
     }

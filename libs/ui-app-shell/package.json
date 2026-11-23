@@ -41,15 +41,7 @@
         "options": {
           "cwd": "{projectRoot}",
           "command": "vue-tsc --build tsconfig.json --emitDeclarationOnly"
-        },
-        "//": [
-          "Ghi đè target `typecheck` mà plugin @nx/js suy ra. Target suy ra chạy",
-          "`tsc --build tsconfig.json --emitDeclarationOnly`, nhưng `tsc` gốc",
-          "không đọc được `.vue` — lib này re-export component SFC từ index nên",
-          "program của lib chứa `.vue`, và `tsc` sẽ báo TS6307 rồi `noEmitOnError`",
-          "chặn emit. `vue-tsc` là compiler hiểu SFC; dùng cùng cờ `--build` và",
-          "cùng tsconfig để giữ nguyên project references và buildinfo."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -80,20 +72,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -133,21 +111,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "libs/ui-app-shell",
           "command": "vitest run"

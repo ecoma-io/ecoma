@@ -65,18 +65,7 @@
         "options": {
           "cwd": "system-tests/e2e/remote-cache-portal-e2e",
           "command": "npx playwright test"
-        },
-        "//": [
-          "Target canonical `system-test` của system-test suite (docs/architecture/06-testing.md §4) —",
-          "suite tự định nghĩa cách thực thi. `cache: false` là CONTRACT chứ không phải tối ưu",
-          "(mô hình copy từ `backoffice-access-control-e2e`): stack local phía sau là external state sống",
-          "ngoài inputs của Nx — một cache hit sẽ che việc stack đã đổi trạng thái và trả kết quả xanh cho",
-          "một hệ thống KHÔNG còn chạy như lúc cache được ghi.",
-          "`dependsOn` kéo prerequisite deploy: `local-up` của đúng sáu deploy project mà suite phụ thuộc —",
-          "Nx schedule chúng TRƯỚC playwright test, dùng lại task đã chạy thay vì deploy lại. Chỉ `local-up`,",
-          "KHÔNG `local-smoke`. `configurations.local` cùng tên configuration mà target `local-up` khai —",
-          "`-c local` trên lệnh Nx lan configuration vào task prerequisite (task id `...:local-up:local`)."
-        ]
+        }
       },
       "typecheck": {
         "executor": "nx:run-commands",
@@ -97,10 +86,6 @@
           "cwd": "system-tests/e2e/remote-cache-portal-e2e",
           "command": "tsc --noEmit -p tsconfig.json"
         },
-        "//": [
-          "Suite KHÔNG build artifact nào — chạy qua playwright trực tiếp, nên typecheck là",
-          "`tsc --noEmit` một lần cho toàn bộ TS nguồn (spec + support + global-setup)."
-        ],
         "configurations": {},
         "parallelism": true
       },
@@ -135,20 +120,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       }

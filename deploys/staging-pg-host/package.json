@@ -19,7 +19,6 @@
     ],
     "targets": {
       "staging-preview": {
-        "//": "Lane staging #349 (`-c staging`): tái sử dụng engine lane staging của `platform-deploy` (`staging.ts preview --project staging-pg-host`) trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`) — inventory credential fail-closed và evidence record `.staging-evidence/` là một nguồn sự thật chung, không nhân bản. Chạy với cwd `deploys/platform-deploy` vì engine resolve deps từ project đó; project dir của STACK vẫn là `deploys/staging-pg-host` (cờ `--project`). KHÔNG có target staging-down/destroy: teardown staging không có workflow (§7.4.1), checklist tay thuộc runbook #364. Cache tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/platform-deploy",
@@ -30,7 +29,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng engine, bước `pulumi up --yes` có kiểm soát qua cờ `--project`. Chỉ hai phase `preview`|`up` — down/destroy bị entry từ chối tường minh.",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/platform-deploy",
@@ -72,21 +70,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/staging-pg-host",
           "command": "vitest run"
@@ -123,27 +106,10 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "production",
@@ -163,20 +129,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/staging-pg-host",
