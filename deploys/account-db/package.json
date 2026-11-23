@@ -143,9 +143,6 @@
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "production",
@@ -212,7 +209,6 @@
       "test-integration": {
         "executor": "nx:run-commands",
         "cache": false,
-        "dependsOn": [],
         "options": {
           "cwd": "deploys/account-db",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"

@@ -67,9 +67,6 @@
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",
@@ -160,7 +157,6 @@
       "test-integration": {
         "executor": "nx:run-commands",
         "cache": false,
-        "dependsOn": [],
         "options": {
           "cwd": "tools/release-validation",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"

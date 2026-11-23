@@ -54,9 +54,6 @@
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",

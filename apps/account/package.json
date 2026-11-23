@@ -91,7 +91,6 @@
       "typecheck": {
         "executor": "nx:run-commands",
         "dependsOn": [
-          "^typecheck",
           "nuxt-prepare"
         ],
         "cache": true,
@@ -144,7 +143,6 @@
       "build": {
         "cache": true,
         "dependsOn": [
-          "^build",
           "nuxt-prepare"
         ],
         "inputs": [

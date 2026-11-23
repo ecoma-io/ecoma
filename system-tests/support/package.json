@@ -63,8 +63,7 @@
       },
       "typecheck": {
         "dependsOn": [
-          "build",
-          "^typecheck"
+          "build"
         ],
         "cache": true,
         "inputs": [
@@ -159,9 +158,6 @@
         "parallelism": true
       },
       "build": {
-        "dependsOn": [
-          "^build"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",

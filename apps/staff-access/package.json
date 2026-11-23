@@ -87,7 +87,6 @@
       },
       "test-integration": {
         "executor": "nx:run-commands",
-        "dependsOn": [],
         "options": {
           "cwd": "apps/staff-access",
           "command": "npx vitest run -c vitest.integration.config.mts"
@@ -126,9 +125,6 @@
         "options": {}
       },
       "typecheck": {
-        "dependsOn": [
-          "^typecheck"
-        ],
         "cache": true,
         "inputs": [
           "{projectRoot}/package.json",
