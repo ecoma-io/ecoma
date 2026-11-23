@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createApp, toWebHandler } from 'h3';
 import { describe, expect, it } from 'vitest';
 
