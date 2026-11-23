@@ -77,6 +77,12 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    // `vmThreads` chia sẻ environment per-worker thay vì tạo lại jsdom cho từng
+    // file (đo được: ~3.1s → ~2.4s, #605). Các spec server khai
+    // `// @vitest-environment node` riêng — crypto của Node (có `subtle`) giữ
+    // nguyên ở context VM, trong khi `window.crypto` của jsdom thì thiếu; đó
+    // cũng là nguồn rò global gây 403→400 ở `bff-routes.spec.ts` trước đây.
+    pool: 'vmThreads',
     // `tests/setup.ts` cài global của Nuxt **trước** mọi test file: component gọi
     // tên trần (`useRoute`, `useHead`, `onMounted`) lúc `setup()`, và global phải
     // có mặt trước lần render đầu.
