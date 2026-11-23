@@ -4,13 +4,13 @@ Thư mục này là **nguồn sự thật duy nhất** cho schema của `db-acco
 không có `drizzle-kit`, không có generate step: `db-account` là PostgreSQL thuần và
 migration là file SQL thuần.
 
-| Đường dẫn                             | Vai trò                                                                                               |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `deploys/account-db/migrations/*.sql` | Migration authority (02-delivery.md §3a.1), áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
-| `migrate.ts`                          | Hằng số và helper dùng chung cho runner và test harness                                               |
-| `apply.ts`                            | CLI runner, chạy trong CI                                                                             |
-| `bootstrap.mts`                       | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`                                      |
-| `../tests/integrations/`              | Test integration trên PostgreSQL thật (testcontainers)                                                |
+| Đường dẫn                               | Vai trò                                                                                               |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `databases/account-db/migrations/*.sql` | Migration authority (02-delivery.md §3a.1), áp dụng **theo thứ tự tên file** (tên file có tiền tố số) |
+| `migrate.ts`                            | Hằng số và helper dùng chung cho runner và test harness                                               |
+| `apply.ts`                              | CLI runner, chạy trong CI                                                                             |
+| `bootstrap.mts`                         | CLI bootstrap first-administrator: A1 `provision` và A2 `verify`                                      |
+| `../tests/integrations/`                | Test integration trên PostgreSQL thật (testcontainers)                                                |
 
 ## Vì sao đây là greenfield provisioning
 
@@ -86,7 +86,7 @@ Không có down-migration. Sai thì **forward-fix**
 
 ## Provisioning step 1 — những gì migration **không** làm được
 
-⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `deploys/account-db/migrations/`.**
+⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `databases/account-db/migrations/`.**
 Cả bốn đều bị chặn bởi đúng một nguyên nhân: `ecoma_account_migrator` chỉ sở hữu
 `db-account`, không sở hữu cluster, không có `CREATEROLE`, và không được có
 (`NOCREATEROLE` là điều kiện để nó không leo thang). Đây là những giới hạn thật của
@@ -251,6 +251,6 @@ apps/account/db/
 ├── migrate.mts           # hằng số + helper dùng chung (đọc SQL authority cho test)
 └── bootstrap.mts         # CLI bootstrap first-administrator (A1 provision / A2 verify)
 
-Migration SQL + journal sống ở `deploys/account-db/migrations/` (authority, cutover #375 —
+Migration SQL + journal sống ở `databases/account-db/migrations/` (authority, cutover #375 —
 02-delivery.md §3a.1): 0001_identity_core → 0013_invitation_users_insert_guard.
 ```

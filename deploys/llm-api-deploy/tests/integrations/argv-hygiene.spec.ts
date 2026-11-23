@@ -93,7 +93,7 @@ const ALL_SENTINELS: ReadonlyArray<{ channel: string; value: string }> = DATABAS
  * Gốc repo thật — mount `/repo` của script migrate, y hệt production. Bốn lần
  * `dirname` từ `tests/integrations/`: integrations → tests → llm-api-deploy →
  * deploys → gốc repo. Sai một cấp là `/repo` mất subtree `deploys/` và workdir
- * `/repo/deploys/llm-<target>-db` không tồn tại trong container (runc mkdir trên
+ * `/repo/databases/llm-<target>-db` không tồn tại trong container (runc mkdir trên
  * mount `:ro` fail).
  */
 const WORKTREE_ROOT = resolve(dirname(dirname(dirname(dirname(import.meta.dirname)))));
@@ -465,7 +465,7 @@ describe('argv hygiene: no sentinel ever reaches a host process argument', () =>
     for (const target of DATABASES) {
       const { result } = flowState.migrateRuns[target];
       expect(result.code).toBe(0);
-      // stdout của runner `deploys/llm-<target>-db`: kit apply + dòng xác nhận
+      // stdout của runner `databases/llm-<target>-db`: kit apply + dòng xác nhận
       // của wrapper "migrate complete: history covers every journal entry".
       expect(result.stdout).toContain('migrate complete');
     }

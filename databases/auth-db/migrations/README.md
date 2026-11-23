@@ -5,7 +5,7 @@ object sống trong schema `auth` (không dùng `public`); xem §"Vì sao schema
 `public`".
 
 Đây là một work unit của nền tảng Auth. Runner TypeScript canonical của unit này là
-`deploys/auth-db/runner.mts`, chạy bằng `pnpm nx run auth-db:db-migrate` với biến môi
+`databases/auth-db/runner.mts`, chạy bằng `pnpm nx run auth-db:db-migrate` với biến môi
 trường `DATABASE_URL` (credential `ecoma_auth_migrator`, database `db-auth`) — runner hiện thực
 hoá đúng giao thức trong §"Cách áp dụng" dưới đây (advisory lock, history
 `auth.schema_migrations`, checksum, thứ tự tên file). Các file SQL ở đây vẫn được viết để áp

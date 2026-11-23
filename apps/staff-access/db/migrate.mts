@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 
 /** Thu muc authority `databases/staff-access-db/migrations` (02-delivery.md §3a.1);
  * helper nay chi DOC file SQL cho test integration — app consumer →
- * `deploys/<name>-db` la chieu dependency duoc phep theo §3a.1. */
+ * `databases/<name>-db` la chieu dependency duoc phep theo §3a.1. */
 export const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../databases/staff-access-db/migrations',

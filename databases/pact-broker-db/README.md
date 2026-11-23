@@ -63,7 +63,7 @@ npx tsx --tsconfig tsconfig.db.json runner.mts stamp
 statement_timeout mặc định 300s (§3a.5), inject vào cả connection lock lẫn
 `DATABASE_URL` của child kit.
 
-**Đăng ký arch-check:** cùng exemption với exemplar — `deploys/*-db` là
+**Đăng ký arch-check:** cùng exemption với exemplar — `databases/*-db` là
 lifecycle project (coordinator invoke qua nx target), miễn qua marker
 `scaffold` trên đĩa; `pnpm dx arch-check` xanh.
 

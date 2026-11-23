@@ -287,7 +287,7 @@ export function validateDeploymentMap(input: {
     if (owners.has(name)) continue;
     // Exemption lifecycle job/migration (quyết định #373/#374): deploy project
     // không sở hữu app nào nhưng tự khai marker `ecoma.deployment.status:
-    // "scaffold"` là lifecycle project thuần (job deploy, `deploys/*-db`) —
+    // "scaffold"` là lifecycle project thuần (job deploy, `databases/*-db`) —
     // được coordinator invoke qua nx target theo hợp đồng migration §3a,
     // không provision runtime app nên không có entry trong DEPLOYMENT_MAP.
     // Cùng cơ chế marker với local-lifecycle-graph (scaffold ⇔ không có

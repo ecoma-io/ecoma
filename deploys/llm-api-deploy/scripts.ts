@@ -171,7 +171,7 @@ export interface MigrateScriptInputs {
   readonly networkName: string;
   /** Đường dẫn worktree — mount `/repo` read-only + `node_modules` RW. */
   readonly worktreeRoot: string;
-  /** Target database cần apply — chọn migration authority `deploys/llm-<target>-db`. */
+  /** Target database cần apply — chọn migration authority `databases/llm-<target>-db`. */
   readonly target: Database;
   /** Image Node pin theo digest dùng để chạy tsx của repo. */
   readonly nodeImage: string;
@@ -179,7 +179,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate cho MỘT target: container ephemeral trên platform network chạy
- * đúng runner của migration authority `deploys/llm-<target>-db` —
+ * đúng runner của migration authority `databases/llm-<target>-db` —
  * `npx tsx --tsconfig tsconfig.db.json runner.mts migrate` (cutover #376, hợp
  * đồng §3a.3: wrapper giữ advisory lock `hashtext('db-llm-<target>')` trên kết
  * nối thẳng, verify `current_database()` khớp DB đích, rồi spawn

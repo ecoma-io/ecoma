@@ -12,7 +12,7 @@
  * `apps/remote-cache-api/tests/integrations/harness.ts` — tham chiếu.
  *
  * Apply đi qua **runner production của migration authority**
- * (`deploys/llm-<target>-db` `runner.mts migrate` — cutover #376) chạy bằng
+ * (`databases/llm-<target>-db` `runner.mts migrate` — cutover #376) chạy bằng
  * `tsx` qua `child_process` với `DATABASE_URL` của credential migrator từng
  * target — đúng lệnh mà target `db-migrate` của project db chạy, gồm guard
  * `current_database()`, advisory lock và engine `drizzle-kit migrate` (history
@@ -221,7 +221,7 @@ async function startPostgresContainer(
 }
 
 // ---------------------------------------------------------------------------
-// Runner production qua CLI — `runner.mts migrate` của `deploys/llm-*-db`
+// Runner production qua CLI — `runner.mts migrate` của `databases/llm-*-db`
 // chạy bằng tsx, một tiến trình riêng
 // ---------------------------------------------------------------------------
 
@@ -244,7 +244,7 @@ export interface ApplyCliResult {
 }
 
 /**
- * Chạy **đúng lệnh** mà target `db-migrate` của `deploys/llm-<target>-db` chạy:
+ * Chạy **đúng lệnh** mà target `db-migrate` của `databases/llm-<target>-db` chạy:
  * `npx tsx --tsconfig tsconfig.db.json runner.mts migrate` với `DATABASE_URL`
  * migrator. Exit khác 0 là NÉM kèm stderr — provisioning/test phải đỏ, không
  * nuốt im lặng.
@@ -459,7 +459,7 @@ export async function startLlmApiDatabase(
     }
 
     // Apply ba target qua runner production — đúng lệnh target `db-migrate`
-    // của `deploys/llm-<target>-db` chạy.
+    // của `databases/llm-<target>-db` chạy.
     for (const key of Object.keys(DATABASES) as LlmDatabaseKey[]) {
       await runApplyCli(key, migratorUrl(key, host, port));
     }

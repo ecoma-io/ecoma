@@ -38,7 +38,7 @@ pnpm nx run llm-gateway-db:db-migrate        # cần DATABASE_URL của ecoma_ll
 ```
 
 - Artifact `build/index.js` là entry mà `wrangler.jsonc` `main` trỏ vào; bundle external `node:buffer`, `node:events`, `node:stream` (do `nodejs_compat` cấp khi chạy).
-- `db-migrate` của các project `deploys/llm-*-db` mutate database thật và luôn không cacheable; runner chạy ở máy có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
+- `db-migrate` của các project `databases/llm-*-db` mutate database thật và luôn không cacheable; runner chạy ở máy có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive.
 
 ## Testing
 

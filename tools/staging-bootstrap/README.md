@@ -24,7 +24,7 @@ ADR-0020 (`docs/domains/staff-access/adr/0020-bootstrap-seed-contract.md`).
 - Danh tính canonical là hằng trong code (`ecoma`, `superadmin@ecoma.io`,
   Seller tenant `dronie` theo ADR-0027 §2); env override không khớp bị từ
   chối fail-closed (ADR-0021 Q1).
-- Dòng 1 (provision — #349/#368) và dòng 2 (migrate — `deploys/*-db`,
+- Dòng 1 (provision — #349/#368) và dòng 2 (migrate — `databases/*-db`,
   #374–#378) **không** thuộc runner; runner chỉ chạy sau khi cả hai có
   evidence hoàn tất. Ba lifecycle schema / backfill / bootstrap không trộn
   (§3a.5 mục F).

@@ -25,7 +25,7 @@ describe('database inventory resolution', () => {
     expect(() => resolveDatabase('')).toThrow(/unknown PostgreSQL database/u);
   });
 
-  it('maps the contract name to the deploys/<slug>-db project path', () => {
+  it('maps the contract name to the databases/<slug>-db project path', () => {
     expect(migrationsProjectPath(resolveDatabase('db-remote-cache'))).toBe(
       `${WORKSPACE_ROOT}/databases/remote-cache-db`,
     );

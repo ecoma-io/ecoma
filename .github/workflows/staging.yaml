@@ -229,7 +229,7 @@ jobs:
           set -euo pipefail
           count="$(printf '%s' "$MIGRATIONS" | jq 'length')"
           if [ "$count" -gt 0 ]; then
-            echo "::error::$count migration step(s) planned for this batch ($MIGRATIONS) but the staging migrator credential contract is not wired yet — the coordinator refuses to deploy a batch whose schema has not migrated (fail closed). Wire the db-migrate job (DATABASE_URL for deploys/*-db, 02-delivery.md §3a) before enabling batch deploys with database changes." >&2
+            echo "::error::$count migration step(s) planned for this batch ($MIGRATIONS) but the staging migrator credential contract is not wired yet — the coordinator refuses to deploy a batch whose schema has not migrated (fail closed). Wire the db-migrate job (DATABASE_URL for databases/*-db, 02-delivery.md §3a) before enabling batch deploys with database changes." >&2
             exit 1
           fi
           echo "no migration steps in this batch — deploy may proceed"

@@ -83,7 +83,7 @@ Không có down-migration. Sai thì **forward-fix**.
 
 ## Provisioning step 1 — những gì migration **không** làm được
 
-⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `deploys/*-db/migrations/`.**
+⚠️ **Bốn việc dưới đây phải do admin/owner chạy, không nằm trong migration authority `databases/*-db/migrations/`.**
 Cả bốn đều bị chặn bởi đúng một nguyên nhân: `ecoma_staff_access_migrator` chỉ sở hữu
 `db-staff-access`, không sở hữu cluster, không có `CREATEROLE`, và không được có
 (`NOCREATEROLE` là điều kiện để nó không leo thang). Đây là những giới hạn thật của

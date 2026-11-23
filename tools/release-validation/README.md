@@ -20,7 +20,7 @@ danh tính candidate + baseline.
   đã chạy + integrity check pass trên môi trường validation (fingerprint
   history `__drizzle_migrations` + inventory bảng khớp từng trường).
 - **Candidate migration chạy TIẾN từ baseline-verified**, không từ database
-  live staging — qua migration authority thật `deploys/<slug>-db/runner.mts`
+  live staging — qua migration authority thật `databases/<slug>-db/runner.mts`
   (advisory lock + guard `current_database()` + `drizzle-kit migrate`), không
   runner thứ hai.
 - **First-release**: khi chưa tồn tại previous release, validation rơi về
@@ -99,7 +99,7 @@ thuẫn, database ngoài inventory, authority project thiếu trên cây).
 
 ## Boundaries
 
-- **Không sở hữu migration** — apply luôn qua runner của `deploys/<slug>-db`
+- **Không sở hữu migration** — apply luôn qua runner của `databases/<slug>-db`
   được map trong inventory `02` §3a.1; không tạo runner, không parse journal,
   không tự suy schema history từ drizzle config (đọc qua catalog, refuse khi
   > 1 schema có `__drizzle_migrations`).
@@ -142,7 +142,7 @@ first-release fresh-install.
   per logical database, restore-verification bắt buộc (restore +
   integrity + migration apply), không down-migrate.
 - `docs/architecture/02-delivery.md` §3a.1 — inventory logical database
-  → migration authority `deploys/<slug>-db`.
+  → migration authority `databases/<slug>-db`.
 - `docs/architecture/03-operations.md` §3.1 — lớp dump per-database
   (pg_dumpall là cluster-level) và chính sách backup/PITR production.
 - `docs/architecture/06-testing.md` — placement target `test` /

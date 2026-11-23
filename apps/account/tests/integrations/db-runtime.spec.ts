@@ -11,7 +11,7 @@
  *
  * File này dùng đúng object mà production dùng: `Pool` với credential
  * `ecoma_account_runtime` thật (qua {@link AccountDatabase.createRuntimePool}),
- * schema `account` đã apply bởi runner của `deploys/account-db` (qua harness).
+ * schema `account` đã apply bởi runner của `databases/account-db` (qua harness).
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';

@@ -4,7 +4,7 @@
 
 Migration authority của database `db-pact-broker-app` — project đầu tiên áp
 dụng hợp đồng migration `docs/architecture/02-delivery.md` §3a (Modelling
-#373, delivery #374). Đây là **exemplar** của convention `deploys/<name>-db`:
+#373, delivery #374). Đây là **exemplar** của convention `databases/<name>-db`:
 pattern tái dụng được cho 11 database PostgreSQL còn lại qua các cutover issue
 (#375–#378).
 
@@ -62,7 +62,7 @@ statement_timeout mặc định 300s (§3a.5), inject vào cả connection lock 
 
 **Đăng ký arch-check:** `deployment-map-check` đòi mọi `type:deployment`
 project sở hữu một app entry trong `DEPLOYMENT_MAP`, nhưng lifecycle project
-database không sở hữu app nào. Quyết định #373/#374: `deploys/*-db` là
+database không sở hữu app nào. Quyết định #373/#374: `databases/*-db` là
 lifecycle project (coordinator invoke qua nx target), được miễn qua marker
 `scaffold` trên đĩa — gap hợp đồng đã đóng, `pnpm dx arch-check` xanh trên
 HEAD này.

@@ -742,7 +742,6 @@
       // ràng buộc `runtime:edge`.
       "files": [
         "apps/*/db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
-        "deploys/*-db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
         "databases/*-db/**/*.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"
       ],
       "rules": {

@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
  * project, còn vitest chạy với root khác.
  *
  * Helper này chỉ ĐỌC file SQL authority cho test integration — app consumer →
- * `deploys/<name>-db` là chiều dependency được phép theo §3a.1.
+ * `databases/<name>-db` là chiều dependency được phép theo §3a.1.
  */
 export const MIGRATIONS_DIR = resolve(
   import.meta.dirname,

@@ -13,7 +13,7 @@ import { resolve } from 'node:path';
  *
  * Migration SQL + runbook operator sống ở project authority `databases/auth-db`
  * (runbook: `databases/auth-db/migrations/README.md`); helper này chỉ ĐỌC file SQL
- * cho test integration — app consumer → `deploys/<name>-db` là chiều dependency
+ * cho test integration — app consumer → `databases/<name>-db` là chiều dependency
  * được phép theo §3a.1.
  */
 export const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../databases/auth-db/migrations');

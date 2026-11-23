@@ -11,7 +11,7 @@ sở hữu đã chuyển về ba migration authority riêng — một database m
 | `db-llm-tenant`      | `databases/llm-tenant-db`      | `pnpm nx run llm-tenant-db:db-migrate`      |
 | `db-llm-marketplace` | `databases/llm-marketplace-db` | `pnpm nx run llm-marketplace-db:db-migrate` |
 
-Mỗi project `deploys/llm-*-db` sở hữu SQL + journal + runner wrapper
+Mỗi project `databases/llm-*-db` sở hữu SQL + journal + runner wrapper
 (`runner.mts migrate`, advisory lock `hashtext('<database>')`, engine
 `drizzle-kit migrate` với history `__drizzle_migrations`). Một database không
 bao giờ có hai runner sống — `db/apply.mts` cũ đã retire trong PR cutover

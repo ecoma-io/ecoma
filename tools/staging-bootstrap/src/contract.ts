@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
  * đường chạy ở ADR-0020 (staff-access). Runner chỉ thực thi các dòng
  * bootstrap/seed của bảng §3.2 (dòng 3, 4, 5a, 5b, 6, 7, 8a, 8b, 9, 10):
  * dòng 1 (provision) thuộc #349/#368,
- * dòng 2 (migrate schemas) thuộc các migration project `deploys/*-db`
+ * dòng 2 (migrate schemas) thuộc các migration project `databases/*-db`
  * (#374, #375–#378) — runner không execute DDL, chỉ yêu cầu evidence hoàn
  * tất của hai dòng đó trước khi chạy (§3a.5 mục F: ba lifecycle không trộn).
  */

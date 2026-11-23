@@ -2,7 +2,7 @@
 
 > Phạm vi: vận hành `auth` — deployment, binding, role & migration, key rotation, monitoring, alerting, failure modes, restore và runbook.
 > Thiết kế → [`01-architecture.md`](./01-architecture.md) · yêu cầu → [`02-requirements.md`](./02-requirements.md) · mô hình miền → [`docs/domains/auth/domain-model.md`](../../domains/auth/domain-model.md) · system-level backup/DR → [`docs/architecture/03-operations.md`](../../architecture/03-operations.md) · delivery → [`docs/architecture/02-delivery.md`](../../architecture/02-delivery.md).
-> **Hiện trạng:** endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `deploys/auth-db/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. Các phần deployment/restore/runbook dưới đây là kế hoạch cho khi provision.
+> **Hiện trạng:** endpoint protocol và glue internal đã có trong code (`apps/auth`), 14 migration của `db-auth` nằm ở `databases/auth-db/migrations/` (`0001`…`0014`); **không database nào được provision** và Worker chưa khai environment staging/production. Các phần deployment/restore/runbook dưới đây là kế hoạch cho khi provision.
 
 ---
 
@@ -83,7 +83,7 @@ Câu `REVOKE` không phụ thuộc table nào tồn tại → từ chối đư�
 
 ### 3.2 Migration
 
-- **Greenfield provisioning, không phải data migration.** Không có schema chung nào tồn tại để kế thừa. Danh sách migration đã có trong repo tại `deploys/auth-db/migrations/`: `0001` schema + `oauth_clients` tới `0013` (`oidc_state` — một bảng, bảy kind giao thức của provider), cộng `0014_nonce_pruner_role.sql`; `0010` tạo `auth.internal_nonces`, `0012` đổi tên cột `authn_level` → `acr` (đồng bộ với `0004` của `db-account`), `0013` là trạng thái OIDC cho provider, `0014` tạo role `ecoma_auth_nonce_pruner`. Danh sách này phục vụ provisioning lần đầu khi `db-auth` được tạo; các file đã được test phủ (integration suite của `apps/auth`).
+- **Greenfield provisioning, không phải data migration.** Không có schema chung nào tồn tại để kế thừa. Danh sách migration đã có trong repo tại `databases/auth-db/migrations/`: `0001` schema + `oauth_clients` tới `0013` (`oidc_state` — một bảng, bảy kind giao thức của provider), cộng `0014_nonce_pruner_role.sql`; `0010` tạo `auth.internal_nonces`, `0012` đổi tên cột `authn_level` → `acr` (đồng bộ với `0004` của `db-account`), `0013` là trạng thái OIDC cho provider, `0014` tạo role `ecoma_auth_nonce_pruner`. Danh sách này phục vụ provisioning lần đầu khi `db-auth` được tạo; các file đã được test phủ (integration suite của `apps/auth`).
 - Migration chạy từ **CI runner** bằng PostgreSQL client kết nối thẳng, dùng role `_migrator_`, giữ advisory lock ([`02` §3.1](../../architecture/02-delivery.md)). Runner đã có: `pnpm nx run auth-db:db-migrate` với `DATABASE_URL` (bắt buộc) — thiếu `DATABASE_URL` thì exit code khác 0 chứ không im lặng coi như đã apply.
 - **Migration history độc lập** với `db-account`.
 - ⚠️ **Thứ tự mở rộng:** authorization transaction và authorization code **phải** nằm trong PostgreSQL — consume-once cần compare-and-set trong database. KV eventual consistency ≥ 60 s (KV1), 1 write/giây/key (KV2) và tài liệu chính thức khuyến cáo không dùng cho atomic operation (KV6); Queue là at-least-once (QU1). Không có lựa chọn nào cho consume-once đúng ([`01-architecture.md`](./01-architecture.md) §3.3).
@@ -157,14 +157,14 @@ Vận hành của envelope HMAC dùng chung với `account`. Giao thức, canoni
 
 #### Kho nonce
 
-| Service   | Bảng                      | Migration                                                |
-| --------- | ------------------------- | -------------------------------------------------------- |
-| `auth`    | `auth.internal_nonces`    | `deploys/auth-db/migrations/0010_internal_nonces.sql`    |
-| `account` | `account.internal_nonces` | `deploys/account-db/migrations/0003_internal_nonces.sql` |
+| Service   | Bảng                      | Migration                                                  |
+| --------- | ------------------------- | ---------------------------------------------------------- |
+| `auth`    | `auth.internal_nonces`    | `databases/auth-db/migrations/0010_internal_nonces.sql`    |
+| `account` | `account.internal_nonces` | `databases/account-db/migrations/0003_internal_nonces.sql` |
 
 - Nonce là duy nhất **theo từng service nhận**, nên hai bảng là hai kho độc lập — nonce đã chiếm ở `db-account` không bảo vệ được request đến `auth`. Mỗi service chỉ chạm database của mình.
 - Quyền của `ecoma_auth_runtime` trên bảng này là `SELECT, INSERT` — **không** `UPDATE`, **không** `DELETE`. Nới `expires_at` của một nonce đã ghi là nới cửa sổ replay; xoá một nonce **còn hiệu lực** còn nặng hơn: nó mở lại cửa sổ replay cho đúng envelope đó. Prune vì vậy là job của `ecoma_auth_migrator`, theo học thuyết retention đã viết trong `0009_grants_and_isolation.sql` ("Dọn dữ liệu hết TTL là job của migrator, không phải đường của serving path").
-- `internal_nonces` đã nằm trong sweep quyền của `deploys/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" ô (2) và (2c) — chạy sweep đó sau khi áp `0010`.
+- `internal_nonces` đã nằm trong sweep quyền của `databases/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" ô (2) và (2c) — chạy sweep đó sau khi áp `0010`.
 
 **Prune (runbook)** — chạy trên database của chính service đó, bằng một role CÓ
 quyền `DELETE` của kho:
@@ -184,7 +184,7 @@ WITH deleted AS (
 SELECT count(*) FROM deleted;
 ```
 
-`db-account`: `account.internal_nonces` đã có `DELETE` cho runtime (ngoại lệ có giải thích tại `deploys/account-db/migrations/0003_internal_nonces.sql`), nên runbook chạy tay được bằng cả `ecoma_account_runtime` lẫn `ecoma_account_nonce_pruner` (role tạo từ `deploys/account-db/migrations/0007_nonce_pruner_role.sql`, có đúng `SELECT, DELETE`):
+`db-account`: `account.internal_nonces` đã có `DELETE` cho runtime (ngoại lệ có giải thích tại `databases/account-db/migrations/0003_internal_nonces.sql`), nên runbook chạy tay được bằng cả `ecoma_account_runtime` lẫn `ecoma_account_nonce_pruner` (role tạo từ `databases/account-db/migrations/0007_nonce_pruner_role.sql`, có đúng `SELECT, DELETE`):
 
 ```sql
 WITH deleted AS (
@@ -214,7 +214,7 @@ SELECT count(*) FROM deleted;
 ⚠️ **Trạng thái: đã cấu hình, CHƯA xác minh runtime.** Worker chưa được deploy + cron chưa có Hyperdrive thật: bindings `DB_AUTH`/`DB_ACCOUNT` trong `apps/auth-nonce-prune-job/wrangler.jsonc` mang id placeholder, hai database chưa được provision. Worker được tin chỉ sau khi ba điều kiện dưới được xác minh bằng một lần chạy thật:
 
 1. **Hyperdrive config thật của mỗi database được provision và id thật được dán vào `wrangler.jsonc`** (staging riêng, production riêng — không dùng chung), và connection string của Hyperdrive cấu hình đúng role pruner của kho nó.
-2. Migration `0014` (db-auth) / `0007` (db-account) được áp — role pruner tồn tại với đúng hai quyền `SELECT, DELETE`, và identity preflight trả đúng `ecoma_auth_nonce_pruner|deletable` / `ecoma_account_nonce_pruner|deletable`. Có sweep quyền trong `deploys/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" ô (2d) chạy sau khi áp.
+2. Migration `0014` (db-auth) / `0007` (db-account) được áp — role pruner tồn tại với đúng hai quyền `SELECT, DELETE`, và identity preflight trả đúng `ecoma_auth_nonce_pruner|deletable` / `ecoma_account_nonce_pruner|deletable`. Có sweep quyền trong `databases/auth-db/migrations/README.md` §"Sweep kiểm tra quyền" ô (2d) chạy sau khi áp.
 3. Worker deploy đủ hai environment và "Past events" của Cron Triggers dashboard thấy tick đầu tiên: một run đỏ ở `outcome=not_configured`/`identity_mismatch` là đúng trạng thái fail-closed khi infra chưa đủ, KHÔNG phải một lần "job im lặng bỏ qua".
 
 ⚠️ Thiếu Hyperdrive binding ở `env` thì handler **đỏ** với `outcome=not_configured` (log một dòng JSON riêng nêu tên binding) chứ không im lặng bỏ qua: một job dọn dữ liệu không chạy được là một lỗi cần thấy.

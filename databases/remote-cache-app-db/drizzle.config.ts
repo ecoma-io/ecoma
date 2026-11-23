@@ -28,7 +28,7 @@ import { defineConfig } from 'drizzle-kit';
  * đã validate DATABASE_URL trước khi spawn `drizzle-kit migrate` (§3a); guard
  * này là lớp trong cùng cho lệnh kit gọi tay.
  */
-// Khác mirror `deploys/account-db/drizzle.config.ts` là có chủ đích: `up` và
+// Khác mirror `databases/account-db/drizzle.config.ts` là có chủ đích: `up` và
 // `export` đo được là thuần file trên kit 0.31.11 (chạy không DATABASE_URL —
 // `up` chỉ nâng meta snapshot, `export` in SQL từ schema) nên KHÔNG nằm trong
 // guard; chỉ `drop` chưa chứng minh được offline (kit yêu cầu TTY tương tác)

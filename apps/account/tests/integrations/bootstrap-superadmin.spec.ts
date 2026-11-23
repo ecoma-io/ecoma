@@ -32,7 +32,7 @@
  * ## Harness
  *
  * Dùng đúng `harness.ts` của `apps/account` (Testcontainers, credential migrator
- * thật — runner của `deploys/account-db` qua harness) — không có migration runner
+ * thật — runner của `databases/account-db` qua harness) — không có migration runner
  * thứ hai. Docker là phụ thuộc cứng: `probeDocker` ném từ `globalSetup` khi vắng Docker, nên suite này
  * không có nhánh skip nào.
  */

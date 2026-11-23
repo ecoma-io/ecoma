@@ -36,7 +36,7 @@
     {
       "match": "*-db",
       "staging": "excluded",
-      "reason": "database migration project (#373/#374 exemplar deploys/<name>-db): owns schema migration, not a deployable runtime; it has no independent versioning - the release contract versions the owning deploy unit's artifact",
+      "reason": "database migration project (#373/#374 exemplar databases/<name>-db): owns schema migration, not a deployable runtime; it has no independent versioning - the release contract versions the owning deploy unit's artifact",
     },
     {
       "match": "@ecoma-io/*-domain",
