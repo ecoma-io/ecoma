@@ -12,7 +12,7 @@ Nx project `@ecoma-io/home`, tags `type:composition`, `scope:public`, `runtime:e
 
 ## Responsibilities
 
-- **Prerender** (`nitro.config.ts`): `routes: ['/en', '/vi']` sinh HTML tĩnh lúc build; hook `prerender:routes` thêm `/en/__not-found` và hook `prerender:generate` map nó thành artifact `404.html`; `/` và `/api/greet` bị `ignore` khỏi prerender.
+- **Prerender** (key `nitro` của `nuxt.config.ts`): `routes: ['/en', '/vi']` sinh HTML tĩnh lúc build; hook `prerender:routes` thêm `/en/__not-found` và hook `prerender:generate` map nó thành artifact `404.html`; `/` và `/api/greet` bị `ignore` khỏi prerender.
 - **Locale registry** (`app/i18n/lib/locale-registry.ts`): `en` (hreflang `en`) và `vi` (hreflang `vi-VN`); `app/i18n/lib/parse-public-path.ts` là bộ strict canonicality cho pathname public — không decode, không lowercase, không repair.
 - **Page + shell** (`app/pages/[locale]/index.vue`, `app/layout/`): route `validate` chỉ nhận locale-root hợp lệ; `PublicShell` giữ header/footer/nav và locale switcher; `app/domain/home-seo.ts` dựng `lang`, canonical tuyệt đối self-canonical và `hreflang` hai chiều.
 - **Error page** (`app/error.vue`, `app/error-pages/`): 404 map sang `NotFoundPage` render SSR trên Worker; 401/500 giữ fallback mặc định của Nuxt.
@@ -37,7 +37,7 @@ pnpm nx run @ecoma-io/home:build          # nuxt build — preset cloudflare-mod
 ```
 
 - Dev server listen trên `0.0.0.0:4200` (`devServer` của `nuxt.config.ts`) để mở app từ thiết bị khác; `vite.server.allowedHosts` đi kèm.
-- Alias `@ecoma-io/ui-ecoma-logo` khai tường minh trong `nuxt.config.ts`; `nitro.config.ts` giữ preset và `runtimeConfig.public.noIndex` (mặc định `false`).
+- Alias `@ecoma-io/ui-ecoma-logo` khai tường minh trong `nuxt.config.ts`; cùng chỗ đó khai preset Nitro và `runtimeConfig.public.noIndex` (mặc định `false`, #607).
 - Không có `db:migrate` — app không có database.
 
 ## Testing

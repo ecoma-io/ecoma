@@ -100,7 +100,6 @@ const BACKOFFICE_DATA = {
 
 const COMPOSABLE = readSource(resolve(APP_DIR, 'composables/use-backoffice-adapter.ts'));
 const NUXT_CONFIG = readSource(resolve(import.meta.dirname, '../../nuxt.config.ts'));
-const NITRO_CONFIG = readSource(resolve(import.meta.dirname, '../../nitro.config.ts'));
 /** Wrangler config là JSONC, không phải TS: dùng cùng luật gỡ comment. */
 const WRANGLER_CONFIG = withoutComments(
   readFileSync(resolve(import.meta.dirname, '../../wrangler.jsonc'), 'utf8'),
@@ -179,8 +178,12 @@ describe('deployment configuration', () => {
     expect(BACKOFFICE_DATA_MODE_DISABLED).toBe('disabled');
   });
 
-  it('nitro.config.ts does not redeclare the mode key (single source)', () => {
-    expect(NITRO_CONFIG).not.toMatch(/backofficeDataMode/u);
+  it('the nitro key does not redeclare the mode key (single source)', () => {
+    // `noIndex` là khoá Nitro duy nhất hợp lệ trong `public`; khoá data-mode
+    // chỉ được khai một lần ở `runtimeConfig.public` phía trên.
+    const nitroBlock = /nitro\s*:\s*\{[\s\S]*?\n {2}\},/u.exec(NUXT_CONFIG)?.[0] ?? '';
+    expect(nitroBlock).not.toBe('');
+    expect(nitroBlock).not.toMatch(/backofficeDataMode/u);
   });
 });
 

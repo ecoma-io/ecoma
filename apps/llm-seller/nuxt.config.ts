@@ -89,6 +89,21 @@ export default defineNuxtConfig({
   // không default một giá trị đoán được, vì default rỗng biến "chưa cấu hình"
   // thành "chạy được với giá trị rỗng" thay vì fail closed.
 
+  // Cấu hình Nitro inline (trước đây ở `nitro.config.ts`, đã gỡ theo #607 để
+  // hết cảnh báo `NUXT_B5004` — `@nuxt/schema` 4.6.4 đã trả key `nitro` vào
+  // `NuxtConfig`, không còn TS2353).
+  //
+  // Trang này là deploy unit Workers: docs/architecture/02-delivery.md §1 xếp `apps`
+  // vào làn Workers, deploy bằng Wrangler. Không có preset này thì Nuxt build cho
+  // Node server và không emit ra `.output/server/index.mjs` mà `wrangler.jsonc`
+  // trỏ tới.
+  //
+  // Không dùng `cloudflare` (preset legacy) và không dùng `cloudflare-pages`
+  // (ghi ra `dist/_worker.js` lệch với `main` trong wrangler.jsonc).
+  nitro: {
+    preset: 'cloudflare-module',
+  },
+
   // #427: cấu hình build cho runtime Node standalone (Docker) qua khối
   // `$env['node-docker']` — chỉ kích hoạt khi envName đúng bằng `node-docker`,
   // tức `nuxt build --envName=node-docker` (c12 xử lý khối `$env` trong
@@ -99,10 +114,10 @@ export default defineNuxtConfig({
   // `development` (contract của target build), chỉ command bên trong mới mang
   // envName.)
   //
-  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của
-  // `nitro.config.ts`: `nuxt.options.nitro` (đã merge xong `$env`) đi vào
-  // Nitro ở vị trí overrides, cao hơn config file trong precedence của c12 —
-  // kiểm chứng bằng build thật, see tests/integrations/dual-build-output.spec.ts.
+  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của khối
+  // `nitro` inline phía trên: `nuxt.options.nitro` (đã merge xong `$env`) đi
+  // vào Nitro ở vị trí overrides, cao hơn config gốc trong precedence của c12
+  // — kiểm chứng bằng build thật, see tests/integrations/dual-build-output.spec.ts.
   //
   // `buildDir` resolve theo `rootDir`, nên `.nuxt-node`/`.output-node` nằm
   // trong thư mục app, không đụng `.nuxt`/`.output` của production — hai build

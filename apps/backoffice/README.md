@@ -39,7 +39,7 @@ pnpm nx run @ecoma-io/backoffice:build          # nuxt build — preset cloudfla
 pnpm nx run backoffice-db:db-migrate     # áp migration (runner.mts adopt && migrate) — cần DATABASE_URL migrator
 ```
 
-- Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4201); Nitro config riêng ở `nitro.config.ts` (preset `cloudflare-module`, alias `pg-native`).
+- Dev server dùng port khai trong `devServer` của `nuxt.config.ts` (4201); cấu hình Nitro (preset `cloudflare-module`, alias `pg-native`) inline trong `nuxt.config.ts` (key `nitro`, #607).
 - Trên lane local, migration do `backoffice-deploy` chạy trong container gắn platform network (platform PostgreSQL không publish host port).
 
 ## Testing
