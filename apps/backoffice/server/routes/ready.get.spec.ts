@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { createApp, createRouter, toWebHandler, type WebHandler } from 'h3';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 

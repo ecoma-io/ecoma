@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/permissions` sau P5.1 (issue #475): permission
  * catalog đọc từ Staff Access management API qua `fetchPermissionCatalog`,

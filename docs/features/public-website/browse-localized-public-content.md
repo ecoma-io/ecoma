@@ -26,7 +26,7 @@ Homepage public có một URL riêng cho từng ngôn ngữ, và URL đó luôn 
 
 - Homepage ở hai locale-root: `/en` và `/vi`; `en` là mặc định.
 - Redirect `/` → `/{HOME_DEFAULT_LOCALE}` bằng 302 server-side.
-- Prerender SSG cho hai locale-root lúc build (`nitro.config.ts` seed `prerender.routes`); phục vụ từ static assets không invoke Worker.
+- Prerender SSG cho hai locale-root lúc build (key `nitro` của `nuxt.config.ts`, seed `prerender.routes`); phục vụ từ static assets không invoke Worker.
 - SEO metadata của homepage: `lang` lấy từ registry locale, canonical tuyệt đối self-canonical, alternate hai chiều cho cả hai locale, mọi URL pin dưới production origin.
 - Công tắc ngôn ngữ hai mục trong header, chỉ giữa `/en` và `/vi`.
 - 404 cho locale không hỗ trợ và mọi path lạ: route `validate` từ chối → `error.vue` render SSR trên Worker.
@@ -36,7 +36,7 @@ Homepage public có một URL riêng cho từng ngôn ngữ, và URL đó luôn 
 - **Không còn nội dung public nào khác.** Documentation, blog và legal đã bị gỡ cùng demo content stack `@nuxt/content` (Issue #72, PR #73): `home` không còn mount, không còn cây `content/` và không có trang nội dung nào ngoài hai locale-root. Việc có đưa hệ thống nội dung public trở lại hay không là mục chưa chốt trong [`architecture/01-architecture.md`](../../architecture/01-architecture.md) §10.
 - **Không có `robots.txt`, sitemap hay RSS feed.**
 - **Mở menu ngôn ngữ cần JavaScript.** Trigger là nút, không phải link; các `href`/`hreflang` của menu vẫn có trong HTML prerender.
-- **Staging `noindex` chỉ áp dụng cho response do Worker phục vụ** (redirect `/`, 404, `/api/greet`). Homepage prerendered (SSG) và `404.html` được phục vụ thẳng từ static assets, không qua Worker, nên `noindex` cho bề mặt đó phụ thuộc việc inject `_headers` lúc deploy staging — cơ chế này chưa có trong repo và là giới hạn đã biết được ghi ở `apps/home/nitro.config.ts`.
+- **Staging `noindex` chỉ áp dụng cho response do Worker phục vụ** (redirect `/`, 404, `/api/greet`). Homepage prerendered (SSG) và `404.html` được phục vụ thẳng từ static assets, không qua Worker, nên `noindex` cho bề mặt đó phụ thuộc việc inject `_headers` lúc deploy staging — cơ chế này chưa có trong repo và là giới hạn đã biết được ghi ở key `nitro` của `apps/home/nuxt.config.ts`.
 - **`/api/greet` là endpoint demo** trả `Hello <name>` theo query `name` (mặc định `World`), không phải capability nội dung.
 - **Chưa có deployment record hay pipeline release vận hành trong repo hiện tại.** `apps/home/wrangler.jsonc` có khai báo environment staging và production, nhưng không có Nx target deploy và không có workflow release nào trên `main`. Feature này vì vậy không có bằng chứng `Released`.
 

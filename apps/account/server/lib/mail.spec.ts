@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/mail.ts` — build payload bằng validator thật của lib
  * contract, và fail-closed phân loại của `sendMail`.

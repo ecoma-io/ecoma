@@ -1,3 +1,5 @@
+// @vitest-environment node
+// Spec server thuần h3: không cần DOM, tránh tạo jsdom để môi trường nhẹ hơn.
 import { createApp, toWebHandler } from 'h3';
 import { describe, expect, it } from 'vitest';
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/auth-client.ts` — signing, phân loại lỗi fail-closed
  * và shape-check response trước khi coi là thành công.

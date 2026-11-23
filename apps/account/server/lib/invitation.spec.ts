@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/invitation.ts` — hằng policy của kênh lời mời và
  * đường sinh `sub` mới (ADR-0030).

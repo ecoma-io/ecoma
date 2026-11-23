@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Colocated spec của middleware authn — nhánh **refresh** (#258, ADR-0031 §2
  * mục 3): quyết định "khi nào refresh" và phân loại outcome ra 200/401/503,

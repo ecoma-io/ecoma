@@ -7,7 +7,7 @@ import { defineEventHandler, setResponseHeader } from 'h3';
  *
  * Cờ đến từ runtime config `public.noIndex`, đặt bằng `vars`
  * `NITRO_PUBLIC_NO_INDEX` trong env `staging` của `wrangler.jsonc`; production
- * không khai biến này nên giữ `false` mặc định (xem `nitro.config.ts`).
+ * không khai biến này nên giữ `false` mặc định (khai tại `nuxt.config.ts`).
  *
  * **PHẠM VI:** chỉ bề mặt **Worker-served** — mọi route Nitro (shell HTML SSR,
  * payload, route API, error page) đều qua middleware này. Request khớp static

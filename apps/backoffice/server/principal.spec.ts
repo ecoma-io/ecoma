@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho lớp đọc principal của `apps/backoffice` — principal chỉ đến
  * từ **server-side context**, và context vắng thì fail closed với `401`

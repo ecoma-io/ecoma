@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { MAX_SKEW_SECONDS, MIN_SKEW_SECONDS } from '@ecoma-io/internal-auth-contracts';

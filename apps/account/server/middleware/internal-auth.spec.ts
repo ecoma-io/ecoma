@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { createApp, toWebHandler, type WebHandler } from 'h3';
 import type { Pool } from 'pg';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

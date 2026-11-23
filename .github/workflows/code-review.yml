@@ -56,6 +56,9 @@ jobs:
       # gây ra các lỗi "Cannot find module" cạnh tranh.
       OCR_NO_UPDATE: '1'
     steps:
+      - name: Start runner resource monitoring
+        continue-on-error: true
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       - name: Resolve PR info and check for changes
         id: pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -194,7 +197,7 @@ jobs:
       - name: Review the pull request
         id: ocr
         if: steps.pr.outputs.skip_review != 'true'
-        uses: alibaba/open-code-review@d29ca2044a42ea297a7fa93692d0f5ac8f38d84e # v1.14.0
+        uses: alibaba/open-code-review@284ff013f0705ae6cac4c8dfbffa2f2551886d56 # v1.14.1
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           base_ref: ${{ steps.pr.outputs.base_ref }}

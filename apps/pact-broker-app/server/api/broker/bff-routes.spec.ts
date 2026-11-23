@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Colocated spec đầu tiên của `server/api/broker/**` — hợp đồng chung của năm
  * route BFF trên **h3 app thật**, với `fetch` toàn cục giả lập đúng ranh giới

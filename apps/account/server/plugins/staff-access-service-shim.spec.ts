@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/plugins/staff-access-service-shim.ts` — adapter HTTP
  * của Service Binding `STAFF_ACCESS_SERVICE` trên preset `node-server` + glue

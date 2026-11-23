@@ -59,7 +59,7 @@ export function assessOutputHtmlInventory(actualPaths: readonly string[]): strin
   if (missing.length > 0) {
     parts.push(
       `Missing: [${missing.join(', ')}] — the prerender step did not emit these ` +
-        'routes. Check the prerender seeds in nitro.config.ts (prerender.routes) ' +
+        'routes. Check the prerender seeds in nuxt.config.ts (nitro.prerender.routes) ' +
         'and the virtual 404 route hook (prerender:routes / prerender:generate); ' +
         'a validate rejection or a swallowed prerender error leaves the build ' +
         'green but the artifact incomplete.',

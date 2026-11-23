@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 
 import { accountHyperdrive, DB_ACCOUNT_BINDING } from './bindings';

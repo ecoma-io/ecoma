@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 
 import { DATA_MODE_MOCK_IN_ARTIFACT_REASON, resolveServerDataMode } from './data-mode-server';

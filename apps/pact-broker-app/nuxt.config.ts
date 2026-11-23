@@ -20,8 +20,8 @@ export default defineNuxtConfig({
   // "không khai" nghĩa là SSR và một bản nâng cấp framework có thể đổi hành vi
   // sau lưng. Cùng cách `apps/llm-console` và `apps/backoffice` đã làm.
   //
-  // Non-SSR **không** bỏ Nitro: preset `cloudflare-module` vẫn emit
-  // `.output/server/index.mjs` (`nitro.config.ts`) và mọi route server vẫn chạy
+  // Non-SSR **không** bỏ Nitro: preset `cloudflare-module` (khối `nitro` inline
+  // dưới đây) vẫn emit `.output/server/index.mjs` và mọi route server vẫn chạy
   // server-side trên Worker lẫn container local. Đây chỉ là tắt bước render HTML
   // phía server — shell cho client router do route `/**` của Nitro trả.
   ssr: false,
@@ -122,6 +122,34 @@ export default defineNuxtConfig({
     pactBrokerAuthInternalOrigin: '',
   },
 
+  // Cấu hình Nitro inline (trước đây ở `nitro.config.ts`, đã gỡ theo #607 để
+  // hết cảnh báo `NUXT_B5004` — `@nuxt/schema` 4.6.4 đã trả key `nitro` vào
+  // `NuxtConfig`, không còn TS2353).
+  //
+  // Trang này là deploy unit Workers: docs/architecture/02-delivery.md §1 xếp `apps`
+  // vào làn Workers, deploy bằng Wrangler. Không có preset này thì Nuxt build cho
+  // Node server và không emit ra `.output/server/index.mjs` mà `wrangler.jsonc`
+  // trỏ tới.
+  //
+  // Không dùng `cloudflare` (preset legacy) và không dùng `cloudflare-pages`
+  // (ghi ra `dist/_worker.js` lệch với `main` trong wrangler.jsonc).
+  nitro: {
+    preset: 'cloudflare-module',
+    // `pg` được **bundle** vào Worker, không external: preset `cloudflare-module`
+    // chạy trong isolate của Cloudflare nên `node:*` không tồn tại ở đó.
+    alias: {
+      // ⚠️ Bắt buộc, xem `server/lib/pg-native.cjs` về lý do. Tóm tắt:
+      // `pg/lib/native/client.js` `require('pg-native')` — optional dependency mà
+      // Node nuốt lỗi được, còn Rollup của Nitro thì fail build. Preset bật
+      // `noExternals` nên `nitro.externals` **không** được đọc; `nitro.alias` thì có,
+      // vì nó chạy trước resolver trong plugin `alias` của rollup.
+      //
+      // Đây là cùng cách sửa với `apps/backoffice` và `apps/account` — xem
+      // `apps/account/server/lib/pg-native.cjs`.
+      'pg-native': new URL('./server/lib/pg-native.cjs', import.meta.url).pathname,
+    },
+  },
+
   // #385: cấu hình build cho runtime Node standalone (Docker) qua khối
   // `$env['node-docker']` — chỉ kích hoạt khi envName đúng bằng `node-docker`,
   // tức `nuxt build --envName=node-docker` (c12 xử lý khối `$env` trong
@@ -132,10 +160,10 @@ export default defineNuxtConfig({
   // `development` (contract của target build), chỉ command bên trong mới mang
   // envName.)
   //
-  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của
-  // `nitro.config.ts` (kèm alias `pg-native`): `nuxt.options.nitro` (đã merge
-  // xong `$env`) đi vào Nitro ở vị trí overrides, cao hơn config file trong
-  // precedence của c12 — kiểm chứng bằng build thật, see
+  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của khối
+  // `nitro` inline phía trên (kèm alias `pg-native`): `nuxt.options.nitro` (đã
+  // merge xong `$env`) đi vào Nitro ở vị trí overrides, cao hơn config gốc
+  // trong precedence của c12 — kiểm chứng bằng build thật, see
   // tests/integrations/dual-build-output.spec.ts.
   //
   // `buildDir` resolve theo `rootDir`, nên `.nuxt-node`/`.output-node` nằm
@@ -150,7 +178,8 @@ export default defineNuxtConfig({
       nitro: {
         // Preset Node server standalone — artifact `.output-node/server/index.mjs`
         // chạy trực tiếp bằng `node`, phục vụ preview/local; không đụng contract
-        // wrangler của production. Alias `pg-native` của `nitro.config.ts` không
+        // wrangler của production. Alias `pg-native` của khối `nitro` inline
+        // phía trên không
         // còn tác dụng trên preset này (node-server external hoá `pg` thay vì
         // bundle — `pg.native` chỉ được nạp khi có người chủ động truy cập,
         // app không làm vậy).

@@ -346,7 +346,6 @@ describe('root .dockerignore: required build inputs are included', () => {
     expect(isExcluded(`apps/${app}/package.json`)).toBe(false);
     expect(isExcluded(`apps/${app}/.npmrc`)).toBe(false);
     expect(isExcluded(`apps/${app}/nuxt.config.ts`)).toBe(false);
-    expect(isExcluded(`apps/${app}/nitro.config.ts`)).toBe(false);
     expect(isExcluded(`apps/${app}/wrangler.jsonc`)).toBe(false);
     expect(isExcluded(`apps/${app}/server/routes/health.get.ts`)).toBe(false);
     expect(isExcluded(`apps/${app}/app/assets/css/styles.css`)).toBe(false);

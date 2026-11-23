@@ -251,8 +251,7 @@ export default defineNuxtConfig({
     },
     // Seam chế độ dữ liệu của data domain — đọc ở phía app qua
     // `runtimeConfig.public`, cùng nguồn với payload mà client hydrate, nên SSR
-    // và client không thể lệch nhau. Khai ở đây (không phải `nitro.config.ts`)
-    // vì cùng lý do với `public` của backoffice.
+    // và client không thể lệch nhau.
     //
     // Giá trị runtime đến từ `NITRO_PUBLIC_ACCOUNT_DATA_MODE` (Nitro `applyEnv`
     // phủ lên giá trị build-time dưới đây). Hai giá trị hợp lệ là `mock` và
@@ -266,10 +265,48 @@ export default defineNuxtConfig({
     // môi trường — cùng quy ước với các key private phía trên.
     public: {
       accountDataMode: '',
+      // Cờ noindex cho môi trường staging (#354) — cùng cơ chế với `apps/home`
+      // và `apps/backoffice`. Trước đây khai ở `nitro.config.ts`, đã gộp vào
+      // đây theo #607: `nitro.runtimeConfig` và `runtimeConfig` cấp cao là
+      // cùng một object (portal properties trong nuxt core), nên hành vi giữ
+      // nguyên. Chuỗi giá trị đi qua chuỗi env của Workers: wrangler.jsonc
+      // `env.staging.vars.NITRO_PUBLIC_NO_INDEX` → `env` của worker →
+      // `globalThis.__env__` (nitropack cloudflare module handler) → proxy
+      // `process.env` (unenv) → `applyEnv` của Nitro (prefix `NITRO_`,
+      // snakeCase) → `useRuntimeConfig().public.noIndex`. `applyEnv` parse
+      // giá trị qua `destr()` — chuỗi `"true"` thành boolean `true` thật,
+      // nên middleware `server/middleware/no-index.ts` so khớp `=== true`
+      // được như thường. Mặc định `false` (production): middleware chỉ bật
+      // header khi giá trị là `true` tuyệt đối — fail-safe về mặt SEO.
+      //
+      // Khoá này ĐỌC thuần phía server (middleware Nitro), khác khoá
+      // data-mode phía trên được client hydrate — cùng quy ước với home và
+      // backoffice.
+      //
+      // PHẠM VI: cờ chỉ có hiệu lực trên bề mặt Worker-served — mọi route Nitro
+      // (shell HTML SSR, payload, API, error page) và qua middleware. Request
+      // khớp static asset (`_nuxt`, `_fonts`) được asset layer phục vụ thẳng,
+      // KHÔNG invoke Worker nên middleware không chạy; noindex cho bề mặt đó đến
+      // từ file `_headers` mà job deploy staging inject vào artifact (mechanism
+      // thuộc `tools/delivery` — giới hạn đã biết, cùng hình với home).
+      noIndex: false,
     },
   },
 
   nitro: {
+    // Preset inline (trước đây ở `nitro.config.ts`, đã gỡ theo #607 để hết
+    // cảnh báo `NUXT_B5004` — `@nuxt/schema` 4.6.4 đã trả key `nitro` vào
+    // `NuxtConfig`, không còn TS2353).
+    //
+    // Trang này là deploy unit Workers: docs/architecture/02-delivery.md §1 xếp `apps`
+    // vào làn Workers, deploy bằng Wrangler. Không có preset này thì Nuxt build cho
+    // Node server và không emit ra `.output/server/index.mjs` mà `wrangler.jsonc`
+    // trỏ tới.
+    //
+    // Không dùng `cloudflare` (preset legacy, không emit modern Workers output) và
+    // không dùng `cloudflare-pages`: preset Pages ghi ra `dist/_worker.js` cùng
+    // `_routes.json`/`_redirects`, lệch với `main` trong wrangler.jsonc.
+    preset: 'cloudflare-module',
     // `pg` được **bundle** vào Worker, không external: preset `cloudflare-module`
     // chạy trong isolate của Cloudflare nên `node:*` không tồn tại ở đó.
     alias: {
@@ -298,10 +335,10 @@ export default defineNuxtConfig({
   // `development` (contract của target build), chỉ command bên trong mới mang
   // envName.)
   //
-  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của
-  // `nitro.config.ts` VÀ merge đè lên khối `nitro` inline phía trên:
-  // `nuxt.options.nitro` (đã merge xong `$env`) đi vào Nitro ở vị trí
-  // overrides, cao hơn config file trong precedence của c12 — kiểm chứng bằng
+  // `nitro.preset` ở đây phải thắng preset `cloudflare-module` của khối
+  // `nitro` inline phía trên VÀ merge đè lên alias `pg-native` trong cùng khối
+  // đó: `nuxt.options.nitro` (đã merge xong `$env`) đi vào Nitro ở vị trí
+  // overrides, cao hơn config gốc trong precedence của c12 — kiểm chứng bằng
   // build thật, see tests/integrations/dual-build-output.spec.ts.
   //
   // `buildDir` resolve theo `rootDir`, nên `.nuxt-node`/`.output-node` nằm

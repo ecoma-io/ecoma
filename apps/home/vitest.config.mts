@@ -36,6 +36,10 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    // Teardown jsdom từng file là chi phí chính của lane unit; vmThreads tạo
+    // jsdom một lần mỗi worker trong khi vẫn giữ isolation per-file (đo #598:
+    // 2.76s → 1.70s).
+    pool: 'vmThreads',
     // Nuxt dùng `app/` (pages, domain) và `shared/`, không dùng `src/`; giữ
     // `src` để không phá project được generate. `tests/` chỉ còn suite
     // app-owned (`tests/integrations/` — đọc artifact build thật), bị exclude

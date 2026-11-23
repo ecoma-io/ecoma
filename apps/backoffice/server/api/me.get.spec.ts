@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/me` — response shape, đường cache và controlled
  * degrade, dùng h3 app thật với event context tự gắn (cùng kiểu với

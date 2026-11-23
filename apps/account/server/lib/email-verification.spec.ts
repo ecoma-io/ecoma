@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/email-verification.ts` — policy hằng của luồng
  * verify-email và hình dạng branded `AddressKey`.

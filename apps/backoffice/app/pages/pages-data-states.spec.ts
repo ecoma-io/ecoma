@@ -15,7 +15,7 @@
  *
  * ⚠️ Mọi `Promise` do `tests/fake-adapter.ts` trả về đều do test settle.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Component } from 'vue';
 
 import PermissionsPage from './permissions.vue';
@@ -25,6 +25,7 @@ import { PROTOTYPE_DATA } from '../backoffice-data/prototype-fixture';
 import { BackofficeRouteError } from '../backoffice-data/route-error';
 import type { Permission, StaffMember, SystemRole } from '../backoffice-data/types';
 import { LOGIN_PATH } from '../composables/use-backoffice-session';
+import { navigateFullPage } from '../utils/navigate-full-page';
 import en from '../i18n/locales/en';
 import type { FakeAdapterData, FakeBackofficeAdapter } from '../../tests/fake-adapter';
 import { createFakeBackofficeAdapter } from '../../tests/fake-adapter';
@@ -37,19 +38,12 @@ const ERROR_RETRY = '[data-testid="backoffice-error-retry"]';
 const ERROR_LOGIN = '[data-testid="backoffice-error-login"]';
 const SAMPLE_NOTICE = '[data-testid="backoffice-sample-notice"]';
 
-const assign = vi.fn<(url: string) => void>();
-
-beforeEach(() => {
-  // jsdom không mô phỏng navigation; test assert trực tiếp trên `assign` —
-  // phương thức `assign` của jsdom là own non-configurable nên phải thay cả
-  // object `location` (descriptor của nó trên `window` lại configurable).
-  vi.stubGlobal('location', { assign });
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+// `location` của jsdom là LegacyUnforgeable (accessor non-configurable ở pool
+// `vmThreads`) nên không stub được — mock seam navigation thay thế
+// (xem `navigate-full-page.ts`).
+vi.mock('../utils/navigate-full-page', () => ({
+  navigateFullPage: vi.fn<(url: string) => void>(),
+}));
 
 /** Dữ liệu cố ý khác fixture: xem ghi chú (3) ở đầu file. */
 const STAFF: readonly [StaffMember] = [
@@ -302,7 +296,7 @@ describe.each(PAGES)('data page $name', (page) => {
     // Điểm đăng nhập duy nhất của UI: điều hướng tới kickoff của BFF — khẳng định
     // trên handler thật vì đây là hợp đồng bảo mật, không phải chi tiết render.
     await login.trigger('click');
-    expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
+    expect(navigateFullPage).toHaveBeenCalledWith(LOGIN_PATH);
   });
 
   it('403 and 503 keep the retry affordance — neither is a login problem', async () => {

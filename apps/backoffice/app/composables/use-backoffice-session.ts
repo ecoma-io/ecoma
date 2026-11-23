@@ -44,6 +44,8 @@ import { ref, type Ref } from 'vue';
 
 import { useNuxtApp, type NuxtApp } from '#app';
 
+import { navigateFullPage } from '../utils/navigate-full-page';
+
 /**
  * ⚠️ Tên cookie + header nằm **trùng** với `libs/backoffice-infrastructure`
  * (`session-store.ts`) — nguồn sự thật server. App layer không import package
@@ -128,7 +130,7 @@ function readCsrfToken(): string | undefined {
  * hơn, nên hàm cố ý không có guard.
  */
 function login(): void {
-  window.location.assign(LOGIN_PATH);
+  navigateFullPage(LOGIN_PATH);
 }
 
 function createBackofficeSession(): BackofficeSession {
@@ -186,7 +188,7 @@ function createBackofficeSession(): BackofficeSession {
       // thì phiên còn nguyên — hỏi lại probe thay vì đá người dùng về trang chủ.
       if (response.status === 204) {
         status.value = 'unauthenticated';
-        window.location.assign('/');
+        navigateFullPage('/');
         return;
       }
       await refresh();
