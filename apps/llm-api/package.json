@@ -188,14 +188,27 @@
         ]
       },
       "lint": {
-        "executor": "nx:run-commands",
+        "executor": "@nx/oxlint:lint",
         "cache": true,
         "inputs": [
           {
-            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}"
           },
-          "{projectRoot}/package.json",
+          {
+            "fileset": "{projectRoot}/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,vue,svelte,astro}",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/package.json",
+            "dependencies": true
+          },
+          {
+            "fileset": "{projectRoot}/**/{.oxlintrc.json,.oxlintrc.jsonc,oxlint.config.ts,oxlint.config.mts,.eslintignore,.gitignore,tsconfig*.json}"
+          },
           "{workspaceRoot}/.oxlintrc.json",
+          "{workspaceRoot}/apps/.eslintignore",
+          "{workspaceRoot}/apps/.gitignore",
+          "{workspaceRoot}/.eslintignore",
           "{workspaceRoot}/.gitignore",
           {
             "externalDependencies": [
@@ -203,13 +216,28 @@
             ]
           }
         ],
-        "options": {
-          "cwd": "apps/llm-api",
-          "command": "npx oxlint ."
+        "metadata": {
+          "technologies": [
+            "oxlint"
+          ],
+          "description": "Runs Oxlint on project",
+          "help": {
+            "command": "pnpm exec oxlint --help",
+            "example": {
+              "options": {
+                "max-warnings": 0
+              }
+            }
+          }
         },
+        "configurations": {},
+        "options": {},
         "//": [
-          "Lint TS toan project (src/, tests/, db/, config) bang oxlint —",
-          "runtime da la TypeScript, khong con mat Rust (rustfmt/clippy) nao."
+          "Executor @nx/oxlint:lint (thay `npx oxlint .` qua nx:run-commands) de",
+          "project tham gia oxlint batching cua `nx run-many -t lint` — mot tien",
+          "trinh Oxlint cho toan workspace (do luong: docs/reports/nx-oxlint-",
+          "batching-measurement.md). Default lintFilePatterns=[projectRoot] lint",
+          "toan project (src/, tests/, db/, config) — runtime da la TypeScript,"
         ]
       },
       "typecheck": {
