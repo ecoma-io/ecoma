@@ -60,7 +60,7 @@ function prerenderedHtml(path: string): string {
     throw new Error(
       `Prerendered file ${path} is missing from .output/public — ` +
         `glob found [${Object.keys(PRERENDERED_HTML).map(outputPath).join(', ')}]. ` +
-        'The build did not emit this route; see nitro.config.ts prerender seeds.',
+        'The build did not emit this route; see nuxt.config.ts nitro prerender seeds.',
     );
   }
   return html;
