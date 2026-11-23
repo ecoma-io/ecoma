@@ -141,6 +141,7 @@ jobs:
       coalesce_action: ${{ steps.coalesce.outputs.guard_action }}
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       # Checkout SHA ĐÃ QUÁ GUARD của context; fetch-depth 0 để đọc parent
       # (base của `nx affected` là parent của SHA deploy).
@@ -245,6 +246,7 @@ jobs:
       matrix: ${{ fromJson(needs.plan.outputs.units_matrix) }}
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -329,6 +331,7 @@ jobs:
       matrix: ${{ fromJson(needs.plan.outputs.units_matrix) }}
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       - name: Check out the verified revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

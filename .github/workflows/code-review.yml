@@ -57,6 +57,7 @@ jobs:
       OCR_NO_UPDATE: '1'
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       - name: Resolve PR info and check for changes
         id: pr

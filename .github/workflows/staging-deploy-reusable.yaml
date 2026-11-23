@@ -93,6 +93,7 @@ jobs:
       verified_sha: ${{ steps.guard.outputs.verified_sha }}
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       # Job này chỉ chạy code của default branch (ref tin cậy): xác minh
       # `inputs.ref` là 40-hex và là ancestor của default branch. Không qua đủ
@@ -128,6 +129,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       # Checkout SHA ĐÃ VERIFY ở job context — không checkout `inputs.ref`
       # trực tiếp ở bất kỳ job nào của workflow này.
@@ -233,6 +235,7 @@ jobs:
       statuses: write
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       # Job này MANG QUYỀN (statuses: write + secret Environment): checkout
       # SHA đã verify của job context, không bao giờ `inputs.ref` trực tiếp —
