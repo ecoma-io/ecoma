@@ -34,11 +34,15 @@
  * Sau guard: `wrangler deploy` qua lớp retry §7.4 (`wrangler-deploy.ts`).
  * Token KHÔNG BAO GIỜ qua argv và không được log; mọi thông điệp lỗi chỉ chứa
  * tên biến và path, không chứa giá trị env.
+ *
+ * Trước deploy, sau preflight manifest: inject rule `X-Robots-Tag: noindex`
+ * vào `_headers` của static-asset artifact (§7.5 mục 9) — bề mặt prerendered
+ * được Cloudflare phục vụ thẳng, middleware noindex phía Worker không chạy.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import {
   classifyWorkerName,
@@ -69,6 +73,7 @@ export function deployEligibilityPath(): string {
 /** Deps inject để spec chạy không cần file/token/wrangler thật. */
 export interface StagingDeployDeps {
   readTextFile: (path: string) => string;
+  writeTextFile: (path: string, text: string) => void;
   deployStaging: (options: DeployStagingWorkerOptions) => Promise<DeployStagingWorkerResult>;
   /** MỘT lượt tra cứu run MỚI cho guard `before-deploy` (§7.4) — mỗi lượt gọi tra lại. */
   queryRuns: () => RunListQueryResult;
@@ -77,6 +82,7 @@ export interface StagingDeployDeps {
 
 const defaultDeps: StagingDeployDeps = {
   readTextFile: (path) => readFileSync(path, 'utf8'),
+  writeTextFile: (path, text) => writeFileSync(path, text),
   deployStaging: (options) => deployStagingWorker(options),
   queryRuns: () => queryFreshRunState(defaultGuardQueryDeps()),
   out: process.stdout,
@@ -216,6 +222,57 @@ export function buildStagingManifest(configText: string, sha: string): BuildMani
 }
 
 /**
+ * Rule noindex inject vào `_headers` của artifact static — staging PHẢI noindex
+ * trên CẢ bề mặt Worker-served (middleware `no-index` của app) lẫn bề mặt
+ * static-asset (prerendered, Cloudflare phục vụ thẳng, không invoke Worker —
+ * §7.5 mục 9 `root-noindex`/`content-noindex`).
+ */
+export const STAGING_NO_INDEX_HEADER_RULE = '/*\n  X-Robots-Tag: noindex';
+
+/**
+ * Ghép rule noindex vào nội dung `_headers` hiện có — pure, không IO. Rule
+ * `/*` đã có (kể cả dòng `/*` trần ở bất kỳ đâu trong file) thì giữ nguyên:
+ * hai rule cùng path là hành vi `_headers` không xác định theo docs Cloudflare.
+ */
+export function withStagingNoIndexHeaderRule(currentText: string): string {
+  if (currentText.split('\n').some((line) => line.trim() === '/*')) {
+    return currentText;
+  }
+  return `${currentText.replace(/\n*$/u, '')}\n${STAGING_NO_INDEX_HEADER_RULE}\n`;
+}
+
+/**
+ * Inject noindex vào `_headers` của static-asset artifact TRƯỚC `wrangler
+ * deploy` — bề mặt static (prerendered, 404.html) được Cloudflare phục vụ
+ * thẳng từ assets, middleware noindex phía Worker không chạy được. Thiếu file
+ * `_headers` là lỗi chặn (fail-closed: một bề mặt staging không noindex là
+ * khiếm khuyết thật — smoke sẽ đỏ đúng assertion đó nếu bỏ qua), KHÔNG phải
+ * "bỏ qua inject". Vị trí suy từ `--config`: `.output/public` cạnh config,
+ * đúng layout artifact mà build unit ghi ra (manifest §7.4 upload cùng cây).
+ */
+export function injectStagingNoIndexHeaders(
+  configPath: string,
+  deps: Pick<StagingDeployDeps, 'readTextFile' | 'writeTextFile'>,
+): void {
+  const headersPath = join(dirname(resolve(configPath)), '.output', 'public', '_headers');
+  let currentText: string;
+  try {
+    currentText = deps.readTextFile(headersPath);
+  } catch (error) {
+    throw new Error(
+      `cannot read the static-asset _headers file at ${headersPath}: ` +
+        `${error instanceof Error ? error.message : String(error)} — the staging lane ` +
+        'requires it to inject the staging-wide noindex rule before wrangler deploy (§7.5 item 9)',
+      { cause: error },
+    );
+  }
+  const injected = withStagingNoIndexHeaderRule(currentText);
+  if (injected !== currentText) {
+    deps.writeTextFile(headersPath, injected);
+  }
+}
+
+/**
  * Kiểm manifest của artifact khớp run: sha đúng và worker đúng. Lệch là lỗi
  * chặn — job deploy không bao giờ deploy artifact của run khác (§7.4).
  */
@@ -309,6 +366,11 @@ export async function runStagingDeploy(
   deps.out.write(
     `staging deploy: build manifest matches run sha ${params.expectSha} for ${worker}\n`,
   );
+
+  // Noindex cho bề mặt static-asset (§7.5 mục 9): inject TRƯỚC wrangler deploy
+  // — sau bước này artifact đã lên Worker, không sửa được nữa.
+  injectStagingNoIndexHeaders(configAbs, deps);
+  deps.out.write('staging deploy: static-asset _headers noindex rule ensured\n');
 
   // Cặp credential staging fail-closed với đúng tên org secret — tái dụng
   // pipeline worker-secrets (§6.12), không nhận credential nào khác và không

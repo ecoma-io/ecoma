@@ -50,10 +50,9 @@ export default {
   //
   // PHẠM VI: cờ chỉ có hiệu lực trên bề mặt Worker-served. Homepage prerendered
   // (SSG) và `404.html` được phục vụ thẳng từ static assets (không invoke
-  // Worker), nên noindex cho bề mặt đó đến từ file `_headers` mà job deploy
-  // staging inject vào artifact (xem `staging-deploy.mts` — nằm ngoài app này).
-  // **Giới hạn đã biết (chưa fix):** cơ chế inject `_headers` thuộc hạ tầng
-  // deploy staging; thay đổi đó phải được chủ sở hữu platform làm riêng.
+  // Worker), nên noindex cho bề mặt đó đến từ file `_headers` mà lane deploy
+  // staging inject vào artifact trước `wrangler deploy` (xem
+  // `tools/delivery/src/staging-deploy.ts` — `injectStagingNoIndexHeaders`).
   runtimeConfig: {
     public: {
       noIndex: false,
