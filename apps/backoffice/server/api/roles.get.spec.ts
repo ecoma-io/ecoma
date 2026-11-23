@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/roles` sau P5.1 (issue #475): role catalog đọc
  * từ Staff Access management API qua `fetchRoleCatalog`, không từ

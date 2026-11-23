@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/auth/callback` — hội tụ ở đúng invariant mà PR
  * wire-internal-origin (issue #356) đổi: **nơi POST `/token` được dựng từ đâu**.

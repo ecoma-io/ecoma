@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/auth/login` — đường vào của luồng đăng nhập
  * (ADR-0012 §1.1–1.2). Suite integration không phủ route này (nó nằm ngoài

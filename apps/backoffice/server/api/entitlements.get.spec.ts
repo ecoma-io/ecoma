@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/entitlements` sau P5.4 (issue #478): entitlement của
  * một staff đọc từ Staff Access management API qua `fetchStaffEntitlements`,

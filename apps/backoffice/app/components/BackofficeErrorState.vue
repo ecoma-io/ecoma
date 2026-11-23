@@ -3,6 +3,7 @@ import { Button } from '@ecoma-io/ui-app-shell';
 import { useI18n } from '#i18n';
 
 import { LOGIN_PATH } from '../composables/use-backoffice-session';
+import { navigateFullPage } from '../utils/navigate-full-page';
 /**
  * Trạng thái lỗi — lỗi tải dữ liệu, khác với lỗi của một thao tác ghi.
  *
@@ -72,7 +73,7 @@ const { t } = useI18n();
 
 /** CTA của nhánh 401: cùng đường đăng nhập với shell — UI không tự dựng URL. */
 function loginAgain(): void {
-  window.location.assign(LOGIN_PATH);
+  navigateFullPage(LOGIN_PATH);
 }
 </script>
 

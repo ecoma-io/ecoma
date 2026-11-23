@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Kiểm chứng enforcement của `requirePermission` — fail path lần lượt
  * (thiếu permission, revoke, expiry, staff không active, audit hỏng phải

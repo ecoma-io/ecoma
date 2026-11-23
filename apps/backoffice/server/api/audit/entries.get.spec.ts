@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/audit/entries` sau P5.4 (issue #478): bản ghi audit
  * đọc từ Staff Access management API qua `fetchAuditEntries`, không từ
