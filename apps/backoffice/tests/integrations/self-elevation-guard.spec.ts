@@ -26,7 +26,7 @@ import { type BackofficeDatabase, startBackofficeDatabase } from './harness.ts';
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
   'migrations',
 );
