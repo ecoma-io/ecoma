@@ -56,6 +56,8 @@ jobs:
       # gây ra các lỗi "Cannot find module" cạnh tranh.
       OCR_NO_UPDATE: '1'
     steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
       - name: Resolve PR info and check for changes
         id: pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0

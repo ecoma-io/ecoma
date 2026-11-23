@@ -32,6 +32,9 @@ jobs:
           - language: actions
             build-mode: none
     steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -74,6 +77,9 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - name: Start runner resource monitoring
+        uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
+
       # Một checkout duy nhất phục vụ cả hai scanner: full history là yêu cầu
       # của Gitleaks (`log-opts` cần commit range), Semgrep quét working tree
       # nên không bị ảnh hưởng bởi lịch sử đầy đủ.

@@ -70,14 +70,29 @@ jobs:
       # Khi dispatch với force=true thì affected=false → action rơi sang `run-many`.
       # Riêng `schedule` luôn affected=false (điều kiện `github.event_name !=
       # 'schedule'`): đường chạy toàn bộ repository mỗi đêm, issue #264.
-      - name: Linting & Type check & Unit test
-        if: github.event_name != 'merge_group'
+      - name: Linting
+        if: github.event_name == 'pull_request'
         uses: ./.github/actions/run-nx-target
         with:
-          targets: lint typecheck test
+          targets: lint
+          threads: '6'
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
-          bail: ${{ github.event_name == 'merge_group' }}
+      - name: Type check
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: typecheck
+          threads: '3'
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
+      - name: Unit test
+        if: github.event_name == 'pull_request'
+        uses: ./.github/actions/run-nx-target
+        with:
+          targets: test
+          threads: '1'
+          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
       - name: README contract check
+        if: github.event_name == 'pull_request'
         run: pnpm dx readme-check
 
   integration-test:
@@ -134,67 +149,13 @@ jobs:
       # khởi động. Bước hai chọn đúng hai project bằng `--exclude` dạng phủ định
       # (`*,!project`); affected set không chứa chúng thì Nx báo "0 tasks" và
       # thoát 0, không phải lỗi.
-      - name: Integration test (non-browser)
-        uses: ./.github/actions/run-nx-target
-        with:
-          targets: build test-integration
-          affected: ${{ !inputs.force && github.event_name != 'schedule' }}
-          bail: ${{ github.event_name == 'merge_group' }}
-          exclude: '@ecoma-io/backoffice,@ecoma-io/pact-broker-app'
-      # Instrumentation cho họ flake F2 (lane `unavailable` đứng ở pha nitro
-      # "Building server" đến khi webServer timeout 180s — giả thuyết H4: workerd
-      # của getPlatformProxy không báo cổng). Dump môi trường runner NGAY TRƯỚC
-      # lane browser để lần đỏ sau có số đo: /dev/shm (workerd dùng), bộ nhớ,
-      # cổng còn nghe, và stdout/stderr đầy đủ của lane đã vào artifact log.
-      - name: Runner diagnostics before the browser lane
-        if: always()
-        run: |
-          echo "::group::/dev/shm"
-          df -h /dev/shm || true
-          echo "::endgroup::"
-          echo "::group::memory"
-          free -m || true
-          echo "::endgroup::"
-          echo "::group::limits"
-          ulimit -a || true
-          echo "::endgroup::"
-          echo "::group::listening ports 4311-4312"
-          ss -tlnp 2>/dev/null | grep -E '4311|4312' || echo "none"
-          echo "::endgroup::"
-          echo "::group::top processes"
-          ps aux --sort=-%mem 2>/dev/null | head -15 || true
-          echo "::endgroup::"
-          echo "::group::workerd/miniflare leftovers"
-          pgrep -af 'workerd|miniflare' || echo "none"
-          echo "::endgroup::"
-      - name: Integration test (browser, serialized)
+      - name: Integration test
         uses: ./.github/actions/run-nx-target
         with:
           targets: test-integration
+          threads: '1'
           affected: ${{ !inputs.force && github.event_name != 'schedule' }}
           bail: ${{ github.event_name == 'merge_group' }}
-          threads: '1'
-          exclude: '*,!@ecoma-io/backoffice,!@ecoma-io/pact-broker-app'
-      # F2 diagnostics: the backoffice Playwright lanes tee webServer output to
-      # .playwright-*.log so a hung webServer (e.g. NUXT_B5004 then silence)
-      # still leaves timestamped stdout/stderr as evidence when the runner dies.
-      # CI tee files were missing at upload time on run 44957470610 even though
-      # lane 1 passed — diagnose where they land before re-uploading.
-      - name: Diagnose backoffice Playwright log location
-        if: failure()
-        run: |
-          ls -la apps/backoffice/ | grep playwright || true
-          find . -maxdepth 3 -name '.playwright-*.log' 2>/dev/null || true
-      - name: Upload backoffice Playwright webServer logs
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: backoffice-playwright-webserver-logs
-          path: |
-            apps/backoffice/.playwright-*.log
-            .playwright-*.log
-          if-no-files-found: ignore
-          retention-days: 7
 
   # Bộ system test (Playwright + Chromium thật) chạy trên local platform stack
   # thật: invocation `nx affected -t system-test -c local` là ĐƯỜNG DUY NHẤT dẫn
