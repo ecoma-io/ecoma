@@ -41,6 +41,8 @@ function fakeDeps(files: Record<string, string>): {
   deps: StagingDeployDeps;
   deployCalls: DeployStagingWorkerOptions[];
   lines: string[];
+  /** Path của các lần ghi file qua `writeTextFile` — test inject dùng. */
+  written: string[];
   /** Gán kết quả lượt tra cứu run MỚI cho guard — chỉ test có guard mới dùng. */
   setQueryRuns: (result: RunListQueryResult) => void;
 } {
