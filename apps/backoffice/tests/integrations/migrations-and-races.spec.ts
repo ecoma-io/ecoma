@@ -43,7 +43,7 @@ import { type BackofficeDatabase, applyMigrations, startBackofficeDatabase } fro
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
   'migrations',
 );

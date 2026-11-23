@@ -233,7 +233,7 @@ const REPO_ROOT = dirname(dirname(dirname(dirname(import.meta.dirname))));
 
 /** Thư mục migration authority của một target (cutover #376). */
 function dbProjectDir(target: LlmDatabaseKey): string {
-  return join(REPO_ROOT, 'deploys', `llm-${target}-db`);
+  return join(REPO_ROOT, 'databases', `llm-${target}-db`);
 }
 
 const requireFromHere = createRequire(import.meta.url);

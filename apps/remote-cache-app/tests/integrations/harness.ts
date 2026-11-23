@@ -27,7 +27,7 @@ import { Client } from 'pg';
 
 const APP_DIR = resolve(import.meta.dirname, '..', '..');
 const REPO_ROOT = resolve(APP_DIR, '..', '..');
-const APP_DB_PROJECT = resolve(REPO_ROOT, 'deploys', 'remote-cache-app-db');
+const APP_DB_PROJECT = resolve(REPO_ROOT, 'databases', 'remote-cache-app-db');
 /** Tsx của repo — chạy runner của authority mà không cần dep nào ở project này. */
 const TSX_BIN = resolve(REPO_ROOT, 'node_modules/.bin/tsx');
 

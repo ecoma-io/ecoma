@@ -22,7 +22,7 @@ import { ACCOUNT_DATABASE, AUTH_DATABASE } from '../../db/migrate.mts';
  * guard `current_database()`, advisory lock và GUC `ecoma.auth_database`.
  * Viết vòng apply riêng ở đây là tạo runner thứ hai không có lock.
  */
-const ACCOUNT_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'deploys', 'account-db');
+const ACCOUNT_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'databases', 'account-db');
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.

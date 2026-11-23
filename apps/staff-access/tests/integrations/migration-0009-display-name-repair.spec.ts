@@ -33,7 +33,7 @@ import {
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'staff-access-db',
   'migrations',
 );

@@ -27,7 +27,7 @@ import { join, resolve } from 'node:path';
  * guard `current_database()` và advisory lock. Viết vòng apply riêng ở đây
  * (đọc file `.sql` rồi bắn từng file) là tạo runner thứ hai không có lock.
  */
-const AUTH_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'deploys', 'auth-db');
+const AUTH_DB_PROJECT = resolve(import.meta.dirname, '../../../..', 'databases', 'auth-db');
 
 /**
  * Image PostgreSQL: 17 là major hiện hành; alpine để pull nhanh trên CI.

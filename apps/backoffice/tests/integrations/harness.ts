@@ -25,7 +25,7 @@ import { BACKOFFICE_DATABASE } from '../../db/migrate.mts';
 const BACKOFFICE_DB_PROJECT = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
 );
 

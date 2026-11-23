@@ -37,7 +37,7 @@ type Client = import('pg').Client;
 const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'backoffice-db',
   'migrations',
 );

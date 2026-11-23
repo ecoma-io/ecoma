@@ -23,7 +23,7 @@ import { STAFF_ACCESS_DATABASE } from '../../db/migrate.mts';
 const STAFF_ACCESS_DB_PROJECT = resolve(
   import.meta.dirname,
   '../../../..',
-  'deploys',
+  'databases',
   'staff-access-db',
 );
 
