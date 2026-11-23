@@ -71,7 +71,7 @@
     "vue-tsc": "^3.3.14",
     "wrangler": "4.166.0"
   },
-  "packageManager": "pnpm@12.21.0",
+  "packageManager": "pnpm@12.23.0",
   "//": [
     "Giữ postgres ở root: integration test của apps/auth import trực tiếp mà",
     "không tự khai — xoá sẽ gãy test-integration apps/auth (fix đúng chỗ ngoài",
