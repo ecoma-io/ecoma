@@ -63,20 +63,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -124,20 +110,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "tools/release-validation",
@@ -178,33 +150,12 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "tools/release-validation",
           "command": "vitest run"
         },
         "configurations": {},
-        "parallelism": true,
-        "//": [
-          "Target `test` = unit colocated của project (06-testing.md §4):",
-          "contract/audit/runner/cli spec với dependency giả — không Docker.",
-          "Suite integration (pg_dump/psql thật + container PostgreSQL thật qua",
-          "docker CLI) chạy ở target `test-integration` với config riêng."
-        ]
+        "parallelism": true
       },
       "test-integration": {
         "executor": "nx:run-commands",
@@ -214,17 +165,7 @@
           "cwd": "tools/release-validation",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
         },
-        "configurations": {},
-        "//": [
-          "Suite integration (06-testing.md §2/§4): pg_dump/psql thật của",
-          "container postgres:17-alpine qua docker CLI + runner migration thật",
-          "`deploys/remote-cache-db/runner.mts` — capture/restore/integrity/",
-          "candidate-apply/interrupted/fresh-install. Bắt buộc Docker: vắng",
-          "Docker là suite ĐỎ (globalSetup probe ném), không skip với exit 0.",
-          "Target không cacheable vì mutate database thật.",
-          "`implicitDependencies: remote-cache-db` — suite spawn runner của",
-          "chính project đó (migration authority, không runner thứ hai)."
-        ]
+        "configurations": {}
       }
     }
   }

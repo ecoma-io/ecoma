@@ -139,14 +139,7 @@
         "options": {
           "cwd": "apps/auth",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "KHÔNG `build`: suite integration import thẳng TS nguồn — `../../src/main`,",
-          "`../../src/oidc/*`, các lib qua export `./src/index.ts` của workspace. Không",
-          "spec nào đọc `dist/` hay type do wrangler sinh ra; esbuild bundle chỉ tiêu",
-          "thụ ở làn deploy. Gỡ `build` khỏi dependsOn bỏ chi phí bundle mà không",
-          "đổi cái suite chạy."
-        ]
+        }
       },
       "serve": {
         "continuous": true,
@@ -190,20 +183,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -259,20 +238,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/auth",
@@ -317,21 +282,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/auth",
           "command": "vitest run"

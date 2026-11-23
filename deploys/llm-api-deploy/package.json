@@ -24,7 +24,6 @@
     ],
     "targets": {
       "local-up": {
-        "//": "Local lane — duy nhất một lane (`-c local`). Entry colocated (`local.ts up`) KHÔNG lấy khóa lane nào (PR #424: serialization thật của cùng một stack là state lock của Pulumi): chuẩn bị bảng secret của riêng project (config set qua stdin), `pulumi up` stack của chính nó, rồi readiness thuộc container resource (`wait: true`). Thứ tự toàn cục do `dependsOn` dưới đây quyết định (Nx Task Graph); entry KHÔNG gọi lệnh DX nào. dependsOn platform:local-up — stack đọc network + postgres qua StackReference, platform chưa up là StackReference rỗng. dependsOn staff-access-deploy:local-up + account-deploy:local-up — bước superadmin resolver đọc credential migrator và xác minh superadmin qua DB của hai service này; không có cạnh này thì lane `run-many` chạy llm-api song song với hai deploy đó và resolver đọc DB trước khi database/role được provision (database_unreachable, fail-closed) — gap #113 từng để suite system-test bù, nhưng gate #26 đòi `run-many -t local-up` xanh nên cạnh được khai tường minh. Edge `build` là build prerequisite NGOÀI lane (validator chấp nhận target `build`, không tham gia spine topo): WIC container chạy `wrangler dev` từ bundle `build/` (`build/index.js` do target `build` của Nx sinh) mount lúc container start — bundle chưa build là entrypoint fail `bundle_missing` và container restart loop. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Docker/state thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -56,7 +55,6 @@
         ]
       },
       "local-down": {
-        "//": "Teardown của RIÊNG project này (`local.ts down` = `pulumi destroy --yes`). KHÔNG có `dependsOn`: teardown không yêu cầu thứ tự ngược toàn cục — mỗi project tự xoá resource của mình trong namespace của worktree, `pulumi destroy` tự serialize trên stack state, và Docker chấp nhận rm trực tiếp từng resource. Ba database + bảy role nằm trong volume PostgreSQL của platform (convention chung) và sống tới khi `platform-deploy:local-down` xoá volume. Idempotent: worktree chưa từng deploy là no-op exit 0; lỗi destroy thật thì exit 1. Cache bị tắt ở targetDefaults `nx.json`.",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -67,24 +65,6 @@
         }
       },
       "test-lane-up": {
-        "//": [
-          "Lane E2E của unit này (Issues #23/#24): hội tụ hạ tầng cho suite",
-          "system-tests/e2e/llm-inference-e2e qua entry `lane.ts up` — container",
-          "mock upstream `ecoma-<ns>-llm-upstream-mock` trên platform network",
-          "(credential qua env process docker, argv name-only), readiness qua",
-          "MỘT container waiter trong network, config `llmUpstreamBaseUrl` ghi",
-          "đè về DNS nội bộ mock (giá trị qua kênh stdin), rồi `local.ts up`",
-          "cùng entry lifecycle — hoặc SKIP khi stack output",
-          "`consumerApiKeyStdout` đã mang plaintext key VÀ probe read-only",
-          "xác nhận còn ít nhất một row `api_keys` active trong db-llm-gateway",
-          "(show-once; chạy lại `local.ts up` sẽ xoay password và thay stdout",
-          "ghi nhận, mất plaintext; row bị xoá ngoài băng thì rơi xuống path",
-          "converge đầy đủ để runner bước 9 phát hành lại). dependsOn GIỐNG",
-          "`local-up` (platform + staff-access + account:local-up + bundle",
-          "build của app); gap #113 (đọc stack account/staff-access) đã đóng:",
-          "cạnh dependsOn được khai tường minh theo lane graph. Cache bị tắt ở",
-          "targetDefaults `nx.json` (CONTRACT: mutate Docker/Pulumi state thật)."
-        ],
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -116,17 +96,6 @@
         ]
       },
       "test-lane-down": {
-        "//": [
-          "Teardown RIÊNG của lane E2E (`lane.ts down`): xoá container mock",
-          "trong namespace worktree, tolerating container vắng (no-op exit 0).",
-          "KHÔNG destroy stack Pulumi — teardown stack vẫn là `local-down`.",
-          "Container mock đã nằm trong `CLEANUP_KINDS` của `tools/dx` (#187 —",
-          "kind `llm-upstream-mock` đã vào union `DeployResourceKind` của",
-          "libs/deployment) nên `pnpm dx local-cleanup` tự dọn container mồ côi;",
-          "target này là teardown thuộc lane khi worktree còn sống. Không",
-          "`dependsOn` (cùng ngữ nghĩa với `local-down`).",
-          "Cache bị tắt ở targetDefaults `nx.json`."
-        ],
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -137,7 +106,6 @@
         }
       },
       "staging-preview": {
-        "//": "Lane staging #359 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (port của pattern đã merge #539 — engine copy thứ tư, tổng quát hoá ở #543). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. Chương trình trên stack staging khai BA HyperdriveConfig `db-llm-gateway`/`db-llm-tenant`/`db-llm-marketplace` (#359, `staging-program.ts` — per-database per-lane §4.2; caching OFF tường minh theo invariant 14); origin đọc từ stack config và FAIL CLOSED khi chưa có — đường tới origin private là Tunnel/VPC Service của #349. KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -148,7 +116,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc cả BA stack output `<target>HyperdriveConfigId` và surface id thật để wiring `env.staging.hyperdrive[].id` của `apps/llm-api/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo config; placeholder toàn-zeros không bao giờ vào đường wiring).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",
@@ -191,11 +158,6 @@
           "cwd": "deploys/llm-api-deploy",
           "command": "vitest run"
         },
-        "//": [
-          "Target `test` = unit/component colocated của project (06-testing.md",
-          "§4): `scripts.spec.ts` — bất biến tĩnh của script text (không Docker).",
-          "Suite integration chạy Docker + PostgreSQL thật ở target riêng."
-        ],
         "configurations": {},
         "parallelism": true
       },
@@ -207,17 +169,6 @@
           "cwd": "deploys/llm-api-deploy",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
         },
-        "//": [
-          "Suite integration app-owned (06-testing.md §2/§4): argv-hygiene —",
-          "chạy đúng script provision/migrate mà index.ts render, với sentinel",
-          "credentials, shim docker ghi argv và sweep /proc/*/cmdline; assert",
-          "không secret nào vào argv/log/output/script text, đồng thời trạng",
-          "thái database sau provision + migration vẫn đúng. Bắt buộc Docker:",
-          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip. Target",
-          "luôn không cacheable vì mutate Docker/database thật.",
-          "Không `dependsOn` build bundle WIC: suite không chạy wrangler worker.",
-          "Import thẳng `scripts.ts` nguồn — đúng text mà Pulumi chạy."
-        ],
         "configurations": {}
       },
       "lint": {
@@ -249,20 +200,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -289,20 +226,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-api-deploy",

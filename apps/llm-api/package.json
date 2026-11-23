@@ -97,17 +97,7 @@
               ]
             }
           }
-        },
-        "//": [
-          "Bundle Worker runtime TS (src/index.ts, Hono + pg) thanh artifact",
-          "build/index.js — dung duong dan + ten entry ma `wrangler.jsonc` main",
-          "tro vao (deploy unit hard-code target name `build`).",
-          "`external` node:buffer/node:events/node:stream la node builtins ma",
-          "driver `pg` doi hoi khi chay qua Hyperdrive (cung bo voi",
-          "apps/pact-broker-api; wrangler.jsonc bat `nodejs_compat` tuong minh).",
-          "conditions workerd/worker/browser cho esbuild resolve dung nhánh",
-          "browser/workerd cua `pg`; platform neutral + format esm."
-        ]
+        }
       },
       "db:bootstrap-consumer-tenant": {
         "executor": "nx:run-commands",
@@ -115,17 +105,7 @@
         "options": {
           "cwd": "apps/llm-api",
           "command": "npx tsx --tsconfig tsconfig.db.json db/bootstrap-consumer-tenant.mts"
-        },
-        "//": [
-          "Bootstrap runner buoc 9 (02-delivery.md §3.2): seed Consumer tenant",
-          "ecoma + owner membership (db-llm-tenant) va API key dau tien",
-          "(db-llm-gateway). Env bat buoc: ECOMA_TENANT_DATABASE_URL (migrator",
-          "db-llm-tenant), ECOMA_GATEWAY_DATABASE_URL (migrator db-llm-gateway),",
-          "ECOMA_CONSUMER_TENANT_OWNER_SUB, ECOMA_GOVERNANCE_ACTOR. Plaintext",
-          "key chi in DUNG MOT lan tren stdout (dong ECOMA_CONSUMER_API_KEY=)",
-          "o run tao key; rerun la no-op khong in plaintext. Target luon khong",
-          "cacheable vi no mutate DB that."
-        ]
+        }
       },
       "db:bootstrap-financial": {
         "executor": "nx:run-commands",
@@ -133,21 +113,7 @@
         "options": {
           "cwd": "apps/llm-api",
           "command": "npx tsx --tsconfig tsconfig.db.json db/bootstrap-financial.mts"
-        },
-        "//": [
-          "Bootstrap runner buoc 10 (02-delivery.md §3.2, ADR-0028 §6 B1-B4):",
-          "seed sponsor + billing account + funding authorization + grant khoi",
-          "tao tren db-llm-gateway, schema llm_financial; credit chay qua domain",
-          "op creditGrant (kiem ca hai tran trong cung phep goi). Env bat buoc:",
-          "ECOMA_GATEWAY_DATABASE_URL (migrator db-llm-gateway),",
-          "ECOMA_CONSUMER_TENANT_ID (tu CONSUMER_TENANT_RESULT cua buoc 9),",
-          "ECOMA_CONSUMER_TENANT_OWNER_SUB, ECOMA_SPONSOR_ID (assert khop hang",
-          "code), ECOMA_SPONSOR_CEILING, ECOMA_SPONSOR_AUTHORIZATION_CEILING",
-          "(so nguyen >= 0 hoac chu null),",
-          "ECOMA_SPONSOR_AUTHORIZATION_EVIDENCE_REF, ECOMA_SPONSOR_GRANT_AMOUNT,",
-          "ECOMA_GOVERNANCE_ACTOR. Dong cuoi stdout: FINANCIAL_RESULT=<json>.",
-          "Target luon khong cacheable vi no mutate DB that."
-        ]
+        }
       },
       "test": {
         "executor": "nx:run-commands",
@@ -157,14 +123,7 @@
         },
         "configurations": {},
         "parallelism": true,
-        "dependsOn": [],
-        "//": [
-          "Target `test` = unit test colocated voi subject (06-testing.md §4).",
-          "Spec nam trong src/ ben canh file nguon cua no (port cua unit test",
-          "Rust cu). Suite integration (PostgreSQL that qua testcontainers)",
-          "nam o target `test-integration` voi config rieng.",
-          "Khong `build` trong dependsOn: unit spec khong doc artifact build."
-        ]
+        "dependsOn": []
       },
       "test-integration": {
         "executor": "nx:run-commands",
@@ -174,18 +133,7 @@
         "options": {
           "cwd": "apps/llm-api",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "Suite integration app-owned (PostgreSQL that qua testcontainers):",
-          "ranh gioi quyen runtime/migrator, serialization advisory lock,",
-          "migration apply qua runner cua `deploys/llm-*-db` (cutover #376).",
-          "Suite database spawn runner CLI bang tsx — khong doc artifact build.",
-          "`dependsOn: build` cho suite HTTP contract (`tests/integrations/http-",
-          "contract.spec.ts`, review PR #113): suite boot runtime Worker that",
-          "tu artifact `build/index.js` ma target `build` (esbuild) sinh ra —",
-          "thieu artifact thi harness `listen()` nem ngay, do thay vi pass rong.",
-          "Cung hinh `test-integration` cua `apps/backoffice`."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -216,29 +164,8 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
-        "options": {},
-        "//": [
-          "Executor @nx/oxlint:lint (thay `npx oxlint .` qua nx:run-commands) de",
-          "project tham gia oxlint batching cua `nx run-many -t lint` — mot tien",
-          "trinh Oxlint cho toan workspace (do luong: docs/reports/nx-oxlint-",
-          "batching-measurement.md). Default lintFilePatterns=[projectRoot] lint",
-          "toan project (src/, tests/, db/, config) — runtime da la TypeScript,"
-        ]
+        "options": {}
       },
       "typecheck": {
         "dependsOn": [
@@ -283,11 +210,7 @@
           "command": "tsc --build tsconfig.json --emitDeclarationOnly && npx tsc --noEmit -p tsconfig.db.json"
         },
         "configurations": {},
-        "parallelism": true,
-        "//": [
-          "Solution reference hai project con: tsconfig.app.json (runtime",
-          "Worker src/) va tsconfig.spec.json (spec + db + harness integration)."
-        ]
+        "parallelism": true
       }
     }
   }

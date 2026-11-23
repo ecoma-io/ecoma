@@ -91,34 +91,13 @@
       },
       "test": {
         "executor": "nx:run-commands",
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/remote-cache-api",
           "command": "npx vitest run -c vitest.config.mts"
         },
         "configurations": {},
         "parallelism": true,
-        "dependsOn": [],
-        "//": [
-          "Target `test` = colocated unit/component spec của project (06-testing.md §4).",
-          "Suite integration (PostgreSQL thật qua testcontainers) nằm ở target `test-integration`",
-          "với config riêng (`vitest.integration.config.mts`) — không gộp vào `test` để tránh",
-          "suite app-owned bị bỏ qua silenciously khi `include` không khớp."
-        ]
+        "dependsOn": []
       },
       "test-integration": {
         "executor": "nx:run-commands",
@@ -126,13 +105,7 @@
         "options": {
           "cwd": "apps/remote-cache-api",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "KHONG `build`: suite integration import thang TS nguon — harness spawn runner",
-          "cac lib qua export workspace. Khong spec nao doc `dist/` hay type do wrangler",
-          "sinh ra; esbuild bundle chi tieu thu o lan deploy. Go `build` khoi dependsOn",
-          "bo chi phi bundle ma khong doi ca suite chay."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -163,20 +136,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -226,20 +185,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "apps/remote-cache-api",

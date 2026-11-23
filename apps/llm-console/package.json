@@ -42,15 +42,7 @@
         "options": {
           "cwd": "apps/llm-console",
           "command": "npx nuxt typecheck"
-        },
-        "//": [
-          "Ghi đè target `typecheck` mặc định của plugin @nx/js (echo no-op),",
-          "mirror đúng cách apps/backoffice và apps/account đã làm: Nuxt sinh",
-          "`.nuxt/tsconfig.*.json` với `noEmit: true`, còn target mặc định chạy",
-          "`tsc --build --emitDeclarationOnly` — hai option xung đột (TS5069), và",
-          "trước nuxt-prepare thì các file đó chưa tồn tại (TS5083).",
-          "`nuxt typecheck` (vue-tsc qua @nuxt/cli) là đường đúng."
-        ]
+        }
       },
       "test": {
         "executor": "nx:run-commands",
@@ -88,21 +80,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "apps/llm-console",
           "command": "vitest run"
@@ -142,21 +119,7 @@
         "options": {
           "cwd": "apps/llm-console",
           "command": "npx vitest run -c vitest.integration.config.mts"
-        },
-        "//": [
-          "`dependsOn: build` là bắt buộc, không phải tiện tay: suite",
-          "`tests/integrations/worker-runtime.spec.ts` khởi động workerd trên",
-          "`wrangler.jsonc` của app, mà `main`/`assets.directory` của nó trỏ vào",
-          "`.output/` — thứ chỉ tồn tại sau `nuxt build`. Thiếu nó thì `listen()`",
-          "ném ngay, đỏ thay vì pass rỗng.",
-          "",
-          "`inputs.dependentTasksOutputFiles` khai cả `.css`/`.html`/`.json` vì",
-          "suite assert trên asset do build emit, không chỉ trên `.js`.",
-          "",
-          "`wrangler` nằm trong `externalDependencies`: nâng cấp wrangler đổi",
-          "hành vi assets layer (`run_worker_first`, `not_found_handling`) mà",
-          "suite này đo, nên cache phải mất hiệu lực khi nó đổi."
-        ]
+        }
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -187,20 +150,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -239,37 +188,7 @@
             "buildOutputDirName": ".output-node"
           }
         },
-        "parallelism": true,
-        "//": [
-          "`outputs` dùng `{options.*}` interpolation với option theo configuration:",
-          "production khai `.nuxt`+`.output` (contract wrangler), development khai",
-          "`.nuxt-node`+`.output-node`. Lý do BẮT BUỘC phải tách: Nx XOÁ mọi thư",
-          " mục nằm trong `outputs` của task trước khi chạy (và trước khi restore",
-          "cache) — nếu task development khai cả `.output` thì mỗi lần",
-          "`build:development` xoá mất artifact production mà test-integration đang",
-          "đọc.",
-          "Lưu ý coupling: `nx:run-commands` forward mọi option không nhận diện thành",
-          "CLI arg, nên lệnh chạy thật là `nuxt build --buildDirName=.nuxt",
-          "--buildOutputDirName=.output` — @nuxt/cli hiện bỏ qua flag lạ (vô hại),",
-          "nhưng một bản @nuxt/cli parse argument nghiêm ngặt sau này sẽ phải đổi cơ",
-          "chế. Options vẫn nằm trong hash của task — chính điều đó tách cache",
-          "dev/production.",
-          "`dependsOn` gồm `^build` và `nuxt-prepare`: mọi đường vào build đều đã",
-          "qua `nuxt prepare` để `.nuxt` types sẵn sàng, không còn phụ thuộc thứ tự",
-          "task trong graph. `test` dependsOn `nuxt-prepare`, `test-integration`",
-          "dependsOn `build`, nên chuỗi test → build → nuxt-prepare được đảm bảo",
-          "trọn vẹn. `nuxt-prepare` cũng là điều kiện cần cho configuration",
-          "`development`: project `tsconfig.json` reference",
-          "`./.nuxt/tsconfig.*.json` mà `vite-plugin-checker` đọc khi typeCheck bật",
-          "(build development đặt `buildDir` sang `.nuxt-node`, không sinh `.nuxt`).",
-          "Hai configuration tách bạch qua khối `$env['node-docker']` trong",
-          "`nuxt.config.ts` (`--envName=node-docker` — tên envName riêng, KHÁC",
-          "`development`/`production`, vì `nuxt dev` tự kích hoạt envName",
-          "`development` nên khối `$development` sẽ lọt vào mọi lần `nx serve`;",
-          "chi tiết ở nuxt.config.ts): production giữ preset `cloudflare-module`,",
-          "development preset `node-server`; `defaultConfiguration: production`",
-          "để `nx build` không config vẫn ra artifact wrangler như cũ."
-        ]
+        "parallelism": true
       },
       "serve": {
         "continuous": true,

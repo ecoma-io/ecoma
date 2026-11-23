@@ -81,14 +81,7 @@
           "cwd": "deploys/llm-tenant-db",
           "command": "npx drizzle-kit generate --custom"
         },
-        "configurations": {},
-        "//": [
-          "§3a.2 mục C: dev-time, cache được — output là file SQL mới + entry",
-          "journal. SQL-first nên mọi migration đi qua `generate --custom`",
-          "(file rỗng để viết DDL như GUC/grant, vẫn vào journal). Truyền tên",
-          "bằng `pnpm nx run llm-tenant-db:db-generate -- --name=<tên>`.",
-          "Migration đã apply là bất biến — regenerate/edit bị cấm (invariant 10)."
-        ]
+        "configurations": {}
       },
       "db-check": {
         "executor": "nx:run-commands",
@@ -112,10 +105,7 @@
           "cwd": "deploys/llm-tenant-db",
           "command": "npx drizzle-kit check"
         },
-        "configurations": {},
-        "//": [
-          "§3a.2 mục C: dev + CI — journal hợp lệ, không stale. Không chạm database."
-        ]
+        "configurations": {}
       },
       "db-migrate": {
         "executor": "nx:run-commands",
@@ -124,16 +114,7 @@
           "cwd": "deploys/llm-tenant-db",
           "command": "npx tsx --tsconfig tsconfig.db.json runner.mts migrate"
         },
-        "configurations": {},
-        "//": [
-          "§3a.2/§3a.3: không cache — mutate state thật, cùng policy với local-up.",
-          "Runner wrapper giữ advisory lock `pg_advisory_lock(hashtext('db-llm-tenant'))`",
-          "trên kết nối thẳng (không Hyperdrive — HD6), assert `current_database()`",
-          "trước khi lock, rồi spawn `drizzle-kit migrate` giữ connection lock sống",
-          "suốt lần chạy. Cần `DATABASE_URL` của role `ecoma_llm_tenant_migrator`",
-          "(CI job contract §3.1). Chế độ `stamp` (cutover 2 bước, §3a.3 mục D)",
-          "chạy trực tiếp: `npx tsx --tsconfig tsconfig.db.json runner.mts stamp`."
-        ]
+        "configurations": {}
       },
       "lint": {
         "executor": "@nx/oxlint:lint",
@@ -164,20 +145,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -201,20 +168,6 @@
           "{projectRoot}/bin/**/*.{d.ts,d.cts,d.mts}",
           "{projectRoot}/bin/tsconfig.tsbuildinfo"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/llm-tenant-db",
@@ -255,33 +208,12 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/llm-tenant-db",
           "command": "vitest run"
         },
         "configurations": {},
-        "parallelism": true,
-        "//": [
-          "Target `test` = unit colocated của project (06-testing.md §4):",
-          "`runner.spec.ts` — hàm thuần của wrapper (args, timeout URL, journal)",
-          "không Docker. Suite integration chạy Docker + PostgreSQL thật ở target",
-          "`test-integration` với config riêng."
-        ]
+        "parallelism": true
       },
       "test-integration": {
         "executor": "nx:run-commands",
@@ -291,14 +223,7 @@
           "cwd": "deploys/llm-tenant-db",
           "command": "npx vitest run -c vitest.integration.config.mts tests/integrations"
         },
-        "configurations": {},
-        "//": [
-          "Suite integration app-owned (06-testing.md §2/§4): runner migration",
-          "thật trên PostgreSQL thật (testcontainers) — apply/no-replay/advisory",
-          "lock mutual exclusion/interrupted-migration/stamp. Bắt buộc Docker:",
-          "vắng Docker là suite ĐỎ (globalSetup probe ném), không skip.",
-          "Target không cacheable vì mutate database thật."
-        ]
+        "configurations": {}
       }
     }
   }

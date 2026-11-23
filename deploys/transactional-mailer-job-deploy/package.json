@@ -24,7 +24,6 @@
     ],
     "targets": {
       "staging-preview": {
-        "//": "Lane staging #355 (`-c staging`): `pulumi preview --json` trên stack `staging` backend R2 (`ECOMA_PULUMI_STATE_URL_STAGING`), qua entry `staging.ts` → engine `staging-run.ts` (bản copy có chủ đích của pattern đã merge #453/#539). Credential fail-closed trước khi đụng Pulumi; mỗi lần chạy ghi một bản ghi evidence JSON mới vào `.staging-evidence/`. Chương trình trên stack staging khai D1 `stg-mail-job` (#355, `staging-program.ts`) — đúng bảng ownership §9.1 (Pulumi provision resource, Wrangler deploy Worker, migration thuộc #382). KHÔNG có target staging-down/destroy: teardown staging KHÔNG có workflow (§7.4.1), checklist tay thuộc runbook #364. KHÔNG có lane local: worker chạy trong WIC container của `transactional-mail-deploy` trên local. Cache bị tắt ở targetDefaults `nx.json` (CONTRACT: mutate Pulumi state staging thật).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mailer-job-deploy",
@@ -35,7 +34,6 @@
         }
       },
       "staging-up": {
-        "//": "Xem `staging-preview`: cùng lane, cùng entry, bước `pulumi up --yes --json` có kiểm soát (không ad-hoc). Chỉ hai phase `preview`|`up` tồn tại — down/destroy bị entry từ chối tường minh. Sau một lần `up` xanh, entry đọc stack output `mailJobDatabaseId` và surface id thật để wiring `env.staging.d1_databases` của `apps/transactional-mailer-job/wrangler.jsonc` (§9.1 — id do Pulumi cung cấp, Wrangler không tạo resource).",
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mailer-job-deploy",
@@ -77,21 +75,6 @@
         "outputs": [
           "{projectRoot}/test-output/vitest/coverage"
         ],
-        "metadata": {
-          "technologies": [
-            "vitest"
-          ],
-          "description": "Run Vitest tests",
-          "help": {
-            "command": "pnpm exec vitest --help",
-            "example": {
-              "options": {
-                "bail": 1,
-                "coverage": true
-              }
-            }
-          }
-        },
         "options": {
           "cwd": "deploys/transactional-mailer-job-deploy",
           "command": "vitest run"
@@ -128,20 +111,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       },
@@ -168,20 +137,6 @@
         "syncGenerators": [
           "@nx/js:typescript-sync"
         ],
-        "metadata": {
-          "technologies": [
-            "typescript"
-          ],
-          "description": "Runs type-checking for the project.",
-          "help": {
-            "command": "pnpm exec tsc --build --help",
-            "example": {
-              "args": [
-                "--force"
-              ]
-            }
-          }
-        },
         "executor": "nx:run-commands",
         "options": {
           "cwd": "deploys/transactional-mailer-job-deploy",

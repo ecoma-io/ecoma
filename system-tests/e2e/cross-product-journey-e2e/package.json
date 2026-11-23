@@ -80,18 +80,7 @@
         "options": {
           "cwd": "system-tests/e2e/cross-product-journey-e2e",
           "command": "node bin/run-system-test.mjs"
-        },
-        "//": [
-          "Target canonical `system-test` của system-test suite (docs/architecture/06-testing.md §4).",
-          "`cache: false` là CONTRACT: stack local phía sau là external state sống ngoài inputs của Nx.",
-          "`dependsOn` kéo `local-up` của chín deploy project + `test-lane-up` của llm-api-deploy (lane",
-          "hội tụ mock upstream + serving). Runner `bin/run-system-test.mjs` đọc `lane.ts state` để nạp",
-          "env `LLM_E2E_*` cho Playwright rồi GIỮ fence: plaintext key consumer không được xuất hiện",
-          "trong captured output của suite.",
-          "Hợp đồng `local-lifecycle-graph.spec` đòi: đúng MỘT entry dependsOn -> local-up,",
-          "configurations.local tồn tại, cache=false, và implicitDependencies PHỦ mọi deploy project",
-          "mà dependsOn trỏ tới."
-        ]
+        }
       },
       "typecheck": {
         "executor": "nx:run-commands",
@@ -112,10 +101,6 @@
           "cwd": "system-tests/e2e/cross-product-journey-e2e",
           "command": "tsc --noEmit -p tsconfig.json"
         },
-        "//": [
-          "Suite KHÔNG build artifact nào — chạy qua playwright trực tiếp, nên typecheck là",
-          "`tsc --noEmit` một lần cho toàn bộ TS nguồn (spec + support + global-setup)."
-        ],
         "configurations": {},
         "parallelism": true
       },
@@ -150,20 +135,6 @@
             ]
           }
         ],
-        "metadata": {
-          "technologies": [
-            "oxlint"
-          ],
-          "description": "Runs Oxlint on project",
-          "help": {
-            "command": "pnpm exec oxlint --help",
-            "example": {
-              "options": {
-                "max-warnings": 0
-              }
-            }
-          }
-        },
         "configurations": {},
         "options": {}
       }
