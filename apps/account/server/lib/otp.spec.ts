@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/otp.ts` — policy hằng, sinh mã không bias, digest
  * keyed-HMAC, so sánh timing-safe, rate limit và phân loại mục tiêu.

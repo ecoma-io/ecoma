@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/handoff.ts` — phần thuần: TTL, hash handle và
  * phép so khớp binding với session đang trình X.

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/data-domain.ts` — phần **thuần** của data domain:
  * allowlist, validator hình dạng, mask, publicSessionId, view builders.
