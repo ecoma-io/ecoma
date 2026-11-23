@@ -1,15 +1,19 @@
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
 import vue from '@vitejs/plugin-vue';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/libs/ui-ecoma-logo',
-  // tsconfigPaths resolve alias tsconfig (`@ecoma-io/*`), vue() transform
-  // component `.vue` — đặt sau vì transform pipeline đọc theo thứ tự.
+  // `resolve.tsconfigPaths` (native Vite) resolve alias tsconfig
+  // (`@ecoma-io/*`), vue() transform component `.vue` — đặt sau vì transform
+  // pipeline đọc theo thứ tự.
   // Không cần copy-assets: vitest không emit build output, còn spec đọc asset
   // thẳng từ source qua `readFileSync` (xem `ecoma-logo.spec.ts`).
-  plugins: [tsconfigPaths(), vue()],
+  plugins: [vue()],
+  resolve: {
+    // Vite native thay cho plugin `vite-tsconfig-paths` (deprecated).
+    tsconfigPaths: true,
+  },
   test: {
     name: '@ecoma-io/ui-ecoma-logo',
     watch: false,
