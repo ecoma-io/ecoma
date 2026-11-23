@@ -282,6 +282,11 @@ jobs:
       - name: Build the deploy unit
         env:
           NX_PROJECT: ${{ matrix.project }}
+          # Self-hosted Nx remote cache (#592) — trusted lane, revision đã qua
+          # guard ở job context; composite action run-nx-target không dùng ở
+          # đây (nx run trực tiếp) nên forward thẳng vào env của step.
+          ECOMA_NX_CACHE_SERVER: ${{ secrets.ECOMA_NX_CACHE_SERVER }}
+          ECOMA_NX_CACHE_ACCESS_TOKEN: ${{ secrets.ECOMA_NX_CACHE_ACCESS_TOKEN }}
         run: pnpm exec nx run "$NX_PROJECT":build
       - name: Write the build manifest
         env:

@@ -63,6 +63,15 @@ on:
       cloudflare_account_id:
         description: 'Org secret ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID — staging Cloudflare account id; ACCOUND is the literal org secret name (§6.12)'
         required: true
+      # Self-hosted Nx remote cache (#592, docs/applications/remote-cache/03-operations.md §4).
+      # Optional (workflow_call secrets không nhận `default` — actionlint): caller
+      # không truyền thì giá trị rỗng, Nx rơi về local cache như trước wiring này.
+      nx_cache_server:
+        description: 'Org secret ECOMA_NX_CACHE_SERVER — self-hosted Nx remote cache URL; forwarded to NX_SELF_HOSTED_REMOTE_CACHE_SERVER in the build job'
+        required: false
+      nx_cache_access_token:
+        description: 'Org secret ECOMA_NX_CACHE_ACCESS_TOKEN — write key of the remote-cache CI project; forwarded to NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN in the build job'
+        required: false
 
 permissions:
   contents: read
@@ -150,6 +159,11 @@ jobs:
       - name: Build the deploy unit
         env:
           NX_PROJECT: ${{ inputs.project }}
+          # Self-hosted Nx remote cache (#592) — trusted lane (revision đã qua
+          # guard ở job context); rỗng nghĩa là caller không cấp credential,
+          # Nx rơi về local cache như trước khi wiring này tồn tại.
+          NX_SELF_HOSTED_REMOTE_CACHE_SERVER: ${{ secrets.nx_cache_server }}
+          NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN: ${{ secrets.nx_cache_access_token }}
         run: pnpm exec nx run "$NX_PROJECT":build
       # Hard assertion #353: `if-no-files-found: error` của upload-artifact
       # KHÔNG bắt được trường hợp output build thiếu — hai path còn lại
