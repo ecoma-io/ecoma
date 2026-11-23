@@ -146,8 +146,5 @@
         }
       }
     ]
-  },
-  "affected": {
-    "legacy": true
   }
 }
