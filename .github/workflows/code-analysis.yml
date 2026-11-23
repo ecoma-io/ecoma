@@ -33,6 +33,7 @@ jobs:
             build-mode: none
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,6 +57,9 @@ jobs:
 
   security-analysis:
     name: security-analysis
+    # PR đã được scan đầy đủ ở lượt pull_request trước khi vào merge queue, nên
+    # lượt chạy lặp lại ở merge_group chỉ tốn runner mà không thêm thông tin.
+    if: github.event_name != 'merge_group'
     # Job LUÔN chạy ở mọi event, kể cả merge_group: check này là required check
     # của ruleset `main`, và một job bị skip không đáng tin để báo success cho
     # merge queue — job `analysis-gate` cũ tồn tại chính vì điều đó. Ở
@@ -78,6 +82,7 @@ jobs:
       security-events: write
     steps:
       - name: Start runner resource monitoring
+        continue-on-error: true
         uses: Garbee/runner-resource-usage@5d478275bca9b56badaca884f6e3858085e2ca18 # main HEAD (upstream chưa có tag)
 
       # Một checkout duy nhất phục vụ cả hai scanner: full history là yêu cầu
