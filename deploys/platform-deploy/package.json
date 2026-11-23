@@ -137,7 +137,7 @@
         },
         "options": {
           "cwd": "deploys/platform-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

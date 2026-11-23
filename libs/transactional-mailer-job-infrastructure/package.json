@@ -182,7 +182,7 @@
         },
         "options": {
           "cwd": "libs/transactional-mailer-job-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

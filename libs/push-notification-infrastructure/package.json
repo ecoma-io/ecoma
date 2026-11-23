@@ -182,7 +182,7 @@
         },
         "options": {
           "cwd": "libs/push-notification-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

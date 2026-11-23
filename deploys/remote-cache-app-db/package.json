@@ -271,7 +271,7 @@
         },
         "options": {
           "cwd": "deploys/remote-cache-app-db",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

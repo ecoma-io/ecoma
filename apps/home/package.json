@@ -172,7 +172,7 @@
         },
         "options": {
           "cwd": "apps/home",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

@@ -266,7 +266,7 @@
         },
         "options": {
           "cwd": "deploys/staff-access-db",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

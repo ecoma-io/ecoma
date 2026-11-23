@@ -217,7 +217,7 @@
         },
         "options": {
           "cwd": "tools/dx",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

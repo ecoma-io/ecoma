@@ -272,7 +272,7 @@
         },
         "options": {
           "cwd": "deploys/llm-marketplace-db",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

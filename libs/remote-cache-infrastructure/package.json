@@ -191,7 +191,7 @@
         },
         "options": {
           "cwd": "libs/remote-cache-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

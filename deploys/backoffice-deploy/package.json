@@ -151,7 +151,7 @@
         },
         "options": {
           "cwd": "deploys/backoffice-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

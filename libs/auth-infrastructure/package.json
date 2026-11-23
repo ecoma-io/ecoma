@@ -196,7 +196,7 @@
         },
         "options": {
           "cwd": "libs/auth-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

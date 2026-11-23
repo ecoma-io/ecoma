@@ -177,7 +177,7 @@
         },
         "options": {
           "cwd": "tools/account-bridge",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

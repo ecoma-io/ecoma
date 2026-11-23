@@ -89,7 +89,7 @@
         },
         "options": {
           "cwd": "deploys/staging-pg-host",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

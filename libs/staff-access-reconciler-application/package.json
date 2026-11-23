@@ -177,7 +177,7 @@
         },
         "options": {
           "cwd": "libs/staff-access-reconciler-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

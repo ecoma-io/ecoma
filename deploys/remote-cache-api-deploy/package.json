@@ -250,7 +250,7 @@
         },
         "options": {
           "cwd": "deploys/remote-cache-api-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

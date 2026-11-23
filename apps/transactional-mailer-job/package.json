@@ -325,7 +325,7 @@
         },
         "options": {
           "cwd": "apps/transactional-mailer-job",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

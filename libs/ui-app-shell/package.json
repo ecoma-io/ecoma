@@ -150,7 +150,7 @@
         },
         "options": {
           "cwd": "libs/ui-app-shell",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

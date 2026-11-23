@@ -179,7 +179,7 @@
         },
         "options": {
           "cwd": "libs/auth-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

@@ -193,7 +193,7 @@
         },
         "options": {
           "cwd": "libs/deployment",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

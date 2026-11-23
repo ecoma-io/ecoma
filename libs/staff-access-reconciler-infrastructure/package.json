@@ -181,7 +181,7 @@
         },
         "options": {
           "cwd": "libs/staff-access-reconciler-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

@@ -146,7 +146,7 @@
         },
         "options": {
           "cwd": "deploys/pact-broker-api-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

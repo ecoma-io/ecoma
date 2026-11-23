@@ -182,7 +182,7 @@
         },
         "options": {
           "cwd": "libs/push-notification-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

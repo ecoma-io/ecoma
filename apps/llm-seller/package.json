@@ -105,7 +105,7 @@
         },
         "options": {
           "cwd": "apps/llm-seller",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

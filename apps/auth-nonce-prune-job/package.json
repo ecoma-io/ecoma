@@ -304,7 +304,7 @@
         },
         "options": {
           "cwd": "apps/auth-nonce-prune-job",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

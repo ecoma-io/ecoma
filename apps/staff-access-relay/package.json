@@ -307,7 +307,7 @@
         },
         "options": {
           "cwd": "apps/staff-access-relay",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

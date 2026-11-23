@@ -133,7 +133,7 @@
         },
         "options": {
           "cwd": "apps/remote-cache-app",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

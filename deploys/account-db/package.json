@@ -266,7 +266,7 @@
         },
         "options": {
           "cwd": "deploys/account-db",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

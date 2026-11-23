@@ -189,7 +189,7 @@
         },
         "options": {
           "cwd": "tools/llm-upstream-mock",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

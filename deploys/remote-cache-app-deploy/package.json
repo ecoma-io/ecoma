@@ -230,7 +230,7 @@
         },
         "options": {
           "cwd": "deploys/remote-cache-app-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

@@ -265,7 +265,7 @@
         },
         "options": {
           "cwd": "apps/staff-access",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

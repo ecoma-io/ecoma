@@ -147,7 +147,7 @@
         },
         "options": {
           "cwd": "deploys/auth-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true
