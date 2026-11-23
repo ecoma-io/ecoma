@@ -333,12 +333,12 @@ describe('roles and grants on db-remote-cache', () => {
   it('ADR-0015: no migration executes a foreign data wrapper, dblink, or foreign table', async () => {
     // Query `pg_extension` chỉ thấy extension **đã cài**; một câu bị comment
     // hay một `dblink` trong migration không lộ ở đó — phải đọc file SQL của
-    // authority (cutover #377: migrations sống ở `deploys/remote-cache-db`).
+    // authority (cutover #377: migrations sống ở `databases/remote-cache-db`).
     const { readdirSync, readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const migrationsDir = resolve(
       import.meta.dirname,
-      '../../../../deploys/remote-cache-db/migrations',
+      '../../../../databases/remote-cache-db/migrations',
     );
     const files = readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.sql'))

@@ -42,7 +42,7 @@
  * PASSWORD` được dựng trong shell và nạp psql qua STDIN (`docker exec -i`), nên
  * không process nào giữ giá trị trong argv (chi tiết kênh ở `scripts.ts`).
  * Migration chạy **đường
- * canonical** (`deploys/remote-cache-db/runner.mts migrate` — advisory lock
+ * canonical** (`databases/remote-cache-db/runner.mts migrate` — advisory lock
  * `hashtext('db-remote-cache')`) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock). SAU migration, bootstrap tenant canonical `ecoma` chạy **đường
@@ -236,7 +236,7 @@ const provision = new command.local.Command(
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `tsx runner.mts migrate` của authority (`deploys/remote-cache-db` —
+ * chạy đúng `tsx runner.mts migrate` của authority (`databases/remote-cache-db` —
  * advisory lock `hashtext('db-remote-cache')`, mọi DDL idempotent). Repo mount
  * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).
  *

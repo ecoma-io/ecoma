@@ -9,12 +9,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-/** Thu muc authority `deploys/staff-access-db/migrations` (02-delivery.md §3a.1);
+/** Thu muc authority `databases/staff-access-db/migrations` (02-delivery.md §3a.1);
  * helper nay chi DOC file SQL cho test integration — app consumer →
  * `deploys/<name>-db` la chieu dependency duoc phep theo §3a.1. */
 export const MIGRATIONS_DIR = resolve(
   import.meta.dirname,
-  '../../../deploys/staff-access-db/migrations',
+  '../../../databases/staff-access-db/migrations',
 );
 
 /** Ten database cua service nay; advisory lock lay theo chinh ten do. */

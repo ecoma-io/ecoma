@@ -4,7 +4,7 @@
  * vào argv của process host, vào script text, vào output bắt được** trong lúc
  * provision chạy THẬT (đi qua shim và sweep y hệt); đồng thời provision đúng
  * (guard-create database + 2 role, grant, hardening), migrate đúng đường canonical
- * mới (cutover #375 — runner thật của `deploys/backoffice-db`, chuỗi `adopt &&
+ * mới (cutover #375 — runner thật của `databases/backoffice-db`, chuỗi `adopt &&
  * migrate`, trong container ephemeral trên network của suite) và rotation +
  * idempotency giữ nguyên hành vi.
  *
@@ -87,7 +87,7 @@ const ALL_ROTATED: ReadonlyArray<{ channel: string; value: string }> = ALL_CHANN
 
 /**
  * Gốc repo thật — mount `/repo` của script migrate, y hệt production. Container
- * migrate chạy runner thật của `deploys/backoffice-db` từ gốc repo này. Bốn
+ * migrate chạy runner thật của `databases/backoffice-db` từ gốc repo này. Bốn
  * lần `dirname` từ `tests/integrations/`: integrations → tests →
  * backoffice-deploy → deploys → gốc repo. Sai một cấp là project directory
  * không tồn tại trong mount và migrate chết ngay (fail-loud đúng như baseline).

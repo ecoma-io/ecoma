@@ -7,7 +7,7 @@
  * Bản sao pattern của `deploys/llm-api-deploy/tests/integrations/argv-hygiene.spec.ts`
  * (06-testing.md §6: không shared test-support giữa các deploy unit), mở rộng
  * đúng BỐN đường mà unit này có: provision (hai role), migrate
- * (`deploys/pact-broker-db/runner.mts` — cutover #378),
+ * (`databases/pact-broker-db/runner.mts` — cutover #378),
  * bootstrap tenant canonical (`db/bootstrap-tenant.mts`). Script provision
  * token máy của BFF đã bị retire (ADR-0031 §5, #206) — không còn step nào để
  * đo ở đây; hành vi script `db/provision-machine-token.mts` (còn là công cụ
@@ -520,7 +520,7 @@ describe('migrate runs the canonical runner against the right database', () => {
     const flowState = requireFlow();
     const { result } = flowState.migrateRun;
     expect(result.code).toBe(0);
-    // stdout của `deploys/pact-broker-db/runner.mts` (cutover #378): dòng
+    // stdout của `databases/pact-broker-db/runner.mts` (cutover #378): dòng
     // "migrate complete" chỉ in sau khi guard `current_database()` và
     // post-verify history đã qua — bằng chứng migrate nối đúng db-pact-broker
     // và ghi đủ history (bảng `pact` được kiểm chứng riêng ở test dưới).

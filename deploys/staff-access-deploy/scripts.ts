@@ -146,7 +146,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy runner thật
- * của `deploys/staff-access-db` (wrapper §3a.3 — guard `current_database()`
+ * của `databases/staff-access-db` (wrapper §3a.3 — guard `current_database()`
  * fail-closed, advisory lock giữ nguyên khóa `hashtext('db-staff-access')` của
  * runner cũ, statement_timeout, `drizzle-kit migrate` atomic per-run). Chuỗi
  * `adopt && migrate` là hợp đồng cutover #375: trên stack legacy, adopt stamp
@@ -166,7 +166,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/staff-access-db \\
+  -w /repo/databases/staff-access-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'

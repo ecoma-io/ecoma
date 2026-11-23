@@ -204,11 +204,11 @@ export interface ArchProjectNode {
   tags: readonly string[];
   dependencies: readonly string[];
   /**
-   * Đường dẫn project gốc, tương đối so với repo root.
+   * Đường path project gốc, tương đối so với repo root.
    *
-   * Cần cho bất biến `deploys/` ⇔ `type:deployment` (`DEPLOYMENT_DIR`): chỉ
+   * Cần cho bất biến vị trí ⇔ `type:deployment` (`DEPLOYMENT_DIRS`): chỉ
    * có tag thì validator không biết project đặt ở đâu, và một project đặt
-   * trong `deploys/` mà gắn tag khác sẽ trốn khỏi mọi lượt kiểm deployment.
+   * trong thư mục deployment mà gắn tag khác sẽ trốn khỏi mọi lượt kiểm.
    * Optional để các bài test tổng hợp không phải dựng `root` khi không cần.
    */
   root?: string;
@@ -458,6 +458,17 @@ export const DEPLOYMENT_TYPE = 'type:deployment';
 export const DEPLOYMENT_DIR = 'deploys';
 
 /**
+ * Thư mục chứa migration authority `*-db` (hợp đồng migration §3a, issue
+ * #618): tách khỏi `deploys/` — Pulumi deploy project và migration project là
+ * hai vòng đời khác nhau. Mỗi thư mục ở đây phải mang `type:deployment` và
+ * ngược lại, cùng bất biến hai chiều với `DEPLOYMENT_DIR`.
+ */
+export const DATABASE_DIR = 'databases';
+
+/** Các thư mục được phép chứa project `type:deployment` — dùng cho lượt kiểm vị trí. */
+export const DEPLOYMENT_DIRS: readonly string[] = [DEPLOYMENT_DIR, DATABASE_DIR];
+
+/**
  * Bất biến contract-edge theo scope nguồn: scope nguồn chỉ được phụ thuộc
  * `type:contracts` của các scope được liệt kê ở value.
  *
@@ -682,30 +693,32 @@ function findCrossUnitDeploymentEdges(projects: Map<string, ArchProjectNode>): A
 /**
  * (0) Bất biến vị trí ⇔ tag, hai chiều.
  *
- * - Project đặt trong `deploys/` mà thiếu `type:deployment` sẽ đi vòng qua mọi
- *   lượt kiểm deployment, nên `deploys/` chỉ còn là quy ước đặt tên chứ không
- *   phải lớp chuẩn có ràng buộc.
- * - Project mang `type:deployment` mà đặt ngoài `deploys/` thì tầng deployment
- *   lan sang project khác, phá đúng ranh giới mà task này dựng ra.
+ * - Project đặt trong một thư mục deployment ({@link DEPLOYMENT_DIRS}) mà
+ *   thiếu `type:deployment` sẽ đi vòng qua mọi lượt kiểm deployment, nên vị
+ *   trí chỉ còn là quy ước đặt tên chứ không phải lớp chuẩn có ràng buộc.
+ * - Project mang `type:deployment` mà đặt ngoài các thư mục đó thì tầng
+ *   deployment lan sang project khác, phá đúng ranh giới mà task này dựng ra.
  *
  * Một chiều không đủ: chiều nào thiếu thì vi phạm tương ứng lọt qua.
  */
 function validateDeploymentPlacement(projects: Map<string, ArchProjectNode>): ArchTagViolation[] {
   const violations: ArchTagViolation[] = [];
   for (const project of projects.values()) {
-    const inDeploys = project.root?.startsWith(`${DEPLOYMENT_DIR}/`) ?? false;
+    const inDeploymentDir =
+      project.root !== undefined &&
+      DEPLOYMENT_DIRS.some((dir) => project.root?.startsWith(`${dir}/`));
     const tagged = project.tags.includes(DEPLOYMENT_TYPE);
-    if (inDeploys && !tagged) {
+    if (inDeploymentDir && !tagged) {
       violations.push({
         project: project.name,
         kind: 'misplaced-deployment-project',
-        detail: `a project inside ${DEPLOYMENT_DIR}/ must carry ${DEPLOYMENT_TYPE}`,
+        detail: `a project inside ${DEPLOYMENT_DIRS.join('/')} must carry ${DEPLOYMENT_TYPE}`,
       });
-    } else if (tagged && !inDeploys) {
+    } else if (tagged && !inDeploymentDir) {
       violations.push({
         project: project.name,
         kind: 'misplaced-deployment-project',
-        detail: `${DEPLOYMENT_TYPE} must be placed inside ${DEPLOYMENT_DIR}/`,
+        detail: `${DEPLOYMENT_TYPE} must be placed inside ${DEPLOYMENT_DIRS.join(' or ')}/`,
       });
     }
   }

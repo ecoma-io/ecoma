@@ -40,7 +40,7 @@ pnpm nx run @ecoma-io/remote-cache-api:typecheck   # tsc --build + tsc --noEmit 
 ```
 
 - Dev server dùng port khai trong `dev` của `wrangler.jsonc` (4207); Hyperdrive binding khai id chuỗi rỗng, connection string local đi qua biến `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_DB_REMOTE_CACHE`.
-- Migration chạy qua authority `deploys/remote-cache-db` (`pnpm nx run remote-cache-db:db-migrate` — cutover #377): mutate database thật từ runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive; `bootstrap-tenant.mts` trong thư mục này là đường DML duy nhất còn lại.
+- Migration chạy qua authority `databases/remote-cache-db` (`pnpm nx run remote-cache-db:db-migrate` — cutover #377): mutate database thật từ runner có kết nối trực tiếp tới PostgreSQL, không qua Hyperdrive; `bootstrap-tenant.mts` trong thư mục này là đường DML duy nhất còn lại.
 
 ## Testing
 

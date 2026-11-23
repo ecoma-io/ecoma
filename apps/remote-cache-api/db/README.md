@@ -2,7 +2,7 @@
 
 **Cutover #377** (hợp đồng `02-delivery.md` §3a): schema và migration của
 `db-remote-cache` đã chuyển sang migration authority
-[`deploys/remote-cache-db`](../../../deploys/remote-cache-db/README.md) — một
+[`databases/remote-cache-db`](../../../databases/remote-cache-db/README.md) — một
 database một runner sống ở đó (runner.mts + drizzle-kit + journal). Thư mục này
 không còn runner bản sao; nó giữ lại duy nhất CLI bootstrap tenant vận hành
 (`bootstrap-tenant.mts`), đường DML idempotent chạy sau migration trong CI và
@@ -15,7 +15,7 @@ không bao giờ chạy trên Worker serving path.
 Trạng thái schema sau apply được đo ở tầng app bởi
 `tests/databases/migrations.spec.ts` (harness spawn runner của authority);
 semantics của runner (no-replay, checkpoint, stamp, advisory lock) thuộc suite
-integration của chính authority `deploys/remote-cache-db`.
+integration của chính authority `databases/remote-cache-db`.
 
 ## `db-remote-cache` là greenfield provisioning
 
@@ -33,7 +33,7 @@ không bao giờ nghĩa cùng entity trên hai context.
 Migration history **độc lập** với các database khác: mỗi deploy unit rollout độc lập,
 dùng chung bảng migration là cách buộc các service vào một release.
 
-## Migrations hiện có (sống ở `deploys/remote-cache-db/migrations/`)
+## Migrations hiện có (sống ở `databases/remote-cache-db/migrations/`)
 
 | File                                      | Nội dung                                                                                                                                                                                                                                                                                                                |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

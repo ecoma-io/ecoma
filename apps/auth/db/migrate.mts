@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * Đường dẫn thư mục authority `deploys/auth-db/migrations` (02-delivery.md §3a.1).
+ * Đường dẫn thư mục authority `databases/auth-db/migrations` (02-delivery.md §3a.1).
  *
  * Tính từ vị trí file này chứ không từ `process.cwd()`: Nx đặt `cwd: apps/auth`
  * cho target của project, còn `vitest` lại chạy với `root` khác, và `cwd` là
@@ -11,12 +11,12 @@ import { resolve } from 'node:path';
  * `resolve` chỉ chuẩn hoá, không cần `dirname(fileURLToPath(...))` cho một đường
  * dẫn đã là tuyệt đối.
  *
- * Migration SQL + runbook operator sống ở project authority `deploys/auth-db`
- * (runbook: `deploys/auth-db/migrations/README.md`); helper này chỉ ĐỌC file SQL
+ * Migration SQL + runbook operator sống ở project authority `databases/auth-db`
+ * (runbook: `databases/auth-db/migrations/README.md`); helper này chỉ ĐỌC file SQL
  * cho test integration — app consumer → `deploys/<name>-db` là chiều dependency
  * được phép theo §3a.1.
  */
-export const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../deploys/auth-db/migrations');
+export const MIGRATIONS_DIR = resolve(import.meta.dirname, '../../../databases/auth-db/migrations');
 
 /**
  * Tên database của service này trong provisioning; runner dùng chính tên này

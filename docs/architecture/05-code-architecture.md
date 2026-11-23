@@ -35,6 +35,8 @@ apps/
 deploys/
   platform-deploy                # tầng platform hạ tầng mà mọi deployment project khác phụ thuộc
   <unit>-deploy                  # Pulumi deployment project của một deploy unit
+databases/
+  <unit>-db                      # migration authority của một cơ sở dữ liệu PostgreSQL (§3a, 02-delivery.md)
 
 libs/
   <bc>-domain                    # entities · value objects · domain services · domain errors
@@ -103,10 +105,11 @@ biến thành cycle. Cấm luôn cả edge giữa hai deployment unit khác nhau
 nhất để hai stack Pulumi trở thành một chu trình lifecycle, nên `validateDeploymentGraph` (`tools/dx/src/architecture/arch-tags.ts`) báo
 `cross-unit-deploy-dependency`.
 
-⚠️ **Bất biến vị trí ⇔ tag.** Một project đặt trong `deploys/` phải mang `type:deployment`, và một project mang
-`type:deployment` phải đặt trong `deploys/`. Nếu chỉ kiểm tag thì `deploys/` chỉ là quy ước đặt tên: một project trong
-`deploys/` mà gắn tag khác sẽ đi vòng qua mọi lượt kiểm deployment. Lượt này (`misplaced-deployment-project`) là duy nhất có
-thể nhìn thấy điều đó, và nó chạy trước mọi lượt khác trong `validateDeploymentGraph`.
+⚠️ **Bất biến vị trí ⇔ tag.** Một project đặt trong một thư mục deployment (`deploys/` cho Pulumi deploy project,
+`databases/` cho migration authority `*-db`) phải mang `type:deployment`, và một project mang `type:deployment` phải đặt
+trong một trong hai thư mục đó. Nếu chỉ kiểm tag thì vị trí chỉ là quy ước đặt tên: một project trong `deploys/` hay
+`databases/` mà gắn tag khác sẽ đi vòng qua mọi lượt kiểm deployment. Lượt này (`misplaced-deployment-project`) là duy nhất
+có thể nhìn thấy điều đó, và nó chạy trước mọi lượt khác trong `validateDeploymentGraph`.
 
 ⚠️ **Phụ thuộc trên Nx project graph ≠ thứ tự chạy task.** Khai `platform-deploy` là prerequisite là khai quan hệ trên
 **project graph** — nó cho biết cái gì phụ thuộc cái gì, và là điều kiện để kiểm tra được trước khi apply. Nó **không** tự

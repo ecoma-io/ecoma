@@ -139,7 +139,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy đúng runner
- * của migration authority `/repo/deploys/remote-cache-db`:
+ * của migration authority `/repo/databases/remote-cache-db`:
  * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
  * (advisory lock `hashtext('db-remote-cache')` pin `-2037959451`, mọi DDL
  * idempotent). KHÔNG chạy qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ
@@ -158,7 +158,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/remote-cache-db \\
+  -w /repo/databases/remote-cache-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate

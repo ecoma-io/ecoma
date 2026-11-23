@@ -42,7 +42,7 @@
  * được dựng trong shell và nạp psql qua STDIN (`docker exec -i`), nên không
  * process nào giữ giá trị trong argv (chi tiết kênh ở `scripts.ts`). Migration
  * chạy **đường
- * canonical** (wrapper `deploys/pact-broker-db/runner.mts` — advisory lock
+ * canonical** (wrapper `databases/pact-broker-db/runner.mts` — advisory lock
  * `hashtext('db-pact-broker')`, cutover #378) bằng container node pin chạy tsx binary của
  * repo, KHÔNG qua binding Hyperdrive (HD6: Hyperdrive không hỗ trợ advisory
  * lock — `docs/applications/pact-broker/03-operations.md` §2).
@@ -97,7 +97,7 @@ import {
  * container (platform facts PF5), nên `pg` của runner chỉ kết nối được từ bên
  * trong platform network. Container ephemeral chạy **tsx binary của repo** vẫn
  * là đúng một đường code canonical (wrapper `runner.mts` của
- * `deploys/pact-broker-db`) — deploy không tự viết lại vòng migration.
+ * `databases/pact-broker-db`) — deploy không tự viết lại vòng migration.
  */
 const NODE_IMAGE =
   'node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5';
@@ -255,7 +255,7 @@ const provision = new command.local.Command(dockerResourceName(ns, 'pact-api') +
 
 /**
  * Migration qua **đường canonical**: container ephemeral trên platform network
- * chạy đúng `runner.mts migrate` của `deploys/pact-broker-db` (cutover #378 —
+ * chạy đúng `runner.mts migrate` của `databases/pact-broker-db` (cutover #378 —
  * advisory lock `hashtext('db-pact-broker')`, kit giữ một transaction per run).
  * Repo mount
  * read-only. KHÔNG chạy qua binding Hyperdrive (HD6: advisory lock).

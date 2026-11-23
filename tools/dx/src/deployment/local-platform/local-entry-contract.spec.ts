@@ -30,11 +30,12 @@ const JOB_ONLY_PROJECTS = [
 ] as const;
 
 /**
- * Migration lifecycle projects (`deploys/*-db`, quyết định #373/#374): không
- * build image, không local lane — coordinator invoke `db-generate`/`db-check`/
- * `db-migrate` qua nx target theo hợp đồng migration §3a. Cùng exemption
- * marker `ecoma.deployment.status: "scaffold"` với job-only ở
+ * Migration lifecycle projects (quyết định #373/#374, #618): không build image,
+ * không local lane — coordinator invoke `db-generate`/`db-check`/`db-migrate`
+ * qua nx target theo hợp đồng migration §3a. Cùng exemption marker
+ * `ecoma.deployment.status: "scaffold"` với job-only ở
  * `local-lifecycle-graph.spec.ts` và arch-check reverse ownership.
+ * Từ #618 các project này nằm ở `databases/` thay vì `deploys/`.
  */
 const DATABASE_PROJECTS = [
   'pact-broker-app-db',

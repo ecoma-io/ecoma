@@ -7,7 +7,7 @@
  *
  * Script migrate tách khỏi provision kể từ cutover #375: provision chỉ tạo
  * database + role + grant; migration chạy container ephemeral riêng qua runner
- * thật của `deploys/backoffice-db` (wrapper §3a.3 + chế độ `adopt` của cutover),
+ * thật của `databases/backoffice-db` (wrapper §3a.3 + chế độ `adopt` của cutover),
  * thay thế pipe SQL cũ qua socket trust trong container.
  *
  * Bất biến bảo mật: giá trị secret (mật khẩu role) KHÔNG BAO GIỜ nằm trong
@@ -104,7 +104,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy runner thật
- * của `deploys/backoffice-db` (wrapper §3a.3 — guard `current_database()`
+ * của `databases/backoffice-db` (wrapper §3a.3 — guard `current_database()`
  * fail-closed, advisory lock giữ nguyên khóa `hashtext('db-backoffice')` của
  * pipe cũ, statement_timeout, `drizzle-kit migrate` atomic per-run). Chuỗi
  * `adopt && migrate` là hợp đồng cutover #375: trên stack legacy, adopt stamp
@@ -124,7 +124,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/backoffice-db \\
+  -w /repo/databases/backoffice-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   sh -c '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts adopt && /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate'

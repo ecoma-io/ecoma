@@ -8,7 +8,7 @@
  * không probe lại.
  *
  * Apply đi qua **runner thật của migration authority** — spawn CLI
- * `deploys/remote-cache-app-db/runner.mts migrate` (cutover #377) bằng
+ * `databases/remote-cache-app-db/runner.mts migrate` (cutover #377) bằng
  * credential migrator thật, không `SET ROLE`: advisory lock + guard
  * `current_database()` là một phần của điều được kiểm, còn `SET ROLE` không
  * chứng minh được quyền kết nối thật. Viết vòng apply riêng ở đây là tạo runner

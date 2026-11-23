@@ -27,7 +27,7 @@ export interface PgDatabaseContract {
    * target dùng-đi (guard của runner phải pass trên đúng tên này).
    */
   readonly database: string;
-  /** Migration authority `deploys/<slug>-db` (§3a.1 mục A) — slug suy từ tên database. */
+  /** Migration authority `databases/<slug>-db` (§3a.1 mục A, #618) — slug suy từ tên database. */
   readonly migrationsProject: string;
 }
 
@@ -69,7 +69,7 @@ export const WORKSPACE_ROOT = resolve(import.meta.dirname, '../../..');
 
 /** Đường dẫn tuyệt đối của migration authority project trên cây repo. */
 export function migrationsProjectPath(contract: PgDatabaseContract): string {
-  return resolve(WORKSPACE_ROOT, 'deploys', contract.migrationsProject);
+  return resolve(WORKSPACE_ROOT, 'databases', contract.migrationsProject);
 }
 
 /**

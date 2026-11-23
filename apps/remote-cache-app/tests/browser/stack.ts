@@ -807,14 +807,14 @@ export async function startRemoteCacheStack(): Promise<RemoteCacheStack> {
     // Cutover #377: apply qua runner của migration authority (advisory lock +
     // guard current_database()); app không còn runner bản sao.
     runCliScript(
-      'deploys/remote-cache-db/runner.mts',
+      'databases/remote-cache-db/runner.mts',
       { DATABASE_URL: apiMigratorUrl },
-      { cwd: resolve(REPO_ROOT, 'deploys/remote-cache-db'), tsconfig: 'tsconfig.db.json' },
+      { cwd: resolve(REPO_ROOT, 'databases/remote-cache-db'), tsconfig: 'tsconfig.db.json' },
     );
     runCliScript(
-      'deploys/remote-cache-app-db/runner.mts',
+      'databases/remote-cache-app-db/runner.mts',
       { DATABASE_URL: appMigratorUrl },
-      { cwd: resolve(REPO_ROOT, 'deploys/remote-cache-app-db'), tsconfig: 'tsconfig.db.json' },
+      { cwd: resolve(REPO_ROOT, 'databases/remote-cache-app-db'), tsconfig: 'tsconfig.db.json' },
     );
     runCliScript('apps/remote-cache-api/db/bootstrap-tenant.mts', {
       DATABASE_URL: apiMigratorUrl,

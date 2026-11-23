@@ -202,7 +202,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/llm-${inputs.target}-db \\
+  -w /repo/databases/llm-${inputs.target}-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   npx tsx --tsconfig tsconfig.db.json runner.mts migrate

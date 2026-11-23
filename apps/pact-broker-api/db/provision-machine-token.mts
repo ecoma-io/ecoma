@@ -12,7 +12,7 @@
  * Script độc lập với deploy pipeline: chạy trực tiếp từ CI runner / máy vận
  * hành với một PostgreSQL client giữ credential hợp lệ (runtime role —
  * provisioning chỉ làm DML), không bao giờ từ Worker — cùng ranh giới
- * runner/Worker với runner migration `deploys/pact-broker-db/runner.mts`
+ * runner/Worker với runner migration `databases/pact-broker-db/runner.mts`
  * (HD6, cutover #378) và `db/bootstrap-tenant.mts`.
  * `pnpm nx run @ecoma-io/pact-broker-api:db:provision-machine-token` là bề mặt
  * thực thi được ghi nhận cho môi trường ngoài local.
@@ -173,7 +173,7 @@ export function parseMachineTokenEnv(env: NodeJS.ProcessEnv): MachineTokenInput 
 /**
  * Cấp machine token — logic lõi dùng chung bởi CLI và test integration (một
  * đường code duy nhất, pattern runner-canonical của
- * `deploys/pact-broker-db/runner.mts` (cutover #378) và
+ * `databases/pact-broker-db/runner.mts` (cutover #378) và
  * `db/bootstrap-tenant.mts`: viết lại vòng apply bên trong test là kiểm một
  * bản sao, không phải runner).
  *

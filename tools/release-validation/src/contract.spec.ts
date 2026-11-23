@@ -27,7 +27,7 @@ describe('database inventory resolution', () => {
 
   it('maps the contract name to the deploys/<slug>-db project path', () => {
     expect(migrationsProjectPath(resolveDatabase('db-remote-cache'))).toBe(
-      `${WORKSPACE_ROOT}/deploys/remote-cache-db`,
+      `${WORKSPACE_ROOT}/databases/remote-cache-db`,
     );
   });
 });

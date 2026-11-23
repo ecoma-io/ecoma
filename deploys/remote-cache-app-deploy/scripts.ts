@@ -140,7 +140,7 @@ export interface MigrateScriptInputs {
 
 /**
  * Script migrate: container ephemeral trên platform network chạy đúng runner
- * của migration authority `deploys/remote-cache-app-db` —
+ * của migration authority `databases/remote-cache-app-db` —
  * `/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate`
  * (cutover #377: advisory lock riêng của database này + guard
  * `current_database()` fail closed; runner cũ `db/apply.mts` của app đã retire).
@@ -153,7 +153,7 @@ docker run --rm \\
   --network ${inputs.networkName} \\
   -v ${shellQuote(inputs.worktreeRoot)}:/repo:ro \\
   -v ${shellQuote(inputs.worktreeRoot)}/node_modules:/repo/node_modules \\
-  -w /repo/deploys/remote-cache-app-db \\
+  -w /repo/databases/remote-cache-app-db \\
   -e DATABASE_URL \\
   ${inputs.nodeImage} \\
   /repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate

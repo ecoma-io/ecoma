@@ -59,7 +59,7 @@ describe(`${PACT_BROKER_DATABASE} migrations on a real PostgreSQL`, () => {
 
   it('applies every migration file from an empty database', async () => {
     // Schema do harness apply qua runner thật của authority
-    // (`deploys/pact-broker-db/runner.mts` — cutover #378); assertion này đo
+    // (`databases/pact-broker-db/runner.mts` — cutover #378); assertion này đo
     // HÌNH DẠNG schema sau apply. Semantics của runner (no-replay, checkpoint,
     // stamp, lock) thuộc suite integration của chính authority.
     expect(await tableNames(db)).toEqual(EXPECTED_TABLES);

@@ -3,7 +3,7 @@
  * context `staff-access` qua Hyperdrive binding `DB_STAFF_ACCESS`.
  *
  * Mỗi module là một adapter của schema trong
- * `deploys/staff-access-db/migrations/` — SQL là bản chép của schema, không có
+ * `databases/staff-access-db/migrations/` — SQL là bản chép của schema, không có
  * hằng "tự chế" nào. Không có I/O nào ngoài postgres.js client; không có logic
  * authorization nào ở đây (catalog govern, backend enforce — A23/ADR-0009).
  */

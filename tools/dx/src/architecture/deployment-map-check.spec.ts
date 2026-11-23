@@ -244,7 +244,7 @@ describe('validateDeploymentMap — owner validity', () => {
     expect(violations[0].detail).toContain('home-deploy');
   });
 
-  it('reports an owner without a deploys/ directory even when the project is tagged', () => {
+  it('reports an owner without a deployment directory even when the project is tagged', () => {
     // Tag đúng trên graph nhưng thư mục đã đổi tên/xóa: map vẫn phải đỏ —
     // graph và đĩa là hai nguồn, lệch nhau ở chiều nào cũng là lỗi.
     const state = goodState();
@@ -255,7 +255,7 @@ describe('validateDeploymentMap — owner validity', () => {
     // trước, không nhân đôi lỗi).
     expect(violations).toHaveLength(1);
     expect(violations[0]).toMatchObject({ project: 'home', kind: 'invalid-map-owner' });
-    expect(violations[0].detail).toContain('deploys/');
+    expect(violations[0].detail).toContain('home-deploy has no directory');
   });
 
   it('rejects platform-deploy as an owner', () => {
@@ -288,7 +288,7 @@ describe('validateDeploymentMap — owner validity', () => {
   });
 
   it('exempts a scaffold-marked lifecycle project from the reverse ownership rule', () => {
-    // Quyết định #373/#374: `deploys/*-db` là lifecycle project (coordinator
+    // Quyết định #373/#374: project migration là lifecycle project (coordinator
     // invoke qua nx target) — không sở hữu app, không có entry trong map.
     // Marker `scaffold` trên đĩa thật của project là bằng chứng exemption;
     // `pact-broker-app-db` là case thật đầu tiên của repo.
@@ -297,6 +297,17 @@ describe('validateDeploymentMap — owner validity', () => {
     state.deploysOnDisk = [...(state.deploysOnDisk ?? []), 'pact-broker-app-db'];
     const violations = validateDeploymentMap(state);
     expect(violations.filter((v) => v.project === 'pact-broker-app-db')).toEqual([]);
+  });
+
+  it('finds the scaffold marker for a lifecycle project living in databases/ (#618)', () => {
+    // Migration authority đã tách khỏi `deploys/`: lượt scaffold exemption phải
+    // đọc marker ở `databases/<name>/package.json` — đọc sai thư mục là báo
+    // thiếu owner oan cho project lifecycle thật.
+    const state = goodState();
+    state.projects.set('account-db', deployNode('account-db'));
+    state.deploysOnDisk = [...(state.deploysOnDisk ?? []), 'account-db'];
+    const violations = validateDeploymentMap(state);
+    expect(violations.filter((v) => v.project === 'account-db')).toEqual([]);
   });
 
   it('exempts platform-deploy from the reverse ownership rule', () => {

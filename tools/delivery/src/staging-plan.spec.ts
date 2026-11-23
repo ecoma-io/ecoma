@@ -20,7 +20,7 @@ const ELIGIBILITY_TEXT = `
   "projects": {
     "@ecoma-io/home": { "staging": "releaseable" },
     "@ecoma-io/auth-nonce-prune-job": { "staging": "releaseable" },
-    "deploys/account-db": { "staging": "excluded", "reason": "db infra migrates via db-migrate" },
+    "databases/account-db": { "staging": "excluded", "reason": "db infra migrates via db-migrate" },
     "@ecoma-io/*-domain": { "staging": "excluded", "reason": "domain libs do not deploy" }
   }
 }
@@ -31,7 +31,7 @@ const NX_JSON = JSON.stringify({
 });
 
 const HOME_PACKAGE = JSON.stringify({
-  nx: { implicitDependencies: ['deploys/account-db'] },
+  nx: { implicitDependencies: ['databases/account-db'] },
 });
 const PRUNE_PACKAGE = JSON.stringify({ name: '@ecoma-io/auth-nonce-prune-job' });
 
@@ -67,7 +67,7 @@ function happyDeps(affected: string[]): StagingPlanDeps {
     [
       '@ecoma-io/home',
       '@ecoma-io/auth-nonce-prune-job',
-      'deploys/account-db',
+      'databases/account-db',
       '@ecoma-io/account-domain',
     ],
     affected,
@@ -115,19 +115,19 @@ describe('planStagingBatch', () => {
   it('keeps non-releaseable and unrelated affected projects out of the batch', () => {
     const plan = planStagingBatch(
       { deploySha: SHA, baseSha: BASE },
-      happyDeps(['@ecoma-io/home', 'deploys/account-db', '@ecoma-io/account-domain']),
+      happyDeps(['@ecoma-io/home', 'databases/account-db', '@ecoma-io/account-domain']),
     );
     expect(plan.units.map((unit) => unit.project)).toEqual(['@ecoma-io/home']);
-    expect(plan.affected).toContain('deploys/account-db');
+    expect(plan.affected).toContain('databases/account-db');
   });
 
   it('derives ONE migration step per consumed affected db project (§3a.1 edge)', () => {
     const plan = planStagingBatch(
       { deploySha: SHA, baseSha: BASE },
-      happyDeps(['@ecoma-io/home', 'deploys/account-db']),
+      happyDeps(['@ecoma-io/home', 'databases/account-db']),
     );
     expect(plan.migrations).toEqual([
-      { dbProject: 'deploys/account-db', target: 'db-migrate', units: ['@ecoma-io/home'] },
+      { dbProject: 'databases/account-db', target: 'db-migrate', units: ['@ecoma-io/home'] },
     ]);
   });
 
@@ -135,7 +135,7 @@ describe('planStagingBatch', () => {
     const deps = happyDeps([
       '@ecoma-io/home',
       '@ecoma-io/auth-nonce-prune-job',
-      'deploys/account-db',
+      'databases/account-db',
     ]);
     // Cả hai unit khai cùng một db — step gom các unit lại nhưng không nhân bản.
     const shared: StagingPlanDeps = {
@@ -146,7 +146,7 @@ describe('planStagingBatch', () => {
     const plan = planStagingBatch({ deploySha: SHA, baseSha: BASE }, shared);
     expect(plan.migrations).toEqual([
       {
-        dbProject: 'deploys/account-db',
+        dbProject: 'databases/account-db',
         target: 'db-migrate',
         units: ['@ecoma-io/home', '@ecoma-io/auth-nonce-prune-job'],
       },

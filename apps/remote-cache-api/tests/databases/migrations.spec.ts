@@ -1,6 +1,6 @@
 /**
  * Apply migration `db-remote-cache` qua **runner thật của migration authority**
- * (`deploys/remote-cache-db/runner.mts` — cutover #377) trên PostgreSQL thật,
+ * (`databases/remote-cache-db/runner.mts` — cutover #377) trên PostgreSQL thật,
  * rồi đo trạng thái database sau apply.
  *
  * ⚠️ Không dùng `describe.skipIf`: suite PG của repo đã đổi sang fail-loud —
@@ -10,7 +10,7 @@
  * ⚠️ Suite này đo **HÌNH DẠNG schema** sau khi authority apply (catalog, CHECK,
  * ownership). Semantics của runner (no-replay, checkpoint per-run, stamp,
  * advisory-lock mutual exclusion, guard wrong-database) thuộc suite integration
- * của chính authority — `deploys/remote-cache-db/tests/integrations/`.
+ * của chính authority — `databases/remote-cache-db/tests/integrations/`.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

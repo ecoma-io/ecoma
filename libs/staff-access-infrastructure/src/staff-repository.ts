@@ -6,7 +6,7 @@ import type { StaffAccessQueryable } from './postgres';
  * ⚠️ **SQL là bản chép của schema, schema là nơi khai ràng buộc** (cùng
  * nguyên tắc với `authorization-code-cas.ts` của auth-infrastructure): tên
  * cột và tên constraint ở đây khớp đúng
- * `deploys/staff-access-db/migrations/0001_staff_access_domain.sql` — lệch tên chỉ
+ * `databases/staff-access-db/migrations/0001_staff_access_domain.sql` — lệch tên chỉ
  * lộ ra khi chạy với schema thật, nên không có hằng "tự chế" nào ở module này.
  *
  * Milestone A chỉ expose đường **read** (list/get theo id/sub) và đường

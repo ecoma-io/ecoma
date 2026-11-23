@@ -20,7 +20,7 @@ import { join, resolve } from 'node:path';
 
 import { DEPLOYMENT_MAP, knownInvalidTargets, type AppDeploymentStatus } from './deployment-map.js';
 import {
-  DEPLOYMENT_DIR,
+  DEPLOYMENT_DIRS,
   DEPLOYMENT_TYPE,
   PLATFORM_DEPLOY_PROJECT,
   type ArchProjectNode,
@@ -60,13 +60,45 @@ export function readAppsFromDisk(dir: string = join(ROOT_DIR, 'apps')): string[]
   return names;
 }
 
-/** Đọc danh sách deploy project từ đĩa (`deploys/`), cùng quy ước apps/. */
+/**
+ * Đọc danh sách deploy project từ đĩa (`deploys/` + `databases/` — migration
+ * authority đã tách thành thư mục riêng, #618), cùng quy ước apps/.
+ */
 function readDeploysFromDisk(): string[] {
-  const names = readdirSync(join(ROOT_DIR, DEPLOYMENT_DIR), { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name);
+  const names: string[] = [];
+  for (const dir of DEPLOYMENT_DIRS) {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(join(ROOT_DIR, dir), { withFileTypes: true });
+    } catch {
+      continue; // thư mục chưa tồn tại (vd `databases/` chưa được tạo) — không phải lỗi dữ liệu
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) names.push(e.name);
+    }
+  }
   names.sort(); // mảng mới từ readdirSync — sort tại chỗ (target es2022)
   return names;
+}
+
+/**
+ * Tìm thư mục deploy project trên đĩa trong các thư mục deployment
+ * (`DEPLOYMENT_DIRS`): project cùng tên chỉ nằm ở một nơi (deploy Pulumi ở
+ * `deploys/`, migration authority ở `databases/`).
+ */
+function findDeployDir(name: string): string | undefined {
+  for (const dir of DEPLOYMENT_DIRS) {
+    const path = join(ROOT_DIR, dir, name);
+    if (existsSync(path)) return path;
+  }
+  return undefined;
+}
+
+/** Đọc marker `ecoma.deployment.status` từ package.json của một deploy project. */
+function readDeployStatusFromDisk(deploy: string): AppDeploymentStatus | undefined {
+  const dir = findDeployDir(deploy);
+  if (dir === undefined) return undefined;
+  return readDeploymentStatusMarker(join(dir, 'package.json'));
 }
 
 /**
@@ -190,7 +222,7 @@ export function validateDeploymentMap(input: {
         violations.push({
           project: key,
           kind: 'invalid-map-owner',
-          detail: `owner ${entry.owner} has no directory in ${DEPLOYMENT_DIR}/`,
+          detail: `owner ${entry.owner} has no directory in ${DEPLOYMENT_DIRS.join(' or ')}/`,
         });
       }
     }
@@ -218,7 +250,7 @@ export function validateDeploymentMap(input: {
   for (const deploy of deploysOnDisk) {
     const expected = ownedByStatus.get(deploy);
     if (expected === undefined) continue; // deploy project không owner app nào — reverse check phía dưới báo
-    const packageJsonPath = join(ROOT_DIR, DEPLOYMENT_DIR, deploy, 'package.json');
+    const packageJsonPath = join(findDeployDir(deploy) ?? '', 'package.json');
     let actual: AppDeploymentStatus | undefined;
     try {
       actual = readDeploymentStatusMarker(packageJsonPath);
@@ -226,7 +258,7 @@ export function validateDeploymentMap(input: {
       violations.push({
         project: deploy,
         kind: 'deployment-status-marker-mismatch',
-        detail: `cannot read ecoma.deployment.status from ${DEPLOYMENT_DIR}/${deploy}/package.json`,
+        detail: `cannot read ecoma.deployment.status from the package.json of deploy project ${deploy}`,
       });
       continue;
     }
@@ -262,9 +294,7 @@ export function validateDeploymentMap(input: {
     // local.ts, fail-closed hai chiều); thiếu marker là vẫn vi phạm như cũ.
     let scaffoldMarked = false;
     try {
-      scaffoldMarked =
-        readDeploymentStatusMarker(join(ROOT_DIR, DEPLOYMENT_DIR, name, 'package.json')) ===
-        'scaffold';
+      scaffoldMarked = readDeployStatusFromDisk(name) === 'scaffold';
     } catch {
       // package.json không đọc được — coi như không có marker, vẫn báo thiếu owner.
     }
@@ -384,7 +414,7 @@ function existsOnDisk(ref: string, base?: string): boolean {
  * JSON-only) — lúc đó ref chỉ được giải hệ theo repo root.
  */
 function findProjectDir(project: string): string | undefined {
-  for (const top of ['apps', 'libs', 'deploys', 'tools']) {
+  for (const top of ['apps', 'libs', ...DEPLOYMENT_DIRS, 'tools']) {
     for (const [name, dir] of listPackageJsonProjects(top)) {
       if (name === project) return dir;
     }
@@ -404,7 +434,7 @@ export function collectTargetCommands(): Map<string, readonly string[]> {
   const projectDirs: [string, string][] = [
     ...listPackageJsonProjects('apps'),
     ...listPackageJsonProjects('libs'),
-    ...listPackageJsonProjects('deploys'),
+    ...DEPLOYMENT_DIRS.flatMap((dir) => listPackageJsonProjects(dir)),
     ...listPackageJsonProjects('tools'),
   ];
   for (const [name, dir] of projectDirs) {

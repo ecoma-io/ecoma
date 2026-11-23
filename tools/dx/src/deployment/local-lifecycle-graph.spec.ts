@@ -36,6 +36,9 @@ import { collectWorkspaceState, DEPLOYMENT_TYPE } from '../architecture/arch-tag
 import { ROOT_DIR } from '../utils.js';
 
 const DEPLOYS_DIR = join(ROOT_DIR, 'deploys');
+// Migration authority `*-db` đã tách khỏi `deploys/` (#618) — cùng tập
+// deployment project cho các lượt kiểm lifecycle dưới đây.
+const DATABASES_DIR = join(ROOT_DIR, 'databases');
 const E2E_DIR = join(ROOT_DIR, 'system-tests', 'e2e');
 
 /** Target local mà một lane project phải có (cùng hợp đồng entry contract). */
@@ -68,7 +71,7 @@ function projectDirs(dir: string): string[] {
 }
 
 function deploymentProjectsOnDisk(): string[] {
-  return projectDirs(DEPLOYS_DIR).filter((root) => {
+  return [...projectDirs(DEPLOYS_DIR), ...projectDirs(DATABASES_DIR)].filter((root) => {
     const tags = nxSection(root).tags ?? [];
     return tags.includes(DEPLOYMENT_TYPE);
   });
@@ -134,7 +137,7 @@ function readSuiteContract(root: string): SuiteContract {
   };
 }
 
-describe('deploys/* local lifecycle inventory (self-maintaining)', () => {
+describe('deployment projects local lifecycle inventory (self-maintaining)', () => {
   it('every deployment project is either a lane project (local.ts + local targets) or scaffold-only (neither)', () => {
     // Hình tổng quát của allowlist trong local-entry-contract.spec.ts: phân loại
     // đọc từ ĐĨA, không liệt kê tay — một project mới rơi tự nhiên vào một trong
@@ -240,10 +243,15 @@ describe('system-tests/e2e/* prerequisite contract', () => {
       const contract = readSuiteContract(root);
       for (const dep of [...contract.implicit, ...contract.dependsOnProjects]) {
         if (!deployNames.has(dep)) {
-          violations.push(`${contract.name}: dependency ${dep} is not a deploys/* project`);
+          violations.push(
+            `${contract.name}: dependency ${dep} is not a deployment project (deploys/* or databases/*)`,
+          );
           continue;
         }
-        const depTargets = nxSection(join(DEPLOYS_DIR, dep)).targets ?? {};
+        const depRoot = existsSync(join(DEPLOYS_DIR, dep))
+          ? join(DEPLOYS_DIR, dep)
+          : join(DATABASES_DIR, dep);
+        const depTargets = nxSection(depRoot).targets ?? {};
         if (depTargets['local-up'] === undefined) {
           violations.push(
             `${contract.name}: prerequisite ${dep} does not implement local-up (scaffold-only projects cannot be prerequisites)`,

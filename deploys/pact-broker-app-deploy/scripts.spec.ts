@@ -138,8 +138,8 @@ describe('buildMigrateScript', () => {
     expect(script).toContain('--network ecoma-x-network');
     expect(script).toContain(`-v '/repo/worktrees/x':/repo:ro`);
     expect(script).toContain(`-v '/repo/worktrees/x'/node_modules:/repo/node_modules`);
-    // Chạy đúng runner của APP (`deploys/pact-broker-app-db`), không phải của API.
-    expect(script).toContain('-w /repo/deploys/pact-broker-app-db');
+    // Chạy đúng runner của APP (`databases/pact-broker-app-db`), không phải của API.
+    expect(script).toContain('-w /repo/databases/pact-broker-app-db');
     expect(script).toContain(NODE_IMAGE);
     expect(script).toContain(
       '/repo/node_modules/.bin/tsx --tsconfig tsconfig.db.json runner.mts migrate',

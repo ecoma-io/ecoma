@@ -17,7 +17,7 @@ import { resolve } from 'node:path';
 import { ACCOUNT_DATABASE, AUTH_DATABASE } from '../../db/migrate.mts';
 
 /**
- * Runner migration hợp đồng của `deploys/account-db` (cutover #375): harness
+ * Runner migration hợp đồng của `databases/account-db` (cutover #375): harness
  * apply qua **cùng đường** mà production đi — spawn `runner.mts migrate`, gồm
  * guard `current_database()`, advisory lock và GUC `ecoma.auth_database`.
  * Viết vòng apply riêng ở đây là tạo runner thứ hai không có lock.
@@ -205,7 +205,7 @@ async function runDockerProbe(): Promise<void> {
 }
 
 /**
- * Apply migration qua runner thật của `deploys/account-db` — spawn
+ * Apply migration qua runner thật của `databases/account-db` — spawn
  * `runner.mts migrate` bằng credential migrator thật (không `SET ROLE`).
  *
  * Tách riêng khỏi `startAccountDatabase` để test "apply lại là no-op" gọi lại
@@ -264,7 +264,7 @@ export async function applyMigrations(database: { host: string; port: number }):
   });
   if (code !== 0) {
     throw new Error(
-      `deploys/account-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
+      `databases/account-db runner.mts migrate exited with code ${code}\n${stdout}\n${stderr}`,
     );
   }
 }
