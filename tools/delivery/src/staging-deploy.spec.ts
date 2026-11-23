@@ -6,11 +6,14 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStagingManifest,
   deployEligibilityPath,
+  injectStagingNoIndexHeaders,
   isFullCommitSha,
   readEligibilityDecision,
   resolveStagingWorkerIdentity,
   runStagingDeploy,
+  STAGING_NO_INDEX_HEADER_RULE,
   verifyBuildManifest,
+  withStagingNoIndexHeaderRule,
   type StagingDeployDeps,
 } from './staging-deploy.ts';
 import { GuardAbortError, type RunListQueryResult } from './staging-guard.ts';
@@ -38,11 +41,14 @@ function fakeDeps(files: Record<string, string>): {
   deps: StagingDeployDeps;
   deployCalls: DeployStagingWorkerOptions[];
   lines: string[];
+  /** Path của các lần ghi file qua `writeTextFile` — test inject dùng. */
+  written: string[];
   /** Gán kết quả lượt tra cứu run MỚI cho guard — chỉ test có guard mới dùng. */
   setQueryRuns: (result: RunListQueryResult) => void;
 } {
   const deployCalls: DeployStagingWorkerOptions[] = [];
   const lines: string[] = [];
+  const written: string[] = [];
   // Ném ngay: test KHÔNG bật guard mà chạm truy cứu run là lỗi wiring —
   // mọi test cũ (guard tắt) xác nhận đường cũ không tra cứu gì.
   let queryRunsImpl: () => RunListQueryResult = neverQueryRuns;
@@ -51,6 +57,11 @@ function fakeDeps(files: Record<string, string>): {
       const text = files[path];
       if (text === undefined) throw new Error(`ENOENT: no such file: ${path}`);
       return text;
+    },
+    writeTextFile: (path, text) => {
+      if (!(path in files)) throw new Error(`ENOENT: no such file: ${path}`);
+      files[path] = text;
+      written.push(path);
     },
     deployStaging: (options) => {
       deployCalls.push(options);
@@ -63,6 +74,7 @@ function fakeDeps(files: Record<string, string>): {
     deps,
     deployCalls,
     lines,
+    written,
     setQueryRuns: (result) => {
       queryRunsImpl = () => result;
     },
@@ -71,6 +83,7 @@ function fakeDeps(files: Record<string, string>): {
 
 const HOME_CONFIG = '/repo/apps/home/wrangler.jsonc';
 const HOME_MANIFEST = '/repo/build-manifest.json';
+const HOME_HEADERS = '/repo/apps/home/.output/public/_headers';
 
 /** Bộ file "mọi preflight pass" — dùng chung cho test deploy và test guard. */
 function happyFiles(): Record<string, string> {
@@ -78,6 +91,7 @@ function happyFiles(): Record<string, string> {
     [HOME_CONFIG]: CONFIG_TEXT,
     [HOME_MANIFEST]: JSON.stringify({ sha: SHA, worker: 'stg-ecoma-home' }),
     [deployEligibilityPath()]: ELIGIBILITY_RELEASEABLE,
+    [HOME_HEADERS]: '/_nuxt/*\n  cache-control: public, max-age=31536000, immutable\n',
   };
 }
 
@@ -227,6 +241,47 @@ describe('verifyBuildManifest', () => {
   });
 });
 
+describe('withStagingNoIndexHeaderRule', () => {
+  it('appends the catch-all noindex rule to cache rules', () => {
+    const out = withStagingNoIndexHeaderRule('/_nuxt/*\n  cache-control: max-age=31536000\n');
+    expect(out).toBe(
+      `/_nuxt/*\n  cache-control: max-age=31536000\n${STAGING_NO_INDEX_HEADER_RULE}\n`,
+    );
+  });
+
+  it('leaves a file that already carries a bare /* rule untouched', () => {
+    const text = '/*\n  X-Robots-Tag: noindex\n';
+    expect(withStagingNoIndexHeaderRule(text)).toBe(text);
+  });
+
+  it('ignores wildcard rules other than a bare /*', () => {
+    const text = '/_nuxt/*\n  cache-control: max-age=31536000\n';
+    expect(withStagingNoIndexHeaderRule(text)).not.toBe(text);
+  });
+});
+
+describe('injectStagingNoIndexHeaders', () => {
+  it('writes the noindex rule into the artifact _headers next to the config', () => {
+    const { deps } = fakeDeps(happyFiles());
+    injectStagingNoIndexHeaders(HOME_CONFIG, deps);
+    expect(deps.readTextFile(HOME_HEADERS)).toContain(STAGING_NO_INDEX_HEADER_RULE);
+  });
+
+  it('is idempotent — a second run writes nothing', () => {
+    const { deps, written } = fakeDeps(happyFiles());
+    injectStagingNoIndexHeaders(HOME_CONFIG, deps);
+    injectStagingNoIndexHeaders(HOME_CONFIG, deps);
+    expect(written.filter((path) => path === HOME_HEADERS)).toHaveLength(1);
+  });
+
+  it('fails closed naming the missing _headers path', () => {
+    const { deps } = fakeDeps({});
+    expect(() => injectStagingNoIndexHeaders(HOME_CONFIG, deps)).toThrowError(
+      /cannot read the static-asset _headers file at .*_headers.*§7\.5 item 9/su,
+    );
+  });
+});
+
 describe('runStagingDeploy', () => {
   const params = {
     configPath: HOME_CONFIG,
@@ -251,6 +306,7 @@ describe('runStagingDeploy', () => {
     expect(lines.join('')).toContain('worker identity resolved (stg-ecoma-home)');
     expect(lines.join('')).toContain('is staging-releaseable');
     expect(lines.join('')).toContain(`build manifest matches run sha ${SHA}`);
+    expect(lines.join('')).toContain('static-asset _headers noindex rule ensured');
     expect(lines.join('')).toContain('after 1 attempt(s)');
   });
 

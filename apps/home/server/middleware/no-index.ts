@@ -10,9 +10,9 @@ import { defineEventHandler, setResponseHeader } from 'h3';
  * **PHẠM VI:** chỉ bề mặt **Worker-served** — request khớp static asset
  * (homepage prerendered, `404.html`, các asset build, không `run_worker_first`)
  * KHÔNG invoke Worker nên middleware này không chạy. Noindex cho bề mặt đó
- * đến từ file `_headers` mà job deploy staging inject vào artifact trước
- * `wrangler deploy` (xem `staging-deploy.mts`; mechanism nằm ngoài app này —
- * được ghi nhận là giới hạn đã biết, không fix ở đây); smoke staging assert
+ * đến từ file `_headers` mà lane deploy staging inject vào artifact trước
+ * `wrangler deploy` (`injectStagingNoIndexHeaders` trong
+ * `tools/delivery/src/staging-deploy.ts`); smoke staging assert
  * cả hai bề mặt.
  *
  * Vì sao middleware server chứ không `useHead`/`routeRules`: `X-Robots-Tag`
