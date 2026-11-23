@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `renewSessionTokens`/`renewSessionTokensOnce`
  * (`server/auth/refresh.ts`) — hợp đồng gia hạn access token từ refresh token

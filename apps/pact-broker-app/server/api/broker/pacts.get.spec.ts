@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Colocated spec của route `pacts.get.ts` — hợp đồng **composition** phía BFF
  * (issue #181): route gọi `/pacticipants` trước rồi `GET /matrix` ĐÚNG MỘT LẦN
