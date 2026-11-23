@@ -5,8 +5,9 @@ import vue from '@vitejs/plugin-vue';
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/libs/ui-ecoma-logo',
-  // tsconfigPaths resolve alias tsconfig (`@ecoma-io/*`), vue() transform
-  // component `.vue` — đặt sau vì transform pipeline đọc theo thứ tự.
+  // tsconfigPaths resolve alias tsconfig (`@ecoma-io/*`, thay `nxViteTsPaths`
+  // bị bỏ ở Nx 24), vue() transform component `.vue` — đặt sau vì transform
+  // pipeline đọc theo thứ tự.
   // Không cần copy-assets: vitest không emit build output, còn spec đọc asset
   // thẳng từ source qua `readFileSync` (xem `ecoma-logo.spec.ts`).
   plugins: [tsconfigPaths(), vue()],

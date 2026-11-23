@@ -7,9 +7,9 @@ export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/home',
   // `tsconfigPaths()` resolve alias `@ecoma-io/*` theo `paths` của tsconfig
-  // mà project tham chiếu; `vue()` transform component `.vue` (nuxt.config.ts
-  // cũng khai alias này cho runtime — hai nơi phải khớp, xem
-  // `apps/home/nuxt.config.ts`).
+  // mà project tham chiếu (thay `nxViteTsPaths` bị bỏ ở Nx 24); `vue()`
+  // transform component `.vue` (nuxt.config.ts cũng khai alias này cho
+  // runtime — hai nơi phải khớp, xem `apps/home/nuxt.config.ts`).
   plugins: [tsconfigPaths(), vue()],
   resolve: {
     // Nuxt alias không tồn tại ngoài Nuxt runtime: `#shared` là output của
