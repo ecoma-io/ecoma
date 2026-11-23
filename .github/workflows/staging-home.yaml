@@ -128,3 +128,7 @@ jobs:
       # dùng cặp ECOMA_CLOUDFLARE_PRODUCTION_* tương ứng, không bao giờ tréo cặp.
       cloudflare_api_token: ${{ secrets.ECOMA_CLOUDFLARE_STAGING_API_TOKEN }}
       cloudflare_account_id: ${{ secrets.ECOMA_CLOUDFLARE_STAGING_ACCOUND_ID }}
+      # Self-hosted Nx remote cache (#592) — cùng org secret cho mọi lane; lane
+      # production tương lai map cùng cặp này, không tréo cặp Cloudflare.
+      nx_cache_server: ${{ secrets.ECOMA_NX_CACHE_SERVER }}
+      nx_cache_access_token: ${{ secrets.ECOMA_NX_CACHE_ACCESS_TOKEN }}

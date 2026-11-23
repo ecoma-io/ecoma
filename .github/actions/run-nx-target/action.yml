@@ -89,6 +89,8 @@ runs:
         CONFIGURATION: ${{ inputs.configuration }}
         RETRIES: ${{ inputs.retries }}
         RETRY_COMMAND: ${{ inputs.retry-command }}
+        NX_SELF_HOSTED_REMOTE_CACHE_SERVER: ${{ env.ECOMA_NX_CACHE_SERVER }}
+        NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN: ${{ env.ECOMA_NX_CACHE_ACCESS_TOKEN }}
       run: |
         set -euo pipefail
 

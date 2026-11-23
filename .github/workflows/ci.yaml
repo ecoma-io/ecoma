@@ -28,6 +28,16 @@ on:
 permissions:
   contents: read
 
+env:
+  # Self-hosted Nx remote cache (#592, docs/applications/remote-cache/03-operations.md §4).
+  # Composite action `run-nx-target` forwards these into NX_SELF_HOSTED_REMOTE_CACHE_*.
+  # Org secrets are invisible to fork PRs by GitHub design; the pull_request job env
+  # carries only what the pull_request target grants, and read-only access from PR
+  # builds is deliberately not wired (02-delivery.md §6 rule 1/10: PR/fork gets no
+  # cache credential).
+  ECOMA_NX_CACHE_SERVER: ${{ secrets.ECOMA_NX_CACHE_SERVER }}
+  ECOMA_NX_CACHE_ACCESS_TOKEN: ${{ secrets.ECOMA_NX_CACHE_ACCESS_TOKEN }}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
