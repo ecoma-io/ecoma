@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/authorization.ts` — cổng hỏi verdict của
  * `staff-access` (ADR-0030 Quyết định 3, ADR-0033 Quyết định 3).

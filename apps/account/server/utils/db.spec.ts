@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { Hyperdrive } from '@cloudflare/workers-types';
 import type { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';

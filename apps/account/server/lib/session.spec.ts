@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/lib/session.ts` — phần thuần: identifier/token, hash,
  * mốc thời gian, cookie builder và double-submit CSRF.

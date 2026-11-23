@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test cho `server/utils/auth-service-shim.ts` — adapter HTTP của Service
  * Binding `AUTH_SERVICE` trên preset `node-server`.

@@ -7,11 +7,16 @@
  * hổng mà Issue #123 vá: auth chạy bản in-memory trong khi người dùng tin rằng
  * họ đang trong luồng thật.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createPreviewAccountAdapter } from './preview-adapter';
 
 describe('preview adapter', () => {
+  // Stub `fetch` phải restore sau mỗi test để không rò rỉ sang test khác.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('routes the auth flows it exercises through the real BFF path, not an in-memory fixture', async () => {
     // Probe hành vi thay vì so sánh hàm: mỗi factory call tạo instance mới,
     // nên so sánh tham chiếu không bao giờ khớp. Điểm bất biến thật sự là **đi
