@@ -191,7 +191,7 @@
         },
         "options": {
           "cwd": "libs/pact-broker-api-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

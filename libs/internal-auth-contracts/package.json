@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/internal-auth-contracts",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

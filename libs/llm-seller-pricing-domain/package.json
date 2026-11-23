@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/llm-seller-pricing-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

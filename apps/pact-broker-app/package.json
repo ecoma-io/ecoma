@@ -134,7 +134,7 @@
         },
         "options": {
           "cwd": "apps/pact-broker-app",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

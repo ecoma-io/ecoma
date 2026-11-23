@@ -331,7 +331,7 @@
         },
         "options": {
           "cwd": "apps/push-notification",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

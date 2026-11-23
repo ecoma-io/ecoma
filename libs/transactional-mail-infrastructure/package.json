@@ -181,7 +181,7 @@
         },
         "options": {
           "cwd": "libs/transactional-mail-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

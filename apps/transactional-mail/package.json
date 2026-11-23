@@ -336,7 +336,7 @@
         },
         "options": {
           "cwd": "apps/transactional-mail",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

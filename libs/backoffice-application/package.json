@@ -194,7 +194,7 @@
         },
         "options": {
           "cwd": "libs/backoffice-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

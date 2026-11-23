@@ -180,7 +180,7 @@
         },
         "options": {
           "cwd": "libs/transactional-mail-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

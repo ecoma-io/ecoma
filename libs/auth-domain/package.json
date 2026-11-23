@@ -174,7 +174,7 @@
         },
         "options": {
           "cwd": "libs/auth-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

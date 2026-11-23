@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/staff-access-relay-application",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

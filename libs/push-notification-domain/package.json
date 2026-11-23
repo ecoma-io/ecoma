@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/push-notification-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

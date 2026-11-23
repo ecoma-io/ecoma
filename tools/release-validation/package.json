@@ -195,7 +195,7 @@
         },
         "options": {
           "cwd": "tools/release-validation",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

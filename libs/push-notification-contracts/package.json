@@ -183,7 +183,7 @@
         },
         "options": {
           "cwd": "libs/push-notification-contracts",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

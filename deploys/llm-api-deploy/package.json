@@ -189,7 +189,7 @@
         ],
         "options": {
           "cwd": "deploys/llm-api-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "//": [
           "Target `test` = unit/component colocated của project (06-testing.md",

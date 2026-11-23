@@ -176,7 +176,7 @@
         },
         "options": {
           "cwd": "libs/account-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

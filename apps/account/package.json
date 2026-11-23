@@ -84,7 +84,7 @@
         },
         "options": {
           "cwd": "apps/account",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true,

@@ -330,7 +330,7 @@
         },
         "options": {
           "cwd": "apps/web-push-notification-job",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

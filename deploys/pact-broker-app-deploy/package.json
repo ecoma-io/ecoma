@@ -229,7 +229,7 @@
         },
         "options": {
           "cwd": "deploys/pact-broker-app-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

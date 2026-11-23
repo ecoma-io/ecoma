@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/llm-marketplace-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

@@ -186,7 +186,7 @@
         },
         "options": {
           "cwd": "libs/web-push-notification-job-infrastructure",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

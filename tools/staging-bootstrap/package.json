@@ -189,7 +189,7 @@
         },
         "options": {
           "cwd": "tools/staging-bootstrap",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

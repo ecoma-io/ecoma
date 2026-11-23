@@ -184,7 +184,7 @@
         },
         "options": {
           "cwd": "libs/llm-financial-domain",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

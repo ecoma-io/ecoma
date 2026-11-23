@@ -119,7 +119,7 @@
         },
         "options": {
           "cwd": "deploys/push-notification-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

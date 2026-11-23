@@ -138,7 +138,7 @@
         },
         "options": {
           "cwd": "deploys/staff-access-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

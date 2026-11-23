@@ -94,7 +94,7 @@
         },
         "options": {
           "cwd": "deploys/transactional-mailer-job-deploy",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

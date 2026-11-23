@@ -176,7 +176,7 @@
         },
         "options": {
           "cwd": "libs/ui-ecoma-logo",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true

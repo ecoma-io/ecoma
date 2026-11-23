@@ -334,7 +334,7 @@
         },
         "options": {
           "cwd": "apps/auth",
-          "command": "vitest"
+          "command": "vitest run"
         },
         "configurations": {},
         "parallelism": true
