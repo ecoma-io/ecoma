@@ -18,7 +18,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setNuxtApp } from '../../tests/nuxt-app-state';
 import { useBackofficeSession } from './use-backoffice-session';
 
-const CSRF_COOKIE = '__Host-backoffice-csrf';
+// `location` của jsdom là LegacyUnforgeable (accessor non-configurable ở pool
+// `vmThreads`) nên không stub được — mock seam navigation thay thế
+// (xem `navigate-full-page.ts`).
+vi.mock('../utils/navigate-full-page', () => ({
+  navigateFullPage: vi.fn<(url: string) => void>(),
+}));
+const assign = vi.mocked((await import('../utils/navigate-full-page')).navigateFullPage);
 
 /** Fetch giả trả JSON theo kịch bản; mặc định 200 `{ authenticated: false }`. */
 function stubFetch(respond: () => { status: number; body?: unknown; networkError?: boolean }) {
@@ -37,14 +43,11 @@ function stubFetch(respond: () => { status: number; body?: unknown; networkError
   return mock;
 }
 
-const assign = vi.fn<(url: string) => void>();
+const CSRF_COOKIE = '__Host-backoffice-csrf';
 
 beforeEach(() => {
-  // `window.location` của jsdom không có assign thật (navigation không được mô
-  // phỏng), và phương thức `assign` là own non-configurable — thay cả object
-  // `location` (descriptor của nó trên `window` lại configurable).
+  // Mock seam đã khai ở `vi.mock` phía trên; chỉ cần dọn calls giữa các test.
   assign.mockClear();
-  vi.stubGlobal('location', { assign });
   // `__Host-` prefix bắt buộc `Secure` (jsdom cũng thi hành luật này khi ghi
   // document.cookie — giống trình duyệt thật); đọc lại vẫn được qua http trong
   // jsdom, nên không cần mock `document`.
@@ -54,7 +57,6 @@ beforeEach(() => {
 afterEach(() => {
   // Xoá đúng cookie test vừa ghi (path + Secure cùng lúc lúc ghi).
   document.cookie = `${CSRF_COOKIE}=; path=/; Secure; max-age=0`;
-  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 

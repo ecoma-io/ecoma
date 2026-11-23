@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Test của cổng cấu hình OIDC — `backofficeAuthConfig` là điểm mà middleware
  * authn, login và callback cùng đi qua, và `null` của nó là tín hiệu `503`

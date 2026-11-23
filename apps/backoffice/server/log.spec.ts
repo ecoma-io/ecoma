@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Test của structured logger — tầng duy nhất của app được phép `console.*`,
  * nên mọi thứ khác của hợp đồng này đều xoay quanh hai bất biến:

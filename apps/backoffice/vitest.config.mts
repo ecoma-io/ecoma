@@ -77,6 +77,9 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    // Pool `vmThreads`: môi trường jsdom chỉ tạo một lần mỗi worker thay vì mỗi
+    // file — bước tiết kiệm lớn nhất sau khi 22 spec server chuyển sang env node.
+    pool: 'vmThreads',
     // `tests/setup.ts` cài global của Nuxt **trước** mọi test file: `app.vue` và
     // `useAsyncState()` gọi tên trần (`useRoute`, `useHead`, `onMounted`) lúc `setup()`,
     // và global phải có mặt trước lần render đầu.

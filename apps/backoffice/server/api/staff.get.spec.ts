@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/staff` sau P5.1 (issue #475): staff directory đọc
  * từ Staff Access management API qua `fetchStaffDirectory`, sau đó merge

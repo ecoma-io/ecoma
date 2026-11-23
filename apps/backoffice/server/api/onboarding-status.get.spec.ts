@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/onboarding-status` — classification fail-closed của
  * từng nhánh hạ tầng, dùng h3 app thật với event context tự gắn (cùng kiểu với

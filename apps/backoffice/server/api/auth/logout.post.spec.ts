@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `POST /api/auth/logout` — hội tụ ở đúng invariant mà #243 đổi:
  * **nơi POST `/revocation` được dựng từ đâu**.

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của khung chung của 3 read route (`withReadEnforcement`) —
  * classification của các nhánh fail-closed mà suite integration không phủ

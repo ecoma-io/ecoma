@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Unit test của `GET /api/auth/session` (#182) — route probe trạng thái phiên
  * **chỉ để hiển thị** của shell.
