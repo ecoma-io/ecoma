@@ -11,7 +11,7 @@
     "postgres": "3.4.9"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261121.1",
+    "@cloudflare/workers-types": "5.20261123.1",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@commitlint/config-nx-scopes": "^21.2.3",
@@ -71,7 +71,7 @@
     "vue-tsc": "^3.3.14",
     "wrangler": "4.166.0"
   },
-  "packageManager": "pnpm@12.21.0",
+  "packageManager": "pnpm@12.23.0",
   "//": [
     "Giữ postgres ở root: integration test của apps/auth import trực tiếp mà",
     "không tự khai — xoá sẽ gãy test-integration apps/auth (fix đúng chỗ ngoài",
