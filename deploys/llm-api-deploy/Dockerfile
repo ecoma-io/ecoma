@@ -15,7 +15,7 @@
 # TS khác) — lệch này chỉ chạm entrypoint + volume mount, image vẫn là "phòng
 # chạy" trung tính với ngôn ngữ runtime.
 
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:873f586f3794f52281bd039bf02c048a0be08fde619338f9941bad1eb6b34530
 FROM ${NODE_IMAGE}
 
 # PF2: workerd đòi CA hệ thống; thiếu là lỗi khởi động tường minh.
