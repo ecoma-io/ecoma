@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+        uses: github/codeql-action/init@74c1aea9df7c0f02e9b7bfe4a8935abf2e5e3aa6 # v3.39.5
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -51,7 +51,7 @@ jobs:
           # trong file vì sao là loại có chủ đích chứ không phải né finding).
           config-file: ./.github/codeql-config.yml
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+        uses: github/codeql-action/analyze@74c1aea9df7c0f02e9b7bfe4a8935abf2e5e3aa6 # v3.39.5
         with:
           category: '/language:${{ matrix.language }}'
 
@@ -164,7 +164,7 @@ jobs:
         id: semgrep-upload
         continue-on-error: true
         if: steps.semgrep-filter.outcome == 'success'
-        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3.39.4
+        uses: github/codeql-action/upload-sarif@74c1aea9df7c0f02e9b7bfe4a8935abf2e5e3aa6 # v3.39.5
         with:
           sarif_file: /tmp/semgrep.upload.sarif
           category: semgrep
