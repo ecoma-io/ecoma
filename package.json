@@ -11,7 +11,7 @@
     "postgres": "3.4.9"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261124.1",
+    "@cloudflare/workers-types": "5.20261125.1",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@commitlint/config-nx-scopes": "^21.2.3",
@@ -37,7 +37,7 @@
     "@pulumi/command": "^1.2.1",
     "@pulumi/docker": "^5.2.0",
     "@pulumi/docker-build": "0.0.23",
-    "@pulumi/pulumi": "3.277.0",
+    "@pulumi/pulumi": "3.278.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.19.1",
     "@vitejs/plugin-vue": "^6.0.1",
@@ -57,7 +57,7 @@
     "nx": "24.0.6",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.87.0",
-    "pulumi": "3.277.0",
+    "pulumi": "3.278.0",
     "reka-ui": "^2.11.0",
     "tailwindcss": "^4.3.3",
     "tslib": "^2.3.0",
