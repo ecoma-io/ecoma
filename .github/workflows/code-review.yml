@@ -197,7 +197,7 @@ jobs:
       - name: Review the pull request
         id: ocr
         if: steps.pr.outputs.skip_review != 'true'
-        uses: alibaba/open-code-review@284ff013f0705ae6cac4c8dfbffa2f2551886d56 # v1.14.1
+        uses: alibaba/open-code-review@d4f568f71d3a9d5c5ec972791b1509e40cd31ad1 # v1.14.4
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           base_ref: ${{ steps.pr.outputs.base_ref }}
