@@ -7,7 +7,7 @@
     "@ecoma-io/ui-ecoma-logo": "workspace:*"
   },
   "devDependencies": {
-    "@nuxtjs/i18n": "10.6.0"
+    "@nuxtjs/i18n": "10.7.0"
   },
   "nx": {
     "tags": [
